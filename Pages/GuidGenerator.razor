@@ -1,0 +1,35 @@
+@page "/guid-generator"
+
+<ToolPage Title="GUID / UUID Generator" Description="Generate random version 4 GUIDs (UUIDs) in bulk, in several formats.">
+    <div class="toolbar">
+        <label>Count <input type="number" min="1" max="1000" @bind="count" /></label>
+        <label>Format
+            <select @bind="format">
+                <option value="D">Standard (D)</option>
+                <option value="N">No hyphens (N)</option>
+                <option value="B">Braces (B)</option>
+                <option value="P">Parentheses (P)</option>
+            </select>
+        </label>
+        <label><input type="checkbox" @bind="upper" /> Uppercase</label>
+        <button class="btn" @onclick="Generate">Generate</button>
+        <CopyButton Text="@output" />
+    </div>
+    <textarea class="io" rows="16" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private int count = 5;
+    private string format = "D";
+    private bool upper;
+    private string output = "";
+
+    protected override void OnInitialized() => Generate();
+
+    private void Generate()
+    {
+        var n = Math.Clamp(count, 1, 1000);
+        var guids = Enumerable.Range(0, n).Select(_ => Guid.NewGuid().ToString(format));
+        output = string.Join('\n', upper ? guids.Select(g => g.ToUpperInvariant()) : guids);
+    }
+}

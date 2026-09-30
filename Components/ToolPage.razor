@@ -1,0 +1,15 @@
+<PageTitle>@Title | DevToolsHub</PageTitle>
+<HeadContent>
+    <meta name="description" content="@Description" />
+</HeadContent>
+
+<h1>@Title</h1>
+<p class="lead">@Description</p>
+
+@ChildContent
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Description { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

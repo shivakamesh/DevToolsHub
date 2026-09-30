@@ -1,0 +1,67 @@
+@page "/jwt-decoder"
+@using System.Text
+@using System.Text.Json
+@using System.Text.Json.Nodes
+
+<ToolPage Title="JWT Decoder" Description="Decode JSON Web Tokens and inspect header, payload and expiry. The signature is not verified.">
+    <textarea class="io" rows="6" placeholder="Paste a JWT (eyJ...)" @bind="token" @bind:event="oninput" @bind:after="Decode"></textarea>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (payload is not null)
+    {
+        @if (expiry is not null)
+        {
+            <div class="alert @(expiry < DateTimeOffset.UtcNow ? "error" : "ok")">
+                Expires: @expiry.Value.ToString("u") (@(expiry < DateTimeOffset.UtcNow ? "expired" : "valid"))
+            </div>
+        }
+        <h3>Header</h3>
+        <pre class="code">@header</pre>
+        <h3>Payload</h3>
+        <pre class="code">@payload</pre>
+    }
+</ToolPage>
+
+@code {
+    private string token = "";
+    private string? header;
+    private string? payload;
+    private string? error;
+    private DateTimeOffset? expiry;
+
+    private static readonly JsonSerializerOptions Pretty = new() { WriteIndented = true };
+
+    private void Decode()
+    {
+        header = payload = error = null;
+        expiry = null;
+        var t = token.Trim();
+        if (t.Length == 0) return;
+
+        var parts = t.Split('.');
+        if (parts.Length < 2)
+        {
+            error = "A JWT must have at least two dot-separated parts.";
+            return;
+        }
+        try
+        {
+            header = PrettyPart(parts[0]);
+            var payloadNode = JsonNode.Parse(Encoding.UTF8.GetString(Base64Tool.FromBase64(parts[1])));
+            payload = payloadNode?.ToJsonString(Pretty);
+            if (payloadNode?["exp"] is JsonValue exp && exp.TryGetValue<long>(out var seconds))
+                expiry = DateTimeOffset.FromUnixTimeSeconds(seconds);
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException)
+        {
+            header = payload = null;
+            error = "Token could not be decoded: " + ex.Message;
+        }
+    }
+
+    private static string PrettyPart(string part) =>
+        JsonNode.Parse(Encoding.UTF8.GetString(Base64Tool.FromBase64(part)))?.ToJsonString(Pretty) ?? "";
+}

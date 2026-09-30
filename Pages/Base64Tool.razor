@@ -1,0 +1,54 @@
+@page "/base64"
+@using System.Text
+
+<ToolPage Title="Base64 Encode / Decode" Description="Encode text to Base64 or decode Base64 to text (UTF-8, URL-safe supported).">
+    <textarea class="io" rows="10" placeholder="Input..." @bind="input" @bind:event="oninput"></textarea>
+
+    <div class="toolbar">
+        <label><input type="checkbox" @bind="urlSafe" /> URL-safe</label>
+        <button class="btn" @onclick="Encode">Encode</button>
+        <button class="btn" @onclick="Decode">Decode</button>
+        <CopyButton Text="@output" />
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    <textarea class="io" rows="10" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string input = "";
+    private string output = "";
+    private string? error;
+    private bool urlSafe;
+
+    private void Encode()
+    {
+        error = null;
+        var b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(input));
+        output = urlSafe ? b64.TrimEnd('=').Replace('+', '-').Replace('/', '_') : b64;
+    }
+
+    private void Decode()
+    {
+        error = null;
+        try
+        {
+            output = Encoding.UTF8.GetString(FromBase64(input.Trim()));
+        }
+        catch (FormatException)
+        {
+            output = "";
+            error = "Input is not valid Base64.";
+        }
+    }
+
+    internal static byte[] FromBase64(string s)
+    {
+        s = s.Replace('-', '+').Replace('_', '/');
+        s = s.PadRight(s.Length + (4 - s.Length % 4) % 4, '=');
+        return Convert.FromBase64String(s);
+    }
+}

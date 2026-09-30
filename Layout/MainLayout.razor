@@ -1,0 +1,24 @@
+@inherits LayoutComponentBase
+
+<header class="topbar">
+    <a class="brand" href="">&lt;/&gt; DevToolsHub</a>
+    <span class="tagline">Free, fast developer tools. Everything runs in your browser.</span>
+</header>
+
+<div class="shell">
+    <nav class="sidebar">
+        <NavLink href="" Match="NavLinkMatch.All">Home</NavLink>
+        <NavLink href="json-formatter">JSON Formatter</NavLink>
+        <NavLink href="base64">Base64 Encode/Decode</NavLink>
+        <NavLink href="jwt-decoder">JWT Decoder</NavLink>
+        <NavLink href="guid-generator">GUID Generator</NavLink>
+        <NavLink href="regex-tester">Regex Tester</NavLink>
+    </nav>
+    <main class="content">
+        @Body
+    </main>
+</div>
+
+<footer class="footer">
+    &copy; @DateTime.UtcNow.Year DevToolsHub &middot; No data leaves your browser.
+</footer>

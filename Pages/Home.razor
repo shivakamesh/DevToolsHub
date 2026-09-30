@@ -1,0 +1,32 @@
+@page "/"
+
+<PageTitle>DevToolsHub - Free Online Developer Tools</PageTitle>
+<HeadContent>
+    <meta name="description" content="Free online developer tools: JSON formatter, Base64 encoder, JWT decoder, GUID generator and regex tester. Private, fast, client-side." />
+</HeadContent>
+
+<h1>Developer tools that respect your data</h1>
+<p class="lead">Everything runs locally in your browser. Nothing is uploaded.</p>
+
+<div class="grid">
+    @foreach (var t in tools)
+    {
+        <a class="card" href="@t.Href">
+            <h3>@t.Name</h3>
+            <p>@t.Summary</p>
+        </a>
+    }
+</div>
+
+@code {
+    public record Tool(string Name, string Href, string Summary);
+
+    private readonly Tool[] tools =
+    [
+        new("JSON Formatter", "json-formatter", "Format, validate and minify JSON."),
+        new("Base64", "base64", "Encode and decode Base64 text (UTF-8)."),
+        new("JWT Decoder", "jwt-decoder", "Inspect JWT header, payload and expiry."),
+        new("GUID Generator", "guid-generator", "Generate one or many GUIDs/UUIDs."),
+        new("Regex Tester", "regex-tester", "Test .NET regular expressions live."),
+    ];
+}

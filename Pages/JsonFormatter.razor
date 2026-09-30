@@ -1,0 +1,68 @@
+@page "/json-formatter"
+@using System.Text.Json
+@using System.Text.Json.Nodes
+
+<ToolPage Title="JSON Formatter & Validator" Description="Format, validate and minify JSON online. Runs entirely in your browser.">
+    <textarea class="io" rows="12" placeholder="Paste JSON here..." @bind="input" @bind:event="oninput"></textarea>
+
+    <div class="toolbar">
+        <label>Indent
+            <select @bind="indent">
+                <option value="2">2 spaces</option>
+                <option value="4">4 spaces</option>
+            </select>
+        </label>
+        <button class="btn" @onclick="Format">Format</button>
+        <button class="btn" @onclick="Minify">Minify</button>
+        <CopyButton Text="@output" />
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    <textarea class="io" rows="12" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string input = "";
+    private string output = "";
+    private string? error;
+    private int indent = 2;
+
+    private void Format() => Process(writeIndented: true);
+    private void Minify() => Process(writeIndented: false);
+
+    private void Process(bool writeIndented)
+    {
+        error = null;
+        output = "";
+        if (string.IsNullOrWhiteSpace(input)) return;
+        try
+        {
+            var node = JsonNode.Parse(input, documentOptions: new JsonDocumentOptions
+            {
+                AllowTrailingCommas = true,
+                CommentHandling = JsonCommentHandling.Skip
+            });
+            var json = node?.ToJsonString(new JsonSerializerOptions { WriteIndented = writeIndented }) ?? "null";
+            output = writeIndented && indent != 2 ? Reindent(json, indent) : json;
+        }
+        catch (JsonException ex)
+        {
+            error = $"Invalid JSON: {ex.Message}";
+        }
+    }
+
+    private static string Reindent(string json, int size)
+    {
+        var lines = json.Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var trimmed = lines[i].TrimStart(' ');
+            var level = (lines[i].Length - trimmed.Length) / 2;
+            lines[i] = new string(' ', level * size) + trimmed;
+        }
+        return string.Join('\n', lines);
+    }
+}

@@ -1,0 +1,113 @@
+@page "/regex-tester"
+@using System.Text.RegularExpressions
+
+<ToolPage Title="Regex Tester (.NET)" Description="Test .NET regular expressions live with match highlighting and capture groups.">
+    (\w+)@@(\w+\.\w+)
+
+    <div class="toolbar">
+        <label><input type="checkbox" @bind="ignoreCase" @bind:after="Run" /> Ignore case</label>
+        <label><input type="checkbox" @bind="multiline" @bind:after="Run" /> Multiline</label>
+        <label><input type="checkbox" @bind="singleline" @bind:after="Run" /> Singleline</label>
+    </div>
+
+    <textarea class="io" rows="8" placeholder="Test text..." @bind="text" @bind:event="oninput" @bind:after="Run"></textarea>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (matches is not null)
+    {
+        <p><strong>@matches.Count</strong> match(es)</p>
+        <pre class="code">@foreach (var s in segments)
+        {
+            if (s.IsMatch)
+            {
+                <mark>@s.Text</mark>
+            }
+            else
+            {
+                @s.Text
+            }
+        }</pre>
+        @if (rows.Count > 0)
+        {
+            <table class="table">
+                <thead><tr><th>#</th><th>Index</th><th>Value</th><th>Groups</th></tr></thead>
+                <tbody>
+                    @foreach (var r in rows)
+                    {
+                        <tr>
+                            <td>@r.Number</td>
+                            <td>@r.Index</td>
+                            <td><code>@r.Value</code></td>
+                            <td>@r.Groups</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+</ToolPage>
+
+@code {
+    private string pattern = "";
+    private string text = "";
+    private bool ignoreCase, multiline, singleline;
+    private MatchCollection? matches;
+    private string? error;
+    private List<Segment> segments = [];
+    private List<Row> rows = [];
+
+    public record Segment(string Text, bool IsMatch);
+    public record Row(int Number, int Index, string Value, string Groups);
+
+    private void Run()
+    {
+        error = null;
+        matches = null;
+        segments = [];
+        rows = [];
+        if (string.IsNullOrEmpty(pattern)) return;
+
+        var options = RegexOptions.None;
+        if (ignoreCase) options |= RegexOptions.IgnoreCase;
+        if (multiline) options |= RegexOptions.Multiline;
+        if (singleline) options |= RegexOptions.Singleline;
+
+        try
+        {
+            matches = new Regex(pattern, options, TimeSpan.FromSeconds(1)).Matches(text);
+            BuildResults(matches);
+        }
+        catch (ArgumentException ex)
+        {
+            error = ex.Message;
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            matches = null;
+            error = "Pattern timed out (possible catastrophic backtracking).";
+        }
+    }
+
+    private void BuildResults(MatchCollection found)
+    {
+        var pos = 0;
+        var number = 0;
+        foreach (Match m in found)
+        {
+            number++;
+            if (number <= 200)
+            {
+                var groups = string.Join(", ", m.Groups.Cast<Group>().Skip(1).Select(g => $"{g.Name}: \"{g.Value}\""));
+                rows.Add(new Row(number, m.Index, m.Value, groups));
+            }
+            if (m.Length == 0) continue;
+            segments.Add(new Segment(text[pos..m.Index], false));
+            segments.Add(new Segment(m.Value, true));
+            pos = m.Index + m.Length;
+        }
+        segments.Add(new Segment(text[pos..], false));
+    }
+}

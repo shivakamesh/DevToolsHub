@@ -1,0 +1,18 @@
+@inject IJSRuntime JS
+
+<button class="btn secondary" disabled="@string.IsNullOrEmpty(Text)" @onclick="CopyAsync">@label</button>
+
+@code {
+    [Parameter] public string? Text { get; set; }
+
+    private string label = "Copy";
+
+    private async Task CopyAsync()
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", Text);
+        label = "Copied!";
+        StateHasChanged();
+        await Task.Delay(1500);
+        label = "Copy";
+    }
+}
