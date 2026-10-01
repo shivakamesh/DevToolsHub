@@ -1,8 +1,13 @@
 @implements IDisposable
 
-<PageTitle>@Title | DevToolsHub</PageTitle>
+<PageTitle>@PageTitleText</PageTitle>
 <HeadContent>
-    <meta name="description" content="@Description" />
+    <meta name="description" content="@MetaDescription" />
+    <link rel="canonical" href="@CanonicalUrl" />
+    <meta property="og:title" content="@PageTitleText" />
+    <meta property="og:description" content="@MetaDescription" />
+    <meta property="og:url" content="@CanonicalUrl" />
+    <script type="application/ld+json">@((MarkupString)StructuredData)</script>
 </HeadContent>
 
 <div class="tool-header">
@@ -24,13 +29,53 @@
 
 @ChildContent
 
-@if (!string.IsNullOrEmpty(tool?.Help))
+@if (seo is not null)
+{
+    <article class="help glass seo-content">
+        <h2>About this @seo.Keyword</h2>
+        <p>@seo.About</p>
+
+        <h2>How to use the @Title</h2>
+        <ol>
+            @foreach (var step in seo.Steps) { <li>@step</li> }
+        </ol>
+
+        @if (seo.Example is not null)
+        {
+            <h3>Example</h3>
+            <pre class="example">@seo.Example</pre>
+        }
+
+        <h2>Frequently asked questions</h2>
+        @foreach (var faq in seo.Faqs)
+        {
+            <details>
+                <summary>@faq.Question</summary>
+                <p>@faq.Answer</p>
+            </details>
+        }
+    </article>
+}
+else if (!string.IsNullOrEmpty(tool?.Help))
 {
     <section class="help glass">
         <h2>How to use</h2>
         <p>@tool.Help</p>
         <p class="muted">Everything runs locally in your browser. Your input is never uploaded.</p>
     </section>
+}
+
+@if (tool is not null)
+{
+    <nav class="related" aria-label="Related tools">
+        <h2>Related tools</h2>
+        <div class="chips">
+            @foreach (var r in ToolCatalog.All.Where(t => t.Category == tool.Category && t.Href != tool.Href).Take(6))
+            {
+                <a class="tool-chip" href="@r.Href">@r.Icon @r.Name</a>
+            }
+        </div>
+    </nav>
 }
 
 @code {
@@ -47,13 +92,59 @@
     /// <summary>When set, shows a Share button that links to this tool with ?q=value.</summary>
     [Parameter] public string? ShareValue { get; set; }
 
+    private const string SiteUrl = "https://www.itsalldevtools.com/";
+
     private ToolInfo? tool;
+    private ToolSeo? seo;
+
+    private string PageTitleText => $"{Title} – Free Online {(seo is null ? "Tool" : Cap(seo.Keyword))} | It's All Dev Tools";
+    private string MetaDescription => $"{Description} Free, fast and private – runs 100% in your browser, nothing is uploaded.";
+    private string CanonicalUrl => SiteUrl + (tool?.Href ?? "");
+
+    private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
+
+    private string StructuredData
+    {
+        get
+        {
+            var items = new List<object>
+            {
+                new Dictionary<string, object>
+                {
+                    ["@type"] = "WebApplication",
+                    ["name"] = Title,
+                    ["description"] = Description,
+                    ["url"] = CanonicalUrl,
+                    ["applicationCategory"] = "DeveloperApplication",
+                    ["operatingSystem"] = "Any",
+                    ["offers"] = new Dictionary<string, object> { ["@type"] = "Offer", ["price"] = "0", ["priceCurrency"] = "USD" },
+                },
+            };
+            if (seo is not null)
+            {
+                items.Add(new Dictionary<string, object>
+                {
+                    ["@type"] = "FAQPage",
+                    ["mainEntity"] = seo.Faqs.Select(f => new Dictionary<string, object>
+                    {
+                        ["@type"] = "Question",
+                        ["name"] = f.Question,
+                        ["acceptedAnswer"] = new Dictionary<string, object> { ["@type"] = "Answer", ["text"] = f.Answer },
+                    }).ToList(),
+                });
+            }
+            var graph = new Dictionary<string, object> { ["@context"] = "https://schema.org", ["@graph"] = items };
+            return System.Text.Json.JsonSerializer.Serialize(graph).Replace("</", "<\\/");
+        }
+    }
+
     private string shareLabel = "🔗 Share";
 
     protected override void OnInitialized()
     {
         var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0];
         tool = ToolCatalog.Find(path);
+        seo = tool is null ? null : ToolContent.For(tool.Href);
         Prefs.Changed += OnPrefsChanged;
     }
 

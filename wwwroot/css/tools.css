@@ -87,3 +87,18 @@ th.code-5 { color: var(--error); }
 /* ---------- CSS generator ---------- */
 .css-preview-stage { display: grid; place-items: center; min-height: 260px; border-radius: 14px; background: repeating-conic-gradient(var(--surface) 0% 25%, transparent 0% 50%) 50% / 24px 24px; margin-bottom: 1rem; }
 .css-preview { width: 180px; height: 180px; }
+
+/* ---------- SEO content / legal / footer ---------- */
+.seo-content h2 { font-size: 1.15rem; margin: 1.25rem 0 .5rem; }
+.seo-content h3 { font-size: 1rem; margin: 1rem 0 .4rem; }
+.seo-content ol { padding-left: 1.3rem; line-height: 1.8; }
+.seo-content pre.example { background: var(--surface-strong); padding: .75rem; border-radius: 10px; white-space: pre-wrap; word-break: break-word; }
+.seo-content details { border-top: 1px solid var(--border); padding: .6rem 0; }
+.seo-content summary { cursor: pointer; font-weight: 600; }
+.related { margin-top: 1.5rem; }
+.related h2 { font-size: 1rem; }
+.legal { max-width: 820px; padding: 1.5rem 2rem; border-radius: 16px; line-height: 1.7; }
+.legal h2 { font-size: 1.15rem; margin-top: 1.5rem; }
+.footer-links { display: flex; gap: 1.25rem; justify-content: center; margin-bottom: .4rem; }
+.footer-links a { color: var(--muted); text-decoration: none; }
+.footer-links a:hover { color: var(--accent-2); }
