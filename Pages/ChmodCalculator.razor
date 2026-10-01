@@ -1,0 +1,73 @@
+@page "/chmod-calculator"
+
+<ToolPage Title="Chmod Calculator" Description="Calculate Unix file permissions in octal and symbolic notation.">
+    <table class="table">
+        <thead>
+            <tr><th></th><th>Read</th><th>Write</th><th>Execute</th></tr>
+        </thead>
+        <tbody>
+            @for (var i = 0; i < 3; i++)
+            {
+                var row = i;
+                <tr>
+                    <th>@whoNames[row]</th>
+                    @for (var j = 0; j < 3; j++)
+                    {
+                        var bit = 2 - j;
+                        <td><input type="checkbox" checked="@Has(row, bit)" @onchange="e => Toggle(row, bit, (bool)e.Value!)" /></td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="toolbar">
+        <label>Octal <input class="io" maxlength="4" value="@Octal" @oninput="e => SetOctal(e.Value?.ToString())" /></label>
+        <CopyButton Text="@Octal" />
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+
+    <table class="table">
+        <tbody>
+            <tr><th>Octal</th><td><code>@Octal</code></td></tr>
+            <tr><th>Symbolic</th><td><code>@Symbolic</code></td></tr>
+            <tr><th>Command</th><td><code>chmod @Octal file</code> <CopyButton Text="@($"chmod {Octal} file")" /></td></tr>
+        </tbody>
+    </table>
+</ToolPage>
+
+@code {
+    private static readonly string[] whoNames = ["Owner", "Group", "Others"];
+    private readonly int[] perms = [7, 5, 5];
+    private string? error;
+
+    private string Octal => $"{perms[0]}{perms[1]}{perms[2]}";
+
+    private string Symbolic => string.Concat(perms.Select(p =>
+        $"{((p & 4) != 0 ? 'r' : '-')}{((p & 2) != 0 ? 'w' : '-')}{((p & 1) != 0 ? 'x' : '-')}"));
+
+    private bool Has(int who, int bit) => (perms[who] & (1 << bit)) != 0;
+
+    private void Toggle(int who, int bit, bool on)
+    {
+        error = null;
+        perms[who] = on ? perms[who] | (1 << bit) : perms[who] & ~(1 << bit);
+    }
+
+    private void SetOctal(string? value)
+    {
+        value = value?.Trim() ?? "";
+        if (value.Length == 4 && value[0] == '0') value = value[1..];
+        if (value.Length != 3 || value.Any(c => c < '0' || c > '7'))
+        {
+            error = "Enter a 3-digit octal value such as 755.";
+            return;
+        }
+        error = null;
+        for (var i = 0; i < 3; i++) perms[i] = value[i] - '0';
+    }
+}

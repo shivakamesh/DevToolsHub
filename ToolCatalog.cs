@@ -17,6 +17,8 @@ public static class ToolCatalog
             "Pick the input and output formats. CSV works with arrays of flat objects; XML conversion follows the common Newtonsoft mapping (attributes become @-prefixed properties)."),
         new("XML Formatter", "xml-formatter", "</>", "Format", "Format, validate and minify XML.",
             "Paste XML to pretty-print or minify it. Invalid documents show the parser error with line and position."),
+        new("YAML Validator", "yaml-validator", "Y✓", "Format", "Validate YAML syntax.",
+            "Paste YAML and click Validate. Errors show the line and column of the problem. Multi-document streams separated by --- are supported."),
         new("SQL Formatter", "sql-formatter", "SQL", "Format", "Beautify SQL queries.",
             "Puts each major clause on its own line, splits select lists and AND/OR conditions, and indents subqueries. Optionally uppercases keywords. String literals and comments are left untouched."),
         new("Regex Tester", "regex-tester", ".*", "Format", "Test .NET regular expressions live.",
@@ -81,6 +83,8 @@ public static class ToolCatalog
             "Pick a date, time and source time zone to see the same moment in other zones. Add or remove zones as needed."),
         new("Byte Size Converter", "byte-size", "KB", "Convert", "Bytes, KB, MB, GB, KiB, MiB and more.",
             "Converts sizes between decimal units (KB = 1000 bytes) and binary units (KiB = 1024 bytes), plus bits."),
+        new("Chmod Calculator", "chmod-calculator", "rwx", "Convert", "Unix permissions in octal and symbolic form.",
+            "Tick read, write and execute for owner, group and others, or type an octal value like 755, to get the symbolic notation and chmod command."),
 
         // Inspect
         new("Text Statistics", "text-statistics", "¶", "Inspect", "Count words, characters, lines and bytes.",

@@ -24,7 +24,9 @@
     <meta name="theme-color" content="#0b1020" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" /></noscript>
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="css/tools.css" />
     <script>
@@ -45,6 +47,8 @@
                 <circle r="40%" cx="50%" cy="50%" />
             </svg>
             <div class="loading-progress-text"></div>
+            <p class="splash-title">DevToolsHub</p>
+            <p class="splash-desc">Free online developer tools: JSON formatter, YAML validator, regex tester, cron explainer, Base64, JWT decoder, hash, GUID and password generators. 100% in your browser.</p>
         </div>
     </div>
 
@@ -53,8 +57,8 @@
         <a href="" class="reload">Reload</a>
         <a class="dismiss">âœ•</a>
     </div>
-    <script src="js/site.js"></script>
-    <script src="_framework/blazor.webassembly.js"></script>
+    <script src="js/site.js" defer></script>
+    <script src="_framework/blazor.webassembly.js" defer></script>
 </body>
 
 </html>

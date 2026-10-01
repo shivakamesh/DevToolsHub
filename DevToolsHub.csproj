@@ -6,6 +6,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>
     <BlazorEnableTimeZoneSupport>true</BlazorEnableTimeZoneSupport>
+    <DebuggerSupport>false</DebuggerSupport>
+    <EventSourceSupport>false</EventSourceSupport>
+    <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+    <WasmEnableWebcil>true</WasmEnableWebcil>
   </PropertyGroup>
 
   <ItemGroup>

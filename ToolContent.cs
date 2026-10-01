@@ -43,6 +43,11 @@ public static class ToolContent
             ["Paste your XML.", "Click Format or Minify.", "Copy the result."], null,
             new Faq("Does it validate against an XSD?", "No, it checks that the XML is well-formed (correct nesting and syntax) but does not validate against a schema.")),
 
+        ["yaml-validator"] = S("YAML validator",
+            "Check YAML files such as Kubernetes manifests, Docker Compose files and CI pipelines for syntax errors. The validator parses the YAML and reports the exact line and column of any problem.",
+            ["Paste your YAML.", "Click Validate.", "Fix any reported error and validate again."], null,
+            new Faq("Does it validate against a schema?", "No, it checks that the YAML is syntactically valid but does not validate it against a schema such as a Kubernetes or Compose specification.")),
+
         ["sql-formatter"] = S("SQL formatter and beautifier",
             "Make long, single-line SQL queries readable. This SQL beautifier puts each clause (SELECT, FROM, JOIN, WHERE, GROUP BY, ORDER BY) on its own line, indents subqueries and conditions, and can uppercase keywords. It works with SQL Server, PostgreSQL, MySQL, SQLite and Oracle syntax.",
             ["Paste your SQL query.", "Choose indent size and keyword casing.", "Click Format and copy the result."],
@@ -192,6 +197,13 @@ public static class ToolContent
             "Convert between bytes, KB, MB, GB, TB and binary units KiB, MiB, GiB, TiB. Understand the difference between decimal (1000) and binary (1024) units.",
             ["Enter a size.", "Pick its unit.", "Read both decimal and binary conversions."], null,
             new Faq("Why does my 1 TB drive show 931 GB?", "Drive makers use decimal units (1 TB = 10¹² bytes) while many operating systems show binary units (1 TiB = 2⁴⁰ bytes).")),
+
+        ["chmod-calculator"] = S("chmod calculator",
+            "Calculate Unix and Linux file permissions. Convert between octal notation (755, 644) and symbolic notation (rwxr-xr-x) and get the matching chmod command.",
+            ["Tick the permissions for owner, group and others, or type an octal value.", "Read the symbolic notation.", "Copy the chmod command."],
+            "755  →  rwxr-xr-x",
+            new Faq("What does chmod 755 mean?", "The owner can read, write and execute; group and others can read and execute."),
+            new Faq("What does chmod 644 mean?", "The owner can read and write; group and others can only read. It is the usual permission for regular files.")),
 
         ["text-statistics"] = S("word and character counter",
             "Count words, characters (with and without spaces), lines, sentences, paragraphs and UTF-8 bytes, and estimate reading time. Useful for essays, tweets, meta descriptions and SMS limits.",

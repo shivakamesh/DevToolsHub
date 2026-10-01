@@ -1,0 +1,49 @@
+@page "/yaml-validator"
+@using YamlDotNet.Core
+@using YamlDotNet.RepresentationModel
+
+<ToolPage Title="YAML Validator" Description="Validate YAML syntax online and pinpoint errors.">
+    <textarea class="io" rows="14" placeholder="Paste YAML here..." @bind="input" @bind:event="oninput"></textarea>
+
+    <div class="toolbar">
+        <button class="btn" @onclick="Validate">Validate</button>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (message is not null)
+    {
+        <div class="alert">@message</div>
+    }
+</ToolPage>
+
+@code {
+    private string input = "";
+    private string? error;
+    private string? message;
+
+    private void Validate()
+    {
+        error = null;
+        message = null;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            error = "Input is empty.";
+            return;
+        }
+        try
+        {
+            var stream = new YamlStream();
+            stream.Load(new StringReader(input));
+            var count = stream.Documents.Count;
+            message = $"Valid YAML ({count} document{(count == 1 ? "" : "s")}).";
+        }
+        catch (YamlException ex)
+        {
+            var inner = ex.InnerException?.Message;
+            error = $"Invalid YAML at line {ex.Start.Line}, column {ex.Start.Column}: {(string.IsNullOrEmpty(inner) ? ex.Message : inner)}";
+        }
+    }
+}

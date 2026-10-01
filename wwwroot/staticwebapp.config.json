@@ -8,6 +8,11 @@
                                                "*.{png,svg,ico,json,xml,txt,webmanifest,css,js}"
                                            ]
                            },
+    "routes":  [
+                   { "route": "/css/*", "headers": { "cache-control": "public, max-age=604800" } },
+                   { "route": "/js/*", "headers": { "cache-control": "public, max-age=604800" } },
+                   { "route": "/*.{png,svg}", "headers": { "cache-control": "public, max-age=2592000" } }
+               ],
     "mimeTypes":  {
                       ".webmanifest":  "application/manifest+json"
                   }
