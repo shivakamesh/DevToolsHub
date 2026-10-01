@@ -1,0 +1,45 @@
+@page "/xml-formatter"
+@using System.Xml
+@using System.Xml.Linq
+
+<ToolPage Title="XML Formatter & Validator" Description="Format, validate and minify XML online.">
+    <textarea class="io" rows="12" placeholder="Paste XML here..." @bind="input" @bind:event="oninput"></textarea>
+
+    <div class="toolbar">
+        <button class="btn" @onclick="Format">Format</button>
+        <button class="btn" @onclick="Minify">Minify</button>
+        <CopyButton Text="@output" />
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    <textarea class="io" rows="12" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string input = "";
+    private string output = "";
+    private string? error;
+
+    private void Format() => Process(SaveOptions.None);
+    private void Minify() => Process(SaveOptions.DisableFormatting);
+
+    private void Process(SaveOptions options)
+    {
+        error = null;
+        output = "";
+        if (string.IsNullOrWhiteSpace(input)) return;
+        try
+        {
+            var doc = XDocument.Parse(input);
+            var body = doc.Root?.ToString(options) ?? "";
+            output = doc.Declaration is null ? body : doc.Declaration + (options == SaveOptions.None ? "\n" : "") + body;
+        }
+        catch (XmlException ex)
+        {
+            error = $"Invalid XML: {ex.Message}";
+        }
+    }
+}

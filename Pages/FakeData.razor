@@ -1,0 +1,105 @@
+@page "/fake-data"
+@using System.Text
+@using System.Text.Json
+@using Bogus
+@inject IJSRuntime JS
+
+<ToolPage Title="Fake Data Generator" Description="Generate realistic test data as JSON or CSV.">
+    <div class="toolbar">
+        <label>Rows <input class="small-input" type="number" min="1" max="1000" @bind="rows" /></label>
+        <label>Locale
+            <select @bind="locale">
+                @foreach (var l in locales) { <option value="@l">@l</option> }
+            </select>
+        </label>
+        <label>Format
+            <select @bind="format">
+                <option>JSON</option>
+                <option>CSV</option>
+            </select>
+        </label>
+    </div>
+    <div class="chips">
+        @foreach (var f in fields.Keys)
+        {
+            <label class="chip"><input type="checkbox" checked="@selected.Contains(f)" @onchange="() => Toggle(f)" /> @f</label>
+        }
+    </div>
+    <div class="toolbar">
+        <button class="btn" @onclick="Generate">Generate</button>
+        <CopyButton Text="@output" />
+        <button class="btn secondary" disabled="@string.IsNullOrEmpty(output)" @onclick="Download">Download</button>
+    </div>
+    <textarea class="io" rows="18" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private readonly string[] locales = ["en", "en_GB", "de", "fr", "es", "it", "nl", "pt_BR", "ja", "zh_CN"];
+
+    private static readonly Dictionary<string, Func<Faker, object>> fields = new()
+    {
+        ["Id"] = f => f.IndexFaker + 1,
+        ["Guid"] = f => f.Random.Guid(),
+        ["FirstName"] = f => f.Name.FirstName(),
+        ["LastName"] = f => f.Name.LastName(),
+        ["Email"] = f => f.Internet.Email(),
+        ["Phone"] = f => f.Phone.PhoneNumber(),
+        ["Username"] = f => f.Internet.UserName(),
+        ["BirthDate"] = f => f.Date.Past(60, DateTime.Today.AddYears(-18)).ToString("yyyy-MM-dd"),
+        ["Company"] = f => f.Company.CompanyName(),
+        ["JobTitle"] = f => f.Name.JobTitle(),
+        ["Street"] = f => f.Address.StreetAddress(),
+        ["City"] = f => f.Address.City(),
+        ["ZipCode"] = f => f.Address.ZipCode(),
+        ["Country"] = f => f.Address.Country(),
+        ["Iban"] = f => f.Finance.Iban(),
+        ["Amount"] = f => f.Finance.Amount(),
+        ["Website"] = f => f.Internet.Url(),
+        ["IpAddress"] = f => f.Internet.Ip(),
+        ["Product"] = f => f.Commerce.ProductName(),
+        ["Sentence"] = f => f.Lorem.Sentence(),
+    };
+
+    private readonly HashSet<string> selected = ["Id", "FirstName", "LastName", "Email", "City", "Company"];
+    private int rows = 10;
+    private string locale = "en";
+    private string format = "JSON";
+    private string output = "";
+
+    protected override void OnInitialized() => Generate();
+
+    private void Toggle(string f)
+    {
+        if (!selected.Remove(f)) selected.Add(f);
+    }
+
+    private void Generate()
+    {
+        var cols = fields.Keys.Where(selected.Contains).ToList();
+        if (cols.Count == 0) { output = ""; return; }
+        var faker = new Faker(locale);
+        var data = new List<Dictionary<string, object>>();
+        for (var i = 0; i < Math.Clamp(rows, 1, 1000); i++)
+        {
+            faker.IndexFaker = i;
+            data.Add(cols.ToDictionary(c => c, c => fields[c](faker)));
+        }
+
+        if (format == "JSON")
+        {
+            output = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            return;
+        }
+        var sb = new StringBuilder().AppendLine(string.Join(',', cols));
+        foreach (var row in data)
+            sb.AppendLine(string.Join(',', cols.Select(c => Csv(Convert.ToString(row[c], System.Globalization.CultureInfo.InvariantCulture) ?? ""))));
+        output = sb.ToString();
+    }
+
+    private static string Csv(string v) =>
+        v.IndexOfAny([',', '"', '\n']) >= 0 ? "\"" + v.Replace("\"", "\"\"") + "\"" : v;
+
+    private Task Download() => format == "JSON"
+        ? JS.InvokeVoidAsync("devTools.downloadText", "data.json", "application/json", output).AsTask()
+        : JS.InvokeVoidAsync("devTools.downloadText", "data.csv", "text/csv", output).AsTask();
+}

@@ -1,15 +1,87 @@
+@implements IDisposable
+
 <PageTitle>@Title | DevToolsHub</PageTitle>
 <HeadContent>
     <meta name="description" content="@Description" />
 </HeadContent>
 
-<h1>@Title</h1>
+<div class="tool-header">
+    <h1>@Title</h1>
+    <div class="tool-actions">
+        @if (ShareValue is not null)
+        {
+            <button class="btn secondary" disabled="@string.IsNullOrEmpty(ShareValue)" title="Copy a link that opens this tool with the current input" @onclick="ShareAsync">@shareLabel</button>
+        }
+        @if (tool is not null)
+        {
+            <button class="fav-btn @(Prefs.IsFavorite(tool.Href) ? "on" : "")"
+                    title="@(Prefs.IsFavorite(tool.Href) ? "Remove from favorites" : "Add to favorites")"
+                    aria-label="Toggle favorite" @onclick="() => Prefs.ToggleFavoriteAsync(tool.Href)">★</button>
+        }
+    </div>
+</div>
 <p class="lead">@Description</p>
 
 @ChildContent
 
+@if (!string.IsNullOrEmpty(tool?.Help))
+{
+    <section class="help glass">
+        <h2>How to use</h2>
+        <p>@tool.Help</p>
+        <p class="muted">Everything runs locally in your browser. Your input is never uploaded.</p>
+    </section>
+}
+
 @code {
+    private const int MaxShareLength = 4000;
+
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+    [Inject] private UserPrefs Prefs { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
     [Parameter, EditorRequired] public string Title { get; set; } = "";
     [Parameter, EditorRequired] public string Description { get; set; } = "";
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>When set, shows a Share button that links to this tool with ?q=value.</summary>
+    [Parameter] public string? ShareValue { get; set; }
+
+    private ToolInfo? tool;
+    private string shareLabel = "🔗 Share";
+
+    protected override void OnInitialized()
+    {
+        var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0];
+        tool = ToolCatalog.Find(path);
+        Prefs.Changed += OnPrefsChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && tool is not null)
+            await Prefs.AddRecentAsync(tool.Href);
+    }
+
+    private async Task ShareAsync()
+    {
+        if (tool is null || string.IsNullOrEmpty(ShareValue)) return;
+        if (ShareValue.Length > MaxShareLength)
+        {
+            shareLabel = "Input too long to share";
+        }
+        else
+        {
+            var url = $"{Nav.BaseUri}{tool.Href}?q={Uri.EscapeDataString(ShareValue)}";
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+            shareLabel = "Link copied!";
+        }
+        StateHasChanged();
+        await Task.Delay(1800);
+        shareLabel = "🔗 Share";
+    }
+
+    private void OnPrefsChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Prefs.Changed -= OnPrefsChanged;
 }

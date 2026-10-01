@@ -1,0 +1,61 @@
+@page "/certificate-decoder"
+@using System.Formats.Asn1
+@using System.Security.Cryptography
+
+<ToolPage Title="X.509 Certificate Decoder" Description="Decode PEM certificates: subject, issuer, validity, SANs and fingerprints.">
+    <textarea class="io" rows="10" placeholder="-----BEGIN CERTIFICATE-----&#10;MIID...&#10;-----END CERTIFICATE-----" @bind="input" @bind:event="oninput" @bind:after="Decode"></textarea>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (info is not null)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var valid = now >= info.NotBefore && now <= info.NotAfter;
+        <div class="alert @(valid ? "ok" : "error")">
+            @(valid ? $"Valid · expires in {(info.NotAfter - now).Days} days" : now < info.NotBefore ? "Not yet valid" : "Expired")
+        </div>
+        <table class="table">
+            <tbody>
+                <tr><th>Subject</th><td>@info.Subject</td></tr>
+                <tr><th>Issuer</th><td>@info.Issuer</td></tr>
+                <tr><th>Valid from</th><td>@info.NotBefore.ToString("u")</td></tr>
+                <tr><th>Valid to</th><td>@info.NotAfter.ToString("u")</td></tr>
+                <tr><th>Subject Alt Names</th><td>@(info.SubjectAltNames.Count == 0 ? "—" : string.Join(", ", info.SubjectAltNames))</td></tr>
+                <tr><th>Public key</th><td>@info.PublicKeyAlgorithm @(info.KeySize is null ? "" : $"({info.KeySize})")</td></tr>
+                <tr><th>Signature algorithm</th><td>@info.SignatureAlgorithm</td></tr>
+                <tr><th>Serial number</th><td><code class="break">@info.SerialNumber</code></td></tr>
+                <tr><th>Version</th><td>v@(info.Version)</td></tr>
+                <tr><th>Certificate authority</th><td>@(info.IsCa switch { true => "Yes", false => "No", null => "—" })</td></tr>
+                <tr><th>SHA-256 fingerprint</th><td><code class="break">@info.Sha256Fingerprint</code></td></tr>
+                <tr><th>SHA-1 fingerprint</th><td><code class="break">@info.Sha1Fingerprint</code></td></tr>
+            </tbody>
+        </table>
+    }
+</ToolPage>
+
+@code {
+    private string input = "";
+    private CertificateInfo? info;
+    private string? error;
+
+    private void Decode()
+    {
+        error = null;
+        info = null;
+        if (string.IsNullOrWhiteSpace(input)) return;
+        try
+        {
+            info = CertificateParser.Parse(CertificateParser.DecodePem(input));
+        }
+        catch (FormatException)
+        {
+            error = "Input is not valid PEM/Base64.";
+        }
+        catch (Exception ex) when (ex is AsnContentException or CryptographicException or ArgumentException)
+        {
+            error = "Could not parse certificate: " + ex.Message;
+        }
+    }
+}

@@ -1,0 +1,37 @@
+@page "/text-statistics"
+@using System.Text
+@using System.Text.RegularExpressions
+
+<ToolPage Title="Word & Character Counter" Description="Count words, characters, lines, sentences and bytes.">
+    <textarea class="io" rows="12" placeholder="Paste text..." @bind="input" @bind:event="oninput"></textarea>
+
+    @{
+        var words = Regex.Matches(input, @"[\p{L}\p{N}'’-]+").Select(m => m.Value).ToList();
+        var minutes = words.Count / 230.0;
+    }
+    <div class="stats-grid">
+        <div class="stat glass"><strong>@words.Count</strong><span>Words</span></div>
+        <div class="stat glass"><strong>@input.Length</strong><span>Characters</span></div>
+        <div class="stat glass"><strong>@input.Count(c => !char.IsWhiteSpace(c))</strong><span>No spaces</span></div>
+        <div class="stat glass"><strong>@(input.Length == 0 ? 0 : input.Split('\n').Length)</strong><span>Lines</span></div>
+        <div class="stat glass"><strong>@Regex.Matches(input, @"[^.!?]+[.!?]+").Count</strong><span>Sentences</span></div>
+        <div class="stat glass"><strong>@Regex.Split(input.Trim(), @"\n\s*\n").Count(p => p.Trim().Length > 0)</strong><span>Paragraphs</span></div>
+        <div class="stat glass"><strong>@Encoding.UTF8.GetByteCount(input)</strong><span>UTF-8 bytes</span></div>
+        <div class="stat glass"><strong>@(minutes < 1 ? "< 1" : Math.Ceiling(minutes).ToString()) min</strong><span>Reading time</span></div>
+    </div>
+
+    @if (words.Count > 0)
+    {
+        <h2 class="section-title">Top words</h2>
+        <div class="chips">
+            @foreach (var g in words.Where(w => w.Length > 3).GroupBy(w => w.ToLowerInvariant()).OrderByDescending(g => g.Count()).Take(15))
+            {
+                <span class="chip">@g.Key <small>× @g.Count()</small></span>
+            }
+        </div>
+    }
+</ToolPage>
+
+@code {
+    private string input = "";
+}

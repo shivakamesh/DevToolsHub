@@ -1,0 +1,30 @@
+@page "/sql-formatter"
+
+<ToolPage Title="SQL Formatter" Description="Beautify and indent SQL queries online.">
+    <textarea class="io" rows="12" placeholder="Paste SQL here..." @bind="input" @bind:event="oninput"></textarea>
+
+    <div class="toolbar">
+        <label><input type="checkbox" @bind="uppercase" /> Uppercase keywords</label>
+        <label>Indent
+            <select @bind="indent">
+                <option value="2">2 spaces</option>
+                <option value="4">4 spaces</option>
+            </select>
+        </label>
+        <button class="btn" @onclick="Format">Format</button>
+        <CopyButton Text="@output" />
+    </div>
+
+    <textarea class="io" rows="16" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string input = "select u.id, u.name, count(o.id) as orders from users u left join orders o on o.user_id = u.id and o.status = 'paid' where u.active = 1 and u.created_at between '2024-01-01' and '2024-12-31' group by u.id, u.name having count(o.id) > 3 order by orders desc;";
+    private string output = "";
+    private bool uppercase = true;
+    private int indent = 4;
+
+    protected override void OnInitialized() => Format();
+
+    private void Format() => output = string.IsNullOrWhiteSpace(input) ? "" : SqlFormatter.Format(input, uppercase, indent);
+}

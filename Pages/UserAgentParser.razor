@@ -1,0 +1,62 @@
+@page "/user-agent-parser"
+@using System.Text.RegularExpressions
+@inject IJSRuntime JS
+
+<ToolPage Title="User-Agent Parser" Description="Detect browser, engine, operating system and device from a User-Agent string.">
+    <textarea class="io" rows="4" placeholder="Paste a User-Agent string..." @bind="input" @bind:event="oninput"></textarea>
+    <div class="toolbar">
+        <button class="btn secondary" @onclick="UseMine">Use my browser</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(input))
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Browser</th><td>@Browser()</td></tr>
+                <tr><th>Engine</th><td>@Engine()</td></tr>
+                <tr><th>Operating system</th><td>@Os()</td></tr>
+                <tr><th>Device type</th><td>@Device()</td></tr>
+                <tr><th>Bot / crawler</th><td>@(Regex.IsMatch(input, "bot|crawl|spider|slurp|headless", RegexOptions.IgnoreCase) ? "Yes" : "No")</td></tr>
+            </tbody>
+        </table>
+    }
+</ToolPage>
+
+@code {
+    private string input = "";
+
+    private async Task UseMine() => input = await JS.InvokeAsync<string>("devTools.userAgent");
+
+    private string V(string pattern) => Regex.Match(input, pattern) is { Success: true } m ? m.Groups[1].Value : "";
+
+    private string Browser() =>
+        input.Contains("Edg/") ? $"Microsoft Edge {V(@"Edg/([\d.]+)")}" :
+        input.Contains("OPR/") ? $"Opera {V(@"OPR/([\d.]+)")}" :
+        input.Contains("SamsungBrowser/") ? $"Samsung Internet {V(@"SamsungBrowser/([\d.]+)")}" :
+        input.Contains("Firefox/") ? $"Firefox {V(@"Firefox/([\d.]+)")}" :
+        input.Contains("CriOS/") ? $"Chrome (iOS) {V(@"CriOS/([\d.]+)")}" :
+        input.Contains("Chrome/") ? $"Chrome {V(@"Chrome/([\d.]+)")}" :
+        input.Contains("Safari/") && input.Contains("Version/") ? $"Safari {V(@"Version/([\d.]+)")}" :
+        input.Contains("MSIE") || input.Contains("Trident/") ? "Internet Explorer" :
+        input.Contains("curl/") ? $"curl {V(@"curl/([\d.]+)")}" :
+        "Unknown";
+
+    private string Engine() =>
+        input.Contains("Gecko/") && input.Contains("Firefox/") ? "Gecko" :
+        input.Contains("Chrome/") || input.Contains("CriOS/") ? "Blink" :
+        input.Contains("AppleWebKit/") ? "WebKit" :
+        input.Contains("Trident/") ? "Trident" : "Unknown";
+
+    private string Os() =>
+        input.Contains("Windows NT 10") ? "Windows 10/11" :
+        input.Contains("Windows NT") ? $"Windows NT {V(@"Windows NT ([\d.]+)")}" :
+        input.Contains("iPhone") || input.Contains("iPad") ? $"iOS {V(@"OS ([\d_]+)").Replace('_', '.')}" :
+        input.Contains("Mac OS X") ? $"macOS {V(@"Mac OS X ([\d_.]+)").Replace('_', '.')}" :
+        input.Contains("Android") ? $"Android {V(@"Android ([\d.]+)")}" :
+        input.Contains("CrOS") ? "ChromeOS" :
+        input.Contains("Linux") ? "Linux" : "Unknown";
+
+    private string Device() =>
+        input.Contains("iPad") || input.Contains("Tablet") || (input.Contains("Android") && !input.Contains("Mobile")) ? "Tablet" :
+        input.Contains("Mobi") || input.Contains("iPhone") ? "Mobile" : "Desktop";
+}

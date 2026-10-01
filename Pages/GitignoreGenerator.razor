@@ -1,0 +1,49 @@
+@page "/gitignore-generator"
+@inject IJSRuntime JS
+
+<ToolPage Title=".gitignore Generator" Description="Combine .gitignore templates for languages, editors and operating systems.">
+    <div class="chips">
+        @foreach (var name in Templates.Keys)
+        {
+            <label class="chip"><input type="checkbox" checked="@selected.Contains(name)" @onchange="() => Toggle(name)" /> @name</label>
+        }
+    </div>
+    <div class="toolbar">
+        <CopyButton Text="@output" />
+        <button class="btn secondary" disabled="@string.IsNullOrEmpty(output)" @onclick='() => JS.InvokeVoidAsync("devTools.downloadText", ".gitignore", "text/plain", output)'>Download</button>
+    </div>
+    <textarea class="io" rows="20" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private static readonly Dictionary<string, string> Templates = new()
+    {
+        ["VisualStudio / .NET"] = "bin/\nobj/\n.vs/\n*.user\n*.suo\n*.userprefs\n[Dd]ebug/\n[Rr]elease/\nTestResults/\n*.nupkg\npackages/\n*.binlog",
+        ["Node"] = "node_modules/\nnpm-debug.log*\nyarn-debug.log*\nyarn-error.log*\n.pnpm-store/\ndist/\nbuild/\n.env\n.env.local\ncoverage/",
+        ["Python"] = "__pycache__/\n*.py[cod]\n.venv/\nvenv/\nenv/\n*.egg-info/\ndist/\nbuild/\n.pytest_cache/\n.mypy_cache/\n.ipynb_checkpoints/",
+        ["Java"] = "*.class\n*.jar\n*.war\ntarget/\n.gradle/\nbuild/\nout/\nhs_err_pid*",
+        ["Go"] = "*.exe\n*.test\n*.out\nvendor/\ngo.work",
+        ["Rust"] = "target/\nCargo.lock\n**/*.rs.bk",
+        ["Unity"] = "[Ll]ibrary/\n[Tt]emp/\n[Oo]bj/\n[Bb]uild/\n[Bb]uilds/\n[Ll]ogs/\n[Uu]ser[Ss]ettings/\n*.csproj\n*.sln",
+        ["Terraform"] = ".terraform/\n*.tfstate\n*.tfstate.*\ncrash.log\n*.tfvars\n.terraform.lock.hcl",
+        ["VS Code"] = ".vscode/*\n!.vscode/settings.json\n!.vscode/extensions.json\n!.vscode/launch.json\n*.code-workspace",
+        ["JetBrains"] = ".idea/\n*.iml\n*.ipr\n*.iws",
+        ["Windows"] = "Thumbs.db\nehthumbs.db\nDesktop.ini\n$RECYCLE.BIN/\n*.lnk",
+        ["macOS"] = ".DS_Store\n.AppleDouble\n.LSOverride\n._*\n.Spotlight-V100\n.Trashes",
+        ["Linux"] = "*~\n.fuse_hidden*\n.directory\n.Trash-*\n.nfs*",
+    };
+
+    private readonly HashSet<string> selected = ["VisualStudio / .NET", "VS Code", "Windows"];
+    private string output = "";
+
+    protected override void OnInitialized() => Build();
+
+    private void Toggle(string name)
+    {
+        if (!selected.Remove(name)) selected.Add(name);
+        Build();
+    }
+
+    private void Build() => output = string.Join("\n\n",
+        Templates.Where(t => selected.Contains(t.Key)).Select(t => $"# ---- {t.Key} ----\n{t.Value}")) + (selected.Count > 0 ? "\n" : "");
+}

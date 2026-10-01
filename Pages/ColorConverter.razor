@@ -1,0 +1,143 @@
+@page "/color-converter"
+@using System.Globalization
+@using System.Text.RegularExpressions
+
+<ToolPage Title="Color Converter & Contrast Checker" Description="Convert between HEX, RGB and HSL and check WCAG contrast.">
+    <div class="toolbar">
+        <input type="color" value="@Hex(rgb)" @onchange="e => SetInput(e.Value?.ToString() ?? input)" />
+        <input class="io" placeholder="#6d28d9, rgb(109,40,217), hsl(263,69%,50%)" @bind="input" @bind:event="oninput" @bind:after="Parse" />
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <div class="swatch" style="background:@Hex(rgb)"></div>
+        <table class="table">
+            <tbody>
+                @foreach (var (name, val) in new[] { ("HEX", Hex(rgb)), ("RGB", $"rgb({rgb.R}, {rgb.G}, {rgb.B})"), ("HSL", Hsl(rgb)) })
+                {
+                    <tr><th>@name</th><td><code>@val</code></td><td><CopyButton Text="@val" /></td></tr>
+                }
+            </tbody>
+        </table>
+
+        <h2 class="section-title">Contrast checker</h2>
+        <div class="toolbar">
+            <label>Against <input type="color" @bind="other" /></label>
+            <code>@other</code>
+        </div>
+        var ratio = Contrast(rgb, ParseHex(other));
+        <div class="contrast-preview" style="background:@other;color:@Hex(rgb)">The quick brown fox jumps over the lazy dog</div>
+        <table class="table">
+            <tbody>
+                <tr><th>Contrast ratio</th><td><strong>@ratio.ToString("0.00"):1</strong></td></tr>
+                <tr><th>AA normal text (4.5)</th><td>@Badge(ratio >= 4.5)</td></tr>
+                <tr><th>AA large text (3.0)</th><td>@Badge(ratio >= 3)</td></tr>
+                <tr><th>AAA normal text (7.0)</th><td>@Badge(ratio >= 7)</td></tr>
+                <tr><th>AAA large text (4.5)</th><td>@Badge(ratio >= 4.5)</td></tr>
+            </tbody>
+        </table>
+    }
+</ToolPage>
+
+@code {
+    private readonly record struct Rgb(int R, int G, int B);
+
+    private string input = "#6d28d9";
+    private string other = "#ffffff";
+    private Rgb rgb = new(109, 40, 217);
+    private string? error;
+
+    private static string Badge(bool pass) => pass ? "✅ Pass" : "❌ Fail";
+
+    private void SetInput(string v)
+    {
+        input = v;
+        Parse();
+    }
+
+    private void Parse()
+    {
+        error = null;
+        var s = input.Trim().ToLowerInvariant();
+        try
+        {
+            if (Regex.Match(s, @"^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)") is { Success: true } m)
+                rgb = new(Clamp(m.Groups[1].Value), Clamp(m.Groups[2].Value), Clamp(m.Groups[3].Value));
+            else if (Regex.Match(s, @"^hsla?\(\s*([\d.]+)(?:deg)?[\s,]+([\d.]+)%[\s,]+([\d.]+)%") is { Success: true } h)
+                rgb = FromHsl(D(h.Groups[1].Value), D(h.Groups[2].Value) / 100, D(h.Groups[3].Value) / 100);
+            else
+                rgb = ParseHex(s);
+        }
+        catch (FormatException)
+        {
+            error = "Unrecognized color. Use #rgb, #rrggbb, rgb(...) or hsl(...).";
+        }
+    }
+
+    private static double D(string v) => double.Parse(v, CultureInfo.InvariantCulture);
+    private static int Clamp(string v) => Math.Clamp(int.Parse(v, CultureInfo.InvariantCulture), 0, 255);
+
+    private static Rgb ParseHex(string s)
+    {
+        s = s.TrimStart('#');
+        if (s.Length == 3) s = string.Concat(s.Select(c => $"{c}{c}"));
+        if (s.Length != 6 || !s.All(Uri.IsHexDigit)) throw new FormatException();
+        var b = Convert.FromHexString(s);
+        return new(b[0], b[1], b[2]);
+    }
+
+    private static string Hex(Rgb c) => $"#{c.R:x2}{c.G:x2}{c.B:x2}";
+
+    private static string Hsl(Rgb c)
+    {
+        double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
+        double max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
+        double h = 0, s = 0, l = (max + min) / 2;
+        if (max != min)
+        {
+            var d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            h = max == r ? (g - b) / d + (g < b ? 6 : 0) : max == g ? (b - r) / d + 2 : (r - g) / d + 4;
+            h *= 60;
+        }
+        return $"hsl({Math.Round(h)}, {Math.Round(s * 100)}%, {Math.Round(l * 100)}%)";
+    }
+
+    private static Rgb FromHsl(double h, double s, double l)
+    {
+        h = (h % 360 + 360) % 360 / 360;
+        s = Math.Clamp(s, 0, 1);
+        l = Math.Clamp(l, 0, 1);
+        if (s == 0) { var v = (int)Math.Round(l * 255); return new(v, v, v); }
+        var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        var p = 2 * l - q;
+        int Ch(double t)
+        {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            var v = t < 1.0 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2.0 / 3 ? p + (q - p) * (2.0 / 3 - t) * 6 : p;
+            return (int)Math.Round(v * 255);
+        }
+        return new(Ch(h + 1.0 / 3), Ch(h), Ch(h - 1.0 / 3));
+    }
+
+    private static double Luminance(Rgb c)
+    {
+        static double L(int v)
+        {
+            var s = v / 255.0;
+            return s <= 0.03928 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4);
+        }
+        return 0.2126 * L(c.R) + 0.7152 * L(c.G) + 0.0722 * L(c.B);
+    }
+
+    private static double Contrast(Rgb a, Rgb b)
+    {
+        double l1 = Luminance(a), l2 = Luminance(b);
+        return (Math.Max(l1, l2) + 0.05) / (Math.Min(l1, l2) + 0.05);
+    }
+}

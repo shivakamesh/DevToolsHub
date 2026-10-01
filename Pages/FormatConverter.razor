@@ -1,0 +1,227 @@
+@page "/format-converter"
+@using System.Text
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@using System.Xml.Linq
+@using YamlDotNet.RepresentationModel
+@using YamlDotNet.Serialization
+
+<ToolPage Title="JSON ↔ YAML ↔ XML ↔ CSV Converter" Description="Convert data between JSON, YAML, XML and CSV in your browser.">
+    <div class="toolbar">
+        <label>From
+            <select @bind="from" @bind:after="Convert">
+                @foreach (var f in formats) { <option value="@f">@f</option> }
+            </select>
+        </label>
+        <button class="btn secondary" title="Swap" @onclick="Swap">⇄</button>
+        <label>To
+            <select @bind="to" @bind:after="Convert">
+                @foreach (var f in formats) { <option value="@f">@f</option> }
+            </select>
+        </label>
+        <CopyButton Text="@output" />
+    </div>
+
+    <div class="split">
+        <textarea class="io" rows="18" placeholder="Input @from..." @bind="input" @bind:event="oninput" @bind:after="Convert"></textarea>
+        <textarea class="io" rows="18" readonly>@output</textarea>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+</ToolPage>
+
+@code {
+    private readonly string[] formats = ["JSON", "YAML", "XML", "CSV"];
+    private string from = "JSON";
+    private string to = "YAML";
+    private string input = "[\n  { \"name\": \"Ada\", \"role\": \"Engineer\", \"age\": 36 },\n  { \"name\": \"Linus\", \"role\": \"Maintainer\", \"age\": 54 }\n]";
+    private string output = "";
+    private string? error;
+
+    private static readonly JsonSerializerOptions Pretty = new() { WriteIndented = true };
+
+    protected override void OnInitialized() => Convert();
+
+    private void Swap()
+    {
+        (from, to) = (to, from);
+        input = output;
+        Convert();
+    }
+
+    private void Convert()
+    {
+        error = null;
+        output = "";
+        if (string.IsNullOrWhiteSpace(input)) return;
+        try
+        {
+            var node = from switch
+            {
+                "JSON" => JsonNode.Parse(input, documentOptions: new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip }),
+                "YAML" => FromYaml(input),
+                "XML" => JsonNode.Parse(Newtonsoft.Json.JsonConvert.SerializeXNode(XDocument.Parse(input))),
+                "CSV" => FromCsv(input),
+                _ => null,
+            };
+            output = to switch
+            {
+                "JSON" => node?.ToJsonString(Pretty) ?? "null",
+                "YAML" => new SerializerBuilder().Build().Serialize(ToPlain(node)),
+                "XML" => ToXml(node),
+                "CSV" => ToCsv(node),
+                _ => "",
+            };
+        }
+        catch (Exception ex) when (ex is JsonException or System.Xml.XmlException or YamlDotNet.Core.YamlException
+                                       or Newtonsoft.Json.JsonException or FormatException or InvalidOperationException)
+        {
+            error = ex.Message;
+        }
+    }
+
+    // ---------- YAML ----------
+    private static JsonNode? FromYaml(string yaml)
+    {
+        var stream = new YamlStream();
+        stream.Load(new StringReader(yaml));
+        return stream.Documents.Count == 0 ? null : YamlToJson(stream.Documents[0].RootNode);
+    }
+
+    private static JsonNode? YamlToJson(YamlNode node) => node switch
+    {
+        YamlMappingNode map => new JsonObject(map.Children.Select(kv =>
+            KeyValuePair.Create(((YamlScalarNode)kv.Key).Value ?? "", YamlToJson(kv.Value)))),
+        YamlSequenceNode seq => new JsonArray(seq.Children.Select(YamlToJson).ToArray()),
+        YamlScalarNode s => Scalar(s),
+        _ => null,
+    };
+
+    private static JsonNode? Scalar(YamlScalarNode s)
+    {
+        var v = s.Value ?? "";
+        if (s.Style is not YamlDotNet.Core.ScalarStyle.Plain) return JsonValue.Create(v);
+        if (v is "" or "~" or "null" or "Null" or "NULL") return null;
+        if (v is "true" or "True" or "TRUE") return JsonValue.Create(true);
+        if (v is "false" or "False" or "FALSE") return JsonValue.Create(false);
+        if (long.TryParse(v, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var l)) return JsonValue.Create(l);
+        if (double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d)) return JsonValue.Create(d);
+        return JsonValue.Create(v);
+    }
+
+    private static object? ToPlain(JsonNode? node) => node switch
+    {
+        null => null,
+        JsonObject obj => obj.ToDictionary(kv => kv.Key, kv => ToPlain(kv.Value)),
+        JsonArray arr => arr.Select(ToPlain).ToList(),
+        JsonValue v => v.GetValueKind() switch
+        {
+            JsonValueKind.String => v.GetValue<string>(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Number => v.TryGetValue<long>(out var l) ? l : v.GetValue<double>(),
+            _ => null,
+        },
+        _ => null,
+    };
+
+    // ---------- XML ----------
+    private static string ToXml(JsonNode? node)
+    {
+        var wrapped = node is JsonObject obj && obj.Count == 1
+            ? obj
+            : new JsonObject { ["root"] = node is JsonArray ? new JsonObject { ["item"] = node.DeepClone() } : node?.DeepClone() };
+        var doc = Newtonsoft.Json.JsonConvert.DeserializeXNode(wrapped.ToJsonString())
+                  ?? throw new InvalidOperationException("Could not convert to XML.");
+        return doc.ToString();
+    }
+
+    // ---------- CSV ----------
+    private static JsonNode FromCsv(string csv)
+    {
+        var rows = ParseCsv(csv);
+        if (rows.Count == 0) return new JsonArray();
+        var header = rows[0];
+        var result = new JsonArray();
+        foreach (var row in rows.Skip(1))
+        {
+            var obj = new JsonObject();
+            for (var i = 0; i < header.Count; i++)
+                obj[header[i]] = i < row.Count ? Infer(row[i]) : null;
+            result.Add(obj);
+        }
+        return result;
+    }
+
+    private static JsonNode? Infer(string v)
+    {
+        if (v.Length == 0) return null;
+        if (bool.TryParse(v, out var b)) return JsonValue.Create(b);
+        if (long.TryParse(v, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var l) && !(v.Length > 1 && v[0] == '0'))
+            return JsonValue.Create(l);
+        if (double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d)) return JsonValue.Create(d);
+        return JsonValue.Create(v);
+    }
+
+    private static List<List<string>> ParseCsv(string text)
+    {
+        var rows = new List<List<string>>();
+        var row = new List<string>();
+        var field = new StringBuilder();
+        var quoted = false;
+        for (var i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (quoted)
+            {
+                if (c == '"' && i + 1 < text.Length && text[i + 1] == '"') { field.Append('"'); i++; }
+                else if (c == '"') quoted = false;
+                else field.Append(c);
+            }
+            else if (c == '"') quoted = true;
+            else if (c == ',') { row.Add(field.ToString()); field.Clear(); }
+            else if (c == '\n' || c == '\r')
+            {
+                if (c == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++;
+                row.Add(field.ToString()); field.Clear();
+                if (row.Count > 1 || row[0].Length > 0) rows.Add(row);
+                row = [];
+            }
+            else field.Append(c);
+        }
+        row.Add(field.ToString());
+        if (row.Count > 1 || row[0].Length > 0) rows.Add(row);
+        return rows;
+    }
+
+    private static string ToCsv(JsonNode? node)
+    {
+        var items = node switch
+        {
+            JsonArray arr => arr.ToList(),
+            JsonObject obj => [obj],
+            _ => throw new InvalidOperationException("CSV output needs a JSON object or an array of objects."),
+        };
+        var columns = items.OfType<JsonObject>().SelectMany(o => o.Select(kv => kv.Key)).Distinct().ToList();
+        if (columns.Count == 0) throw new InvalidOperationException("CSV output needs objects with properties.");
+
+        var sb = new StringBuilder();
+        sb.AppendLine(string.Join(',', columns.Select(Escape)));
+        foreach (var item in items.OfType<JsonObject>())
+        {
+            sb.AppendLine(string.Join(',', columns.Select(c => Escape(item[c] switch
+            {
+                null => "",
+                JsonValue v when v.GetValueKind() == JsonValueKind.String => v.GetValue<string>(),
+                var other => other.ToJsonString(),
+            }))));
+        }
+        return sb.ToString();
+    }
+
+    private static string Escape(string v) =>
+        v.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? "\"" + v.Replace("\"", "\"\"") + "\"" : v;
+}

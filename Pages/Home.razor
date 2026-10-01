@@ -1,32 +1,82 @@
 @page "/"
+@implements IDisposable
+@inject UserPrefs Prefs
 
 <PageTitle>DevToolsHub - Free Online Developer Tools</PageTitle>
-<HeadContent>
-    <meta name="description" content="Free online developer tools: JSON formatter, Base64 encoder, JWT decoder, GUID generator and regex tester. Private, fast, client-side." />
-</HeadContent>
 
-<h1>Developer tools that respect your data</h1>
-<p class="lead">Everything runs locally in your browser. Nothing is uploaded.</p>
+<section class="hero">
+    <span class="pill">✨ @ToolCatalog.All.Count free tools · no sign-up</span>
+    <h1 class="hero-title">Developer tools that <span class="gradient-text">respect your data</span></h1>
+    <p class="lead">Everything runs locally in your browser. Nothing is uploaded, ever.</p>
+    <input class="io search" placeholder="🔍  Search tools...  (tip: press Ctrl+K anywhere)" @bind="query" @bind:event="oninput" />
+</section>
 
-<div class="grid">
-    @foreach (var t in tools)
+@if (string.IsNullOrWhiteSpace(query))
+{
+    var favorites = Resolve(Prefs.Favorites);
+    var recent = Resolve(Prefs.Recent);
+    if (favorites.Count > 0)
     {
-        <a class="card" href="@t.Href">
-            <h3>@t.Name</h3>
-            <p>@t.Summary</p>
-        </a>
+        <h2 class="section-title">★ Favorites</h2>
+        <div class="chip-row">
+            @foreach (var t in favorites)
+            {
+                <a class="tool-chip glass" href="@t.Href"><span class="nav-icon">@t.Icon</span> @t.Name</a>
+            }
+        </div>
     }
-</div>
+    if (recent.Count > 0)
+    {
+        <h2 class="section-title">🕒 Recently used</h2>
+        <div class="chip-row">
+            @foreach (var t in recent)
+            {
+                <a class="tool-chip glass" href="@t.Href"><span class="nav-icon">@t.Icon</span> @t.Name</a>
+            }
+        </div>
+    }
+}
+
+@foreach (var group in Filtered().GroupBy(t => t.Category).OrderBy(g => Array.IndexOf(ToolCatalog.Categories, g.Key)))
+{
+    <h2 class="section-title">@group.Key</h2>
+    <div class="grid">
+        @foreach (var t in group)
+        {
+            <a class="card glass" href="@t.Href">
+                <span class="card-icon">@t.Icon</span>
+                <h3>@t.Name</h3>
+                <p>@t.Summary</p>
+                <span class="card-arrow">→</span>
+            </a>
+        }
+    </div>
+}
+
+@if (!Filtered().Any())
+{
+    <p class="lead">No tools match "@query".</p>
+}
 
 @code {
-    public record Tool(string Name, string Href, string Summary);
+    private string query = "";
 
-    private readonly Tool[] tools =
-    [
-        new("JSON Formatter", "json-formatter", "Format, validate and minify JSON."),
-        new("Base64", "base64", "Encode and decode Base64 text (UTF-8)."),
-        new("JWT Decoder", "jwt-decoder", "Inspect JWT header, payload and expiry."),
-        new("GUID Generator", "guid-generator", "Generate one or many GUIDs/UUIDs."),
-        new("Regex Tester", "regex-tester", "Test .NET regular expressions live."),
-    ];
+    private IEnumerable<ToolInfo> Filtered() =>
+        string.IsNullOrWhiteSpace(query)
+            ? ToolCatalog.All
+            : ToolCatalog.All.Where(t => t.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                                      || t.Summary.Contains(query, StringComparison.OrdinalIgnoreCase));
+
+    private static List<ToolInfo> Resolve(IEnumerable<string> hrefs) =>
+        hrefs.Select(ToolCatalog.Find).OfType<ToolInfo>().ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Prefs.Changed += OnPrefsChanged;
+        await Prefs.EnsureLoadedAsync();
+    }
+
+    private void OnPrefsChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Prefs.Changed -= OnPrefsChanged;
 }

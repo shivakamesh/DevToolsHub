@@ -1,0 +1,91 @@
+@page "/diff-checker"
+
+<ToolPage Title="Diff Checker" Description="Compare two texts and highlight added and removed lines.">
+    <div class="split">
+        <textarea class="io" rows="12" placeholder="Original text..." @bind="left" @bind:event="oninput"></textarea>
+        <textarea class="io" rows="12" placeholder="Changed text..." @bind="right" @bind:event="oninput"></textarea>
+    </div>
+
+    <div class="toolbar">
+        <label><input type="checkbox" @bind="ignoreWhitespace" /> Ignore whitespace</label>
+        <label><input type="checkbox" @bind="ignoreCase" /> Ignore case</label>
+        <button class="btn" @onclick="Compare">Compare</button>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (lines is not null)
+    {
+        <p>
+            <span class="badge add">+@lines.Count(l => l.Op == '+') added</span>
+            <span class="badge del">−@lines.Count(l => l.Op == '-') removed</span>
+            <span class="badge">@lines.Count(l => l.Op == ' ') unchanged</span>
+        </p>
+        <div class="diff">
+            @foreach (var line in lines)
+            {
+                <div class="diff-line @(line.Op == '+' ? "add" : line.Op == '-' ? "del" : "")">
+                    <span class="ln">@(line.Left?.ToString() ?? "")</span>
+                    <span class="ln">@(line.Right?.ToString() ?? "")</span>
+                    <span class="op">@line.Op</span>
+                    <span class="txt">@line.Text</span>
+                </div>
+            }
+        </div>
+    }
+</ToolPage>
+
+@code {
+    public record DiffLine(char Op, string Text, int? Left, int? Right);
+
+    private const long MaxCells = 6_000_000;
+
+    private string left = "";
+    private string right = "";
+    private bool ignoreWhitespace, ignoreCase;
+    private List<DiffLine>? lines;
+    private string? error;
+
+    private void Compare()
+    {
+        error = null;
+        lines = null;
+        var a = Split(left);
+        var b = Split(right);
+        if ((long)a.Length * b.Length > MaxCells)
+        {
+            error = "Texts are too large to compare in the browser (try fewer than ~2,000 lines each).";
+            return;
+        }
+
+        var ka = a.Select(Key).ToArray();
+        var kb = b.Select(Key).ToArray();
+        int n = a.Length, m = b.Length;
+        var lcs = new int[n + 1, m + 1];
+        for (var i = n - 1; i >= 0; i--)
+            for (var j = m - 1; j >= 0; j--)
+                lcs[i, j] = ka[i] == kb[j] ? lcs[i + 1, j + 1] + 1 : Math.Max(lcs[i + 1, j], lcs[i, j + 1]);
+
+        var result = new List<DiffLine>();
+        int x = 0, y = 0;
+        while (x < n && y < m)
+        {
+            if (ka[x] == kb[y]) { result.Add(new(' ', a[x], x + 1, y + 1)); x++; y++; }
+            else if (lcs[x + 1, y] >= lcs[x, y + 1]) { result.Add(new('-', a[x], x + 1, null)); x++; }
+            else { result.Add(new('+', b[y], null, y + 1)); y++; }
+        }
+        for (; x < n; x++) result.Add(new('-', a[x], x + 1, null));
+        for (; y < m; y++) result.Add(new('+', b[y], null, y + 1));
+        lines = result;
+    }
+
+    private static string[] Split(string s) => s.Length == 0 ? [] : s.Replace("\r\n", "\n").Split('\n');
+
+    private string Key(string line)
+    {
+        var k = ignoreWhitespace ? string.Concat(line.Where(c => !char.IsWhiteSpace(c))) : line;
+        return ignoreCase ? k.ToLowerInvariant() : k;
+    }
+}

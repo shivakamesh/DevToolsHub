@@ -1,0 +1,187 @@
+@page "/json-to-csharp"
+@using System.Text
+@using System.Text.Json
+@using System.Text.Json.Nodes
+
+<ToolPage Title="JSON to C# Classes" Description="Generate C# classes or records from a JSON sample.">
+    <div class="split">
+        <textarea class="io" rows="18" placeholder="Paste JSON here..." @bind="input" @bind:event="oninput" @bind:after="Generate"></textarea>
+        <textarea class="io" rows="18" readonly>@output</textarea>
+    </div>
+
+    <div class="toolbar">
+        <label>Root name <input class="small-input" @bind="rootName" @bind:event="oninput" @bind:after="Generate" /></label>
+        <label>Style
+            <select @bind="useRecords" @bind:after="Generate">
+                <option value="false">Classes</option>
+                <option value="true">Records</option>
+            </select>
+        </label>
+        <label><input type="checkbox" @bind="attributes" @bind:after="Generate" /> [JsonPropertyName] attributes</label>
+        <label><input type="checkbox" @bind="nullable" @bind:after="Generate" /> Nullable reference types</label>
+        <CopyButton Text="@output" />
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+</ToolPage>
+
+@code {
+    private string input = "{\n  \"id\": 1,\n  \"name\": \"Ada\",\n  \"email\": \"ada\\u0040example.com\",\n  \"active\": true,\n  \"score\": 9.5,\n  \"tags\": [\"admin\", \"dev\"],\n  \"address\": { \"city\": \"London\", \"zip\": \"N1\" },\n  \"orders\": [ { \"orderId\": 10, \"total\": 25.99 } ]\n}";
+    private string output = "";
+    private string rootName = "Root";
+    private bool useRecords;
+    private bool attributes = true;
+    private bool nullable = true;
+    private string? error;
+
+    private readonly List<(string Name, List<(string Json, string Prop, string Type)> Props)> types = [];
+    private readonly HashSet<string> usedNames = [];
+
+    protected override void OnInitialized() => Generate();
+
+    private void Generate()
+    {
+        error = null;
+        output = "";
+        types.Clear();
+        usedNames.Clear();
+        if (string.IsNullOrWhiteSpace(input)) return;
+
+        try
+        {
+            var node = JsonNode.Parse(input, documentOptions: new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+            var root = string.IsNullOrWhiteSpace(rootName) ? "Root" : Pascal(rootName);
+            switch (node)
+            {
+                case JsonObject obj:
+                    BuildType(obj, root);
+                    break;
+                case JsonArray arr when MergeObjects(arr) is { } merged:
+                    BuildType(merged, root);
+                    break;
+                default:
+                    error = "The root must be a JSON object or an array of objects.";
+                    return;
+            }
+            output = Render();
+        }
+        catch (JsonException ex)
+        {
+            error = "Invalid JSON: " + ex.Message;
+        }
+    }
+
+    private string BuildType(JsonObject obj, string baseName)
+    {
+        var name = UniqueName(baseName);
+        var props = new List<(string, string, string)>();
+        var entry = (name, props);
+        types.Add(entry);
+        foreach (var (key, value) in obj)
+        {
+            var prop = Pascal(key);
+            if (prop == name) prop += "Value";
+            props.Add((key, prop, TypeOf(value, key)));
+        }
+        return name;
+    }
+
+    private string TypeOf(JsonNode? node, string key)
+    {
+        var q = nullable ? "?" : "";
+        switch (node)
+        {
+            case null:
+                return "object" + q;
+            case JsonObject obj:
+                return BuildType(obj, Pascal(key));
+            case JsonArray arr:
+                if (MergeObjects(arr) is { } merged)
+                    return $"List<{BuildType(merged, Singular(Pascal(key)))}>";
+                var first = arr.FirstOrDefault(x => x is not null);
+                return first is null ? "List<object>" : $"List<{TypeOf(first, Singular(key))}>";
+            case JsonValue value:
+                return value.GetValueKind() switch
+                {
+                    JsonValueKind.String => value.TryGetValue<DateTimeOffset>(out _) ? "DateTimeOffset" : "string",
+                    JsonValueKind.Number => value.TryGetValue<int>(out _) ? "int" : value.TryGetValue<long>(out _) ? "long" : "double",
+                    JsonValueKind.True or JsonValueKind.False => "bool",
+                    _ => "object" + q,
+                };
+            default:
+                return "object";
+        }
+    }
+
+    private static JsonObject? MergeObjects(JsonArray arr)
+    {
+        var objects = arr.OfType<JsonObject>().ToList();
+        if (objects.Count == 0 || objects.Count != arr.Count(x => x is not null)) return null;
+        var merged = new JsonObject();
+        foreach (var obj in objects)
+            foreach (var (key, value) in obj)
+                if (!merged.ContainsKey(key) || merged[key] is null)
+                    merged[key] = value?.DeepClone();
+        return merged;
+    }
+
+    private string Render()
+    {
+        var sb = new StringBuilder();
+        if (attributes) sb.AppendLine("using System.Text.Json.Serialization;").AppendLine();
+
+        foreach (var (name, props) in types)
+        {
+            if (useRecords)
+            {
+                sb.AppendLine($"public record {name}(");
+                for (var i = 0; i < props.Count; i++)
+                {
+                    var (json, prop, type) = props[i];
+                    var attr = attributes ? $"[property: JsonPropertyName(\"{json}\")] " : "";
+                    sb.Append($"    {attr}{type} {prop}").AppendLine(i < props.Count - 1 ? "," : "");
+                }
+                sb.AppendLine(");").AppendLine();
+            }
+            else
+            {
+                sb.AppendLine($"public class {name}").AppendLine("{");
+                foreach (var (json, prop, type) in props)
+                {
+                    if (attributes) sb.AppendLine($"    [JsonPropertyName(\"{json}\")]");
+                    var init = nullable && (type == "string" || type.StartsWith("List<")) ? (type == "string" ? " = \"\";" : " = [];") : "";
+                    if (nullable && !type.EndsWith('?') && !IsValueType(type) && init.Length == 0) init = " = default!;";
+                    sb.AppendLine($"    public {type} {prop} {{ get; set; }}{init}");
+                }
+                sb.AppendLine("}").AppendLine();
+            }
+        }
+        return sb.ToString().TrimEnd() + "\n";
+    }
+
+    private static bool IsValueType(string type) => type is "int" or "long" or "double" or "bool" or "DateTimeOffset";
+
+    private string UniqueName(string baseName)
+    {
+        var name = string.IsNullOrEmpty(baseName) ? "Item" : baseName;
+        var candidate = name;
+        for (var i = 2; !usedNames.Add(candidate); i++) candidate = name + i;
+        return candidate;
+    }
+
+    private static string Pascal(string s)
+    {
+        var parts = System.Text.RegularExpressions.Regex.Split(s, "[^A-Za-z0-9]+").Where(p => p.Length > 0);
+        var result = string.Concat(parts.Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
+        if (result.Length == 0) return "Value";
+        return char.IsDigit(result[0]) ? "_" + result : result;
+    }
+
+    private static string Singular(string s) =>
+        s.EndsWith("ies") ? s[..^3] + "y" :
+        s.EndsWith("ses") ? s[..^2] :
+        s.EndsWith('s') && !s.EndsWith("ss") ? s[..^1] : s + "Item";
+}

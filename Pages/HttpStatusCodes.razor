@@ -1,0 +1,80 @@
+@page "/http-status-codes"
+
+<ToolPage Title="HTTP Status Codes" Description="Searchable reference of HTTP response status codes.">
+    <input class="io search" placeholder="🔍  Search by code or name..." @bind="query" @bind:event="oninput" />
+
+    @foreach (var group in Filtered().GroupBy(c => c.Code / 100))
+    {
+        <h2 class="section-title">@group.Key<span>xx</span> · @Classes[group.Key]</h2>
+        <table class="table">
+            <tbody>
+                @foreach (var c in group)
+                {
+                    <tr><th class="code-@group.Key">@c.Code</th><td><strong>@c.Name</strong><br /><span class="muted">@c.Info</span></td></tr>
+                }
+            </tbody>
+        </table>
+    }
+</ToolPage>
+
+@code {
+    private readonly record struct Status(int Code, string Name, string Info);
+
+    private static readonly Dictionary<int, string> Classes = new()
+    {
+        [1] = "Informational", [2] = "Success", [3] = "Redirection", [4] = "Client error", [5] = "Server error",
+    };
+
+    private static readonly Status[] Codes =
+    [
+        new(100, "Continue", "The client should continue sending the request body."),
+        new(101, "Switching Protocols", "The server is switching protocols, e.g. to WebSocket."),
+        new(103, "Early Hints", "Lets the browser preload resources while the server prepares a response."),
+        new(200, "OK", "The request succeeded."),
+        new(201, "Created", "A new resource was created; usually returned with a Location header."),
+        new(202, "Accepted", "The request was accepted for processing but is not complete."),
+        new(204, "No Content", "Success with no response body."),
+        new(206, "Partial Content", "Returned for range requests, e.g. resumable downloads."),
+        new(301, "Moved Permanently", "The resource has a new permanent URL."),
+        new(302, "Found", "Temporary redirect; method may change to GET."),
+        new(303, "See Other", "Redirect to another resource using GET, typically after a POST."),
+        new(304, "Not Modified", "Cached version is still valid."),
+        new(307, "Temporary Redirect", "Temporary redirect that keeps the HTTP method."),
+        new(308, "Permanent Redirect", "Permanent redirect that keeps the HTTP method."),
+        new(400, "Bad Request", "The request is malformed or invalid."),
+        new(401, "Unauthorized", "Authentication is required or failed."),
+        new(403, "Forbidden", "Authenticated, but not allowed to access the resource."),
+        new(404, "Not Found", "The resource does not exist."),
+        new(405, "Method Not Allowed", "The HTTP method is not supported for this resource."),
+        new(406, "Not Acceptable", "No representation matches the Accept headers."),
+        new(408, "Request Timeout", "The server timed out waiting for the request."),
+        new(409, "Conflict", "The request conflicts with the current state, e.g. edit conflict."),
+        new(410, "Gone", "The resource was permanently removed."),
+        new(412, "Precondition Failed", "A conditional header such as If-Match did not match."),
+        new(413, "Content Too Large", "The request body is larger than the server allows."),
+        new(415, "Unsupported Media Type", "The Content-Type is not supported."),
+        new(418, "I'm a teapot", "An April Fools' joke from RFC 2324."),
+        new(422, "Unprocessable Content", "Well-formed request with semantic/validation errors."),
+        new(425, "Too Early", "The server will not risk processing a request that might be replayed."),
+        new(428, "Precondition Required", "The server requires the request to be conditional."),
+        new(429, "Too Many Requests", "Rate limit exceeded; check the Retry-After header."),
+        new(431, "Request Header Fields Too Large", "Headers are too large."),
+        new(451, "Unavailable For Legal Reasons", "Blocked due to legal demands."),
+        new(500, "Internal Server Error", "A generic, unexpected server failure."),
+        new(501, "Not Implemented", "The server does not support the functionality."),
+        new(502, "Bad Gateway", "An upstream server returned an invalid response."),
+        new(503, "Service Unavailable", "The server is overloaded or down for maintenance."),
+        new(504, "Gateway Timeout", "An upstream server did not respond in time."),
+        new(505, "HTTP Version Not Supported", "The HTTP version is not supported."),
+        new(507, "Insufficient Storage", "The server cannot store the representation (WebDAV)."),
+        new(511, "Network Authentication Required", "Captive portal login is required."),
+    ];
+
+    private string query = "";
+
+    private IEnumerable<Status> Filtered() => string.IsNullOrWhiteSpace(query)
+        ? Codes
+        : Codes.Where(c => c.Code.ToString().StartsWith(query.Trim())
+                           || c.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                           || c.Info.Contains(query, StringComparison.OrdinalIgnoreCase));
+}

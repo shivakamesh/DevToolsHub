@@ -1,0 +1,67 @@
+@page "/lorem-ipsum"
+@using System.Text
+
+<ToolPage Title="Lorem Ipsum Generator" Description="Generate placeholder words, sentences or paragraphs.">
+    <div class="toolbar">
+        <label>Count <input class="small-input" type="number" min="1" max="500" @bind="count" @bind:after="Generate" /></label>
+        <select @bind="unit" @bind:after="Generate">
+            <option>Paragraphs</option>
+            <option>Sentences</option>
+            <option>Words</option>
+        </select>
+        <label><input type="checkbox" @bind="classicStart" @bind:after="Generate" /> Start with "Lorem ipsum..."</label>
+        <button class="btn" @onclick="Generate">Regenerate</button>
+        <CopyButton Text="@output" />
+    </div>
+    <textarea class="io" rows="18" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private static readonly string[] Words =
+        ("lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua " +
+         "enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis aute irure in " +
+         "reprehenderit voluptate velit esse cillum fugiat nulla pariatur excepteur sint occaecat cupidatat non proident sunt culpa " +
+         "qui officia deserunt mollit anim id est laborum").Split(' ');
+
+    private int count = 3;
+    private string unit = "Paragraphs";
+    private bool classicStart = true;
+    private string output = "";
+
+    protected override void OnInitialized() => Generate();
+
+    private void Generate()
+    {
+        var n = Math.Clamp(count, 1, 500);
+        var text = unit switch
+        {
+            "Words" => string.Join(' ', Enumerable.Range(0, n).Select(_ => Word())),
+            "Sentences" => string.Join(' ', Enumerable.Range(0, n).Select(_ => Sentence())),
+            _ => string.Join("\n\n", Enumerable.Range(0, n).Select(_ => string.Join(' ', Enumerable.Range(0, Random.Shared.Next(4, 8)).Select(_ => Sentence())))),
+        };
+        if (classicStart)
+        {
+            const string classic = "Lorem ipsum dolor sit amet";
+            var rest = text.Split(' ').Skip(5);
+            text = unit == "Words" && n < 5
+                ? string.Join(' ', classic.Split(' ').Take(n))
+                : classic + (unit == "Words" ? " " : ", ") + string.Join(' ', rest);
+        }
+        output = text;
+    }
+
+    private static string Word() => Words[Random.Shared.Next(Words.Length)];
+
+    private static string Sentence()
+    {
+        var sb = new StringBuilder();
+        var len = Random.Shared.Next(6, 15);
+        for (var i = 0; i < len; i++)
+        {
+            var w = Word();
+            sb.Append(i == 0 ? char.ToUpperInvariant(w[0]) + w[1..] : w);
+            sb.Append(i == len - 1 ? "." : i > 2 && Random.Shared.Next(8) == 0 ? ", " : " ");
+        }
+        return sb.ToString();
+    }
+}

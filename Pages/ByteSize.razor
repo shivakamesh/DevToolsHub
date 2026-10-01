@@ -1,0 +1,45 @@
+@page "/byte-size"
+@using System.Globalization
+
+<ToolPage Title="Byte Size Converter" Description="Convert between bytes, KB, MB, GB, TB and KiB, MiB, GiB, TiB.">
+    <div class="toolbar">
+        <input class="io" type="number" min="0" step="any" @bind="amount" @bind:event="oninput" />
+        <select @bind="unit">
+            @foreach (var u in units) { <option value="@u.Name">@u.Name</option> }
+        </select>
+    </div>
+
+    @{ var bytes = amount * units.First(u => u.Name == unit).Bytes; }
+    <div class="split">
+        <table class="table">
+            <thead><tr><th colspan="2">Decimal (1000)</th></tr></thead>
+            <tbody>
+                @foreach (var u in units.Where(u => !u.Binary)) { <tr><th>@u.Name</th><td><code>@Fmt(bytes / u.Bytes)</code></td></tr> }
+            </tbody>
+        </table>
+        <table class="table">
+            <thead><tr><th colspan="2">Binary (1024)</th></tr></thead>
+            <tbody>
+                @foreach (var u in units.Where(u => u.Binary)) { <tr><th>@u.Name</th><td><code>@Fmt(bytes / u.Bytes)</code></td></tr> }
+            </tbody>
+        </table>
+    </div>
+</ToolPage>
+
+@code {
+    private readonly record struct Unit(string Name, double Bytes, bool Binary);
+
+    private readonly Unit[] units =
+    [
+        new("bit", 1 / 8.0, false), new("B", 1, false),
+        new("KB", 1e3, false), new("MB", 1e6, false), new("GB", 1e9, false), new("TB", 1e12, false), new("PB", 1e15, false),
+        new("KiB", 1024, true), new("MiB", Math.Pow(1024, 2), true), new("GiB", Math.Pow(1024, 3), true),
+        new("TiB", Math.Pow(1024, 4), true), new("PiB", Math.Pow(1024, 5), true),
+    ];
+
+    private double amount = 1;
+    private string unit = "GB";
+
+    private static string Fmt(double v) =>
+        v == 0 ? "0" : Math.Abs(v) >= 1e15 || Math.Abs(v) < 1e-6 ? v.ToString("0.######e+0", CultureInfo.InvariantCulture) : v.ToString("#,0.######", CultureInfo.InvariantCulture);
+}

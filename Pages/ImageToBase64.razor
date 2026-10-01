@@ -1,0 +1,70 @@
+@page "/image-to-base64"
+
+<ToolPage Title="Image to Base64" Description="Convert an image to a Base64 data URI, HTML img tag or CSS background.">
+    <label class="dropzone glass">
+        <InputFile OnChange="LoadAsync" accept="image/*" />
+        <span>📁 Click to choose an image (max 5 MB)</span>
+    </label>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (dataUri is not null)
+    {
+        <p class="muted">@fileName · @contentType · @FormatSize(size) → @FormatSize(dataUri.Length) as Base64</p>
+        <img class="preview" src="@dataUri" alt="Preview" />
+
+        <h3>Data URI <CopyButton Text="@dataUri" /></h3>
+        <textarea class="io" rows="5" readonly>@dataUri</textarea>
+
+        <h3>HTML <CopyButton Text="@HtmlTag" /></h3>
+        <textarea class="io" rows="3" readonly>@HtmlTag</textarea>
+
+        <h3>CSS <CopyButton Text="@CssRule" /></h3>
+        <textarea class="io" rows="3" readonly>@CssRule</textarea>
+    }
+</ToolPage>
+
+@code {
+    private const long MaxSize = 5 * 1024 * 1024;
+
+    private string? dataUri;
+    private string? error;
+    private string fileName = "";
+    private string contentType = "";
+    private long size;
+
+    private string HtmlTag => $"<img src=\"{dataUri}\" alt=\"{fileName}\" />";
+    private string CssRule => $"background-image: url(\"{dataUri}\");";
+
+    private async Task LoadAsync(InputFileChangeEventArgs e)
+    {
+        error = null;
+        dataUri = null;
+        var file = e.File;
+        if (file.Size > MaxSize)
+        {
+            error = $"File is {FormatSize(file.Size)}; the limit is 5 MB.";
+            return;
+        }
+        if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "Please choose an image file.";
+            return;
+        }
+
+        using var stream = file.OpenReadStream(MaxSize);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+
+        fileName = file.Name;
+        contentType = file.ContentType;
+        size = file.Size;
+        dataUri = $"data:{contentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024:0.##} MB" :
+        bytes >= 1024 ? $"{bytes / 1024d:0.#} KB" : $"{bytes} B";
+}

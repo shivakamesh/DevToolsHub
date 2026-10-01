@@ -1,0 +1,83 @@
+@page "/jwt-generator"
+@using System.Text
+@using System.Text.Json
+@using System.Text.Json.Nodes
+
+<ToolPage Title="JWT Generator" Description="Create HMAC-signed (HS256/HS384/HS512) JSON Web Tokens for testing.">
+    <div class="alert warn">For development and testing only. Don't paste production secrets into any website.</div>
+
+    <div class="toolbar">
+        <label>Algorithm
+            <select @bind="alg" @bind:after="Generate">
+                <option value="HS256">HS256</option>
+                <option value="HS384">HS384</option>
+                <option value="HS512">HS512</option>
+            </select>
+        </label>
+        <label>Secret <input class="small-input wide" @bind="secret" @bind:event="oninput" @bind:after="Generate" /></label>
+        <button class="btn secondary" @onclick="AddTimes">Set iat / exp (+1 h)</button>
+    </div>
+
+    <h3>Payload</h3>
+    <textarea class="io" rows="10" @bind="payload" @bind:event="oninput" @bind:after="Generate"></textarea>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <h3>Token <CopyButton Text="@token" /></h3>
+        <pre class="code jwt">@token</pre>
+        <a class="btn secondary" href="jwt-decoder">Open JWT Decoder →</a>
+    }
+</ToolPage>
+
+@code {
+    private string alg = "HS256";
+    private string secret = "your-256-bit-secret";
+    private string payload = "{\n  \"sub\": \"1234567890\",\n  \"name\": \"John Doe\",\n  \"role\": \"admin\"\n}";
+    private string token = "";
+    private string? error;
+
+    private static readonly JsonSerializerOptions Pretty = new() { WriteIndented = true };
+
+    protected override void OnInitialized() => Generate();
+
+    private void AddTimes()
+    {
+        try
+        {
+            var node = JsonNode.Parse(payload) as JsonObject ?? new JsonObject();
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            node["iat"] = now;
+            node["exp"] = now + 3600;
+            payload = node.ToJsonString(Pretty);
+            Generate();
+        }
+        catch (JsonException ex)
+        {
+            error = "Payload is not valid JSON: " + ex.Message;
+        }
+    }
+
+    private void Generate()
+    {
+        error = null;
+        token = "";
+        try
+        {
+            var body = JsonNode.Parse(payload) as JsonObject
+                       ?? throw new JsonException("Payload must be a JSON object.");
+            var header = new JsonObject { ["alg"] = alg, ["typ"] = "JWT" };
+            var signingInput = CryptoHelpers.Base64Url(header.ToJsonString()) + "." + CryptoHelpers.Base64Url(body.ToJsonString());
+            var hashAlg = "SHA" + alg[2..];
+            var signature = CryptoHelpers.Hmac(hashAlg, Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(signingInput));
+            token = signingInput + "." + CryptoHelpers.Base64Url(signature);
+        }
+        catch (JsonException ex)
+        {
+            error = "Payload is not valid JSON: " + ex.Message;
+        }
+    }
+}

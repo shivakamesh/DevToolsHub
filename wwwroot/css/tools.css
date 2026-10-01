@@ -1,0 +1,89 @@
+/* ---------- Tool page chrome ---------- */
+.tool-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.tool-actions { display: flex; gap: .5rem; align-items: center; }
+.fav-btn { background: none; border: 1px solid var(--border); border-radius: 10px; font-size: 1.3rem; padding: .2rem .6rem; color: var(--muted); cursor: pointer; transition: all .2s; }
+.fav-btn:hover { color: #facc15; transform: scale(1.08); }
+.fav-btn.on { color: #facc15; border-color: #facc15; }
+.help { margin-top: 2rem; padding: 1rem 1.25rem; border-radius: 14px; }
+.help h2 { font-size: 1rem; margin: 0 0 .4rem; }
+.help p { margin: .3rem 0; }
+.muted { color: var(--muted); font-size: .9em; }
+
+/* ---------- Layout helpers ---------- */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+.small-input { width: 5.5rem; padding: .35rem .5rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.wide { width: 100%; }
+.break { word-break: break-all; }
+.pre { white-space: pre-wrap; }
+.list { padding-left: 1.2rem; line-height: 1.8; }
+.empty { color: var(--muted); padding: .75rem; }
+.preview { margin-top: 1rem; }
+.result-row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; padding: 1rem; border-radius: 14px; margin: 1rem 0; }
+code.big { font-size: 1.4rem; }
+.sliders { display: grid; gap: .5rem; }
+.sliders label { display: flex; align-items: center; gap: .5rem; }
+
+/* ---------- Chips / badges ---------- */
+.chips, .chip-row { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem 0; }
+.chip, .tool-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .75rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; cursor: pointer; font-size: .9rem; transition: border-color .2s, transform .2s; }
+.chip:hover, .tool-chip:hover { border-color: var(--accent); transform: translateY(-1px); }
+.badge { display: inline-block; padding: .1rem .5rem; border-radius: 6px; font-size: .8rem; background: var(--surface-strong); border: 1px solid var(--border); }
+.warn { color: #f59e0b; }
+
+/* ---------- Command palette ---------- */
+.search-btn { display: inline-flex; align-items: center; gap: .5rem; padding: .4rem .8rem; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; margin-left: auto; }
+.search-btn:hover { color: var(--text); border-color: var(--accent); }
+.palette-backdrop { position: fixed; inset: 0; background: rgba(5, 8, 20, .55); backdrop-filter: blur(4px); z-index: 1000; display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; }
+.palette { width: min(640px, 92vw); border-radius: 16px; padding: .75rem; background: var(--surface-strong); box-shadow: var(--shadow); }
+.palette-list { list-style: none; margin: .5rem 0 0; padding: 0; max-height: 50vh; overflow: auto; }
+.palette-list li { display: flex; align-items: center; gap: .75rem; padding: .55rem .75rem; border-radius: 10px; cursor: pointer; }
+.palette-list li.sel { background: linear-gradient(90deg, rgba(124, 92, 255, .25), rgba(34, 211, 238, .12)); }
+.palette-list small { margin-left: auto; color: var(--muted); }
+.palette-name { font-weight: 500; }
+
+/* ---------- Diff ---------- */
+.diff { font-family: ui-monospace, Consolas, monospace; font-size: .9rem; border: 1px solid var(--border); border-radius: 12px; overflow: auto; margin-top: 1rem; }
+.diff div { display: flex; white-space: pre-wrap; }
+.diff .ln { min-width: 3rem; padding: 0 .5rem; color: var(--muted); text-align: right; user-select: none; }
+.diff .op { width: 1.5rem; text-align: center; user-select: none; }
+.diff .txt { flex: 1; padding-right: .5rem; }
+.diff .add { background: rgba(52, 211, 153, .15); }
+.diff .del { background: rgba(251, 113, 133, .15); }
+
+/* ---------- Markdown ---------- */
+.markdown-body { padding: 1rem 1.25rem; border-radius: 14px; overflow: auto; min-height: 20rem; }
+.markdown-body pre { background: var(--surface-strong); padding: .75rem; border-radius: 8px; overflow: auto; }
+.markdown-body table { border-collapse: collapse; }
+.markdown-body th, .markdown-body td { border: 1px solid var(--border); padding: .3rem .6rem; }
+.markdown-body blockquote { border-left: 4px solid var(--accent); margin: 0; padding-left: 1rem; color: var(--muted); }
+.markdown-body img { max-width: 100%; }
+
+/* ---------- JWT ---------- */
+.jwt { font-family: ui-monospace, Consolas, monospace; word-break: break-all; }
+
+/* ---------- Image / QR ---------- */
+.dropzone { display: block; border: 2px dashed var(--border); border-radius: 14px; padding: 2rem; text-align: center; cursor: pointer; transition: border-color .2s; }
+.dropzone:hover { border-color: var(--accent); }
+.qr-preview { display: inline-block; padding: 1rem; border-radius: 14px; margin: 1rem 0; }
+.qr-preview img { display: block; max-width: 100%; image-rendering: pixelated; }
+
+/* ---------- Color ---------- */
+.swatch { height: 80px; border-radius: 14px; border: 1px solid var(--border); margin: 1rem 0; }
+.contrast-preview { padding: 1rem; border-radius: 12px; font-size: 1.1rem; margin-bottom: .75rem; border: 1px solid var(--border); }
+
+/* ---------- Stats ---------- */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .75rem; margin: 1rem 0; }
+.stat { padding: 1rem; border-radius: 14px; display: flex; flex-direction: column; gap: .25rem; }
+.stat strong { font-size: 1.5rem; background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.stat span { color: var(--muted); font-size: .85rem; }
+
+/* ---------- HTTP codes ---------- */
+th.code-2 { color: var(--ok); }
+th.code-3 { color: var(--accent-2); }
+th.code-4 { color: #f59e0b; }
+th.code-5 { color: var(--error); }
+
+/* ---------- CSS generator ---------- */
+.css-preview-stage { display: grid; place-items: center; min-height: 260px; border-radius: 14px; background: repeating-conic-gradient(var(--surface) 0% 25%, transparent 0% 50%) 50% / 24px 24px; margin-bottom: 1rem; }
+.css-preview { width: 180px; height: 180px; }

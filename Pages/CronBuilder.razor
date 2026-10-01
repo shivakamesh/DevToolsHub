@@ -1,0 +1,88 @@
+@page "/cron-builder"
+@using Cronos
+
+<ToolPage Title="Cron Expression Builder" Description="Build cron expressions visually and preview upcoming runs.">
+    <div class="toolbar">
+        <label>Run
+            <select @bind="mode" @bind:after="Build">
+                <option value="minutes">Every N minutes</option>
+                <option value="hourly">Every hour</option>
+                <option value="daily">Every day</option>
+                <option value="weekly">Every week</option>
+                <option value="monthly">Every month</option>
+            </select>
+        </label>
+        @if (mode == "minutes")
+        {
+            <label>Every <input class="small-input" type="number" min="1" max="59" @bind="interval" @bind:after="Build" /> min</label>
+        }
+        @if (mode == "hourly")
+        {
+            <label>At minute <input class="small-input" type="number" min="0" max="59" @bind="minute" @bind:after="Build" /></label>
+        }
+        @if (mode is "daily" or "weekly" or "monthly")
+        {
+            <label>At <input type="time" @bind="time" @bind:after="Build" /></label>
+        }
+        @if (mode == "monthly")
+        {
+            <label>Day <input class="small-input" type="number" min="1" max="31" @bind="dayOfMonth" @bind:after="Build" /></label>
+        }
+    </div>
+
+    @if (mode == "weekly")
+    {
+        <div class="chips">
+            @foreach (var (name, i) in days.Select((d, i) => (d, i)))
+            {
+                <label class="chip"><input type="checkbox" checked="@weekdays.Contains(i)" @onchange="() => ToggleDay(i)" /> @name</label>
+            }
+        </div>
+    }
+
+    <div class="result-row glass">
+        <code class="big">@expression</code>
+        <CopyButton Text="@expression" />
+        <a class="btn secondary" href="cron-explainer?q=@Uri.EscapeDataString(expression)">Open in explainer →</a>
+    </div>
+
+    <h2 class="section-title">Next runs (UTC)</h2>
+    <ul class="list">
+        @foreach (var run in nextRuns) { <li>@run.ToString("ddd yyyy-MM-dd HH:mm")</li> }
+    </ul>
+</ToolPage>
+
+@code {
+    private readonly string[] days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    private string mode = "daily";
+    private int interval = 15;
+    private int minute;
+    private TimeOnly time = new(9, 0);
+    private int dayOfMonth = 1;
+    private readonly HashSet<int> weekdays = [1, 2, 3, 4, 5];
+    private string expression = "";
+    private List<DateTime> nextRuns = [];
+
+    protected override void OnInitialized() => Build();
+
+    private void ToggleDay(int d)
+    {
+        if (!weekdays.Remove(d)) weekdays.Add(d);
+        Build();
+    }
+
+    private void Build()
+    {
+        var dow = weekdays.Count is 0 or 7 ? "*" : string.Join(',', weekdays.Order());
+        expression = mode switch
+        {
+            "minutes" => $"*/{Math.Clamp(interval, 1, 59)} * * * *",
+            "hourly" => $"{Math.Clamp(minute, 0, 59)} * * * *",
+            "weekly" => $"{time.Minute} {time.Hour} * * {dow}",
+            "monthly" => $"{time.Minute} {time.Hour} {Math.Clamp(dayOfMonth, 1, 31)} * *",
+            _ => $"{time.Minute} {time.Hour} * * *",
+        };
+        var cron = CronExpression.Parse(expression);
+        nextRuns = cron.GetOccurrences(DateTime.UtcNow, DateTime.UtcNow.AddYears(2)).Take(5).ToList();
+    }
+}

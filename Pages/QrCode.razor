@@ -1,0 +1,73 @@
+@page "/qr-code"
+@using QRCoder
+@inject IJSRuntime JS
+
+<ToolPage Title="QR Code Generator" Description="Create QR codes for text and URLs. Download as PNG or SVG." ShareValue="@text">
+    <textarea class="io" rows="4" placeholder="Text or URL..." @bind="text" @bind:event="oninput" @bind:after="Render"></textarea>
+    <div class="toolbar">
+        <label>Error correction
+            <select @bind="level" @bind:after="Render">
+                <option value="L">L (7%)</option>
+                <option value="M">M (15%)</option>
+                <option value="Q">Q (25%)</option>
+                <option value="H">H (30%)</option>
+            </select>
+        </label>
+        <label>Pixels/module <input class="small-input" type="number" min="2" max="40" @bind="size" @bind:after="Render" /></label>
+        <label>Foreground <input type="color" @bind="fg" @bind:after="Render" /></label>
+        <label>Background <input type="color" @bind="bg" @bind:after="Render" /></label>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (png is not null)
+    {
+        <div class="qr-preview glass"><img src="data:image/png;base64,@png" alt="QR code" /></div>
+        <div class="toolbar">
+            <button class="btn" @onclick='() => JS.InvokeVoidAsync("devTools.downloadBase64", "qrcode.png", "image/png", png)'>Download PNG</button>
+            <button class="btn secondary" @onclick='() => JS.InvokeVoidAsync("devTools.downloadText", "qrcode.svg", "image/svg+xml", svg)'>Download SVG</button>
+        </div>
+    }
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    private string text = "https://example.com";
+    private string level = "M";
+    private int size = 10;
+    private string fg = "#000000";
+    private string bg = "#ffffff";
+    private string? png;
+    private string svg = "";
+    private string? error;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(Q)) text = Q;
+        Render();
+    }
+
+    private void Render()
+    {
+        error = null;
+        png = null;
+        if (string.IsNullOrEmpty(text)) return;
+        try
+        {
+            var ecc = Enum.Parse<QRCodeGenerator.ECCLevel>(level);
+            using var data = new QRCodeGenerator().CreateQrCode(text, ecc);
+            var px = Math.Clamp(size, 2, 40);
+            png = Convert.ToBase64String(new PngByteQRCode(data).GetGraphic(px, Rgb(fg), Rgb(bg)));
+            svg = new SvgQRCode(data).GetGraphic(px, fg, bg);
+        }
+        catch (Exception ex) when (ex is ArgumentException or QRCoder.Exceptions.DataTooLongException)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private static byte[] Rgb(string hex) => Convert.FromHexString(hex.TrimStart('#'));
+}

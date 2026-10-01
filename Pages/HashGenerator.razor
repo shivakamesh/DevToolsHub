@@ -1,0 +1,50 @@
+@page "/hash-generator"
+@using System.Security.Cryptography
+@using System.Text
+
+<ToolPage Title="Hash Generator (SHA-1 / SHA-256 / SHA-384 / SHA-512)" Description="Compute SHA hashes of text (UTF-8) instantly in your browser.">
+    <textarea class="io" rows="8" placeholder="Text to hash..." @bind="input" @bind:event="oninput" @bind:after="Compute"></textarea>
+
+    <div class="toolbar">
+        <label><input type="checkbox" @bind="upper" @bind:after="Compute" /> Uppercase</label>
+    </div>
+
+    <table class="table">
+        <tbody>
+            @foreach (var h in hashes)
+            {
+                <tr>
+                    <th>@h.Name</th>
+                    <td><code style="word-break: break-all">@h.Value</code></td>
+                    <td><CopyButton Text="@h.Value" /></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</ToolPage>
+
+@code {
+    private string input = "";
+    private bool upper;
+    private List<(string Name, string Value)> hashes = [];
+
+    protected override void OnInitialized() => Compute();
+
+    private void Compute()
+    {
+        var bytes = Encoding.UTF8.GetBytes(input);
+        hashes =
+        [
+            ("SHA-1", Hex(SHA1.HashData(bytes))),
+            ("SHA-256", Hex(SHA256.HashData(bytes))),
+            ("SHA-384", Hex(SHA384.HashData(bytes))),
+            ("SHA-512", Hex(SHA512.HashData(bytes))),
+        ];
+    }
+
+    private string Hex(byte[] data)
+    {
+        var hex = Convert.ToHexString(data);
+        return upper ? hex : hex.ToLowerInvariant();
+    }
+}

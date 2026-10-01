@@ -1,0 +1,54 @@
+@page "/markdown-preview"
+@using Markdig
+@using Markdig.Syntax
+@using Markdig.Syntax.Inlines
+
+<ToolPage Title="Markdown Preview" Description="Live Markdown editor with instant HTML preview." ShareValue="@input">
+    <div class="split">
+        <textarea class="io" rows="22" placeholder="# Write Markdown here" @bind="input" @bind:event="oninput" @bind:after="Render"></textarea>
+        <div class="markdown-body glass">@((MarkupString)html)</div>
+    </div>
+
+    <div class="toolbar">
+        <CopyButton Text="@html" />
+        <span class="muted">Copies the generated HTML</span>
+    </div>
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .DisableHtml()
+        .Build();
+
+    private string input = "# Hello, Markdown!\n\nThis is **bold**, this is *italic* and this is `code`.\n\n- [x] Task lists\n- [ ] Tables\n\n| Tool | Fast |\n|------|------|\n| DevToolsHub | ✅ |\n\n```csharp\nConsole.WriteLine(\"Hi\");\n```\n\n> Everything renders locally.";
+    private string html = "";
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(Q)) input = Q;
+        Render();
+    }
+
+    private void Render()
+    {
+        var doc = Markdown.Parse(input ?? "", Pipeline);
+        foreach (var link in doc.Descendants<LinkInline>())
+            if (!IsSafe(link.Url)) link.Url = "#";
+        foreach (var link in doc.Descendants<AutolinkInline>())
+            if (!link.IsEmail && !IsSafe(link.Url)) link.Url = "#";
+        html = doc.ToHtml(Pipeline);
+    }
+
+    private static bool IsSafe(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return true;
+        var u = url.Trim();
+        var colon = u.IndexOf(':');
+        if (colon < 0 || u.IndexOfAny(['/', '?', '#']) is var s && s >= 0 && s < colon) return true;
+        var scheme = u[..colon].ToLowerInvariant();
+        return scheme is "http" or "https" or "mailto";
+    }
+}

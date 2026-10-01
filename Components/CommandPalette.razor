@@ -1,0 +1,104 @@
+@implements IDisposable
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+@if (open)
+{
+    <div class="palette-backdrop" @onclick="Close">
+        <div class="palette glass" role="dialog" aria-label="Search tools" @onclick:stopPropagation="true">
+            <input @ref="inputRef" class="io" placeholder="Search tools... (↑ ↓ to move, Enter to open, Esc to close)"
+                   @bind="query" @bind:event="oninput" @bind:after="() => selected = 0" @onkeydown="OnKeyDown" />
+            <ul class="palette-list">
+                @foreach (var (tool, index) in results.Select((t, i) => (t, i)))
+                {
+                    <li class="@(index == selected ? "sel" : "")" @onclick="() => Go(tool)" @onmouseover="() => selected = index">
+                        <span class="nav-icon">@tool.Icon</span>
+                        <span class="palette-name">@tool.Name</span>
+                        <small>@tool.Category</small>
+                    </li>
+                }
+                @if (results.Count == 0)
+                {
+                    <li class="empty">No tools match "@query"</li>
+                }
+            </ul>
+        </div>
+    </div>
+}
+
+@code {
+    private bool open;
+    private bool focusPending;
+    private string query = "";
+    private int selected;
+    private ElementReference inputRef;
+    private DotNetObjectReference<CommandPalette>? selfRef;
+
+    private List<ToolInfo> results => ToolCatalog.All
+        .Where(t => string.IsNullOrWhiteSpace(query)
+                    || t.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || t.Summary.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || t.Category.Contains(query, StringComparison.OrdinalIgnoreCase))
+        .Take(12)
+        .ToList();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            selfRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("devTools.registerShortcuts", selfRef);
+        }
+        if (focusPending)
+        {
+            focusPending = false;
+            await JS.InvokeVoidAsync("devTools.focus", inputRef);
+        }
+    }
+
+    [JSInvokable]
+    public Task OpenPalette()
+    {
+        Open();
+        return Task.CompletedTask;
+    }
+
+    public void Open()
+    {
+        open = true;
+        query = "";
+        selected = 0;
+        focusPending = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void Close() => open = false;
+
+    private void Go(ToolInfo tool)
+    {
+        open = false;
+        Nav.NavigateTo(tool.Href);
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        var list = results;
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                selected = list.Count == 0 ? 0 : (selected + 1) % list.Count;
+                break;
+            case "ArrowUp":
+                selected = list.Count == 0 ? 0 : (selected - 1 + list.Count) % list.Count;
+                break;
+            case "Enter":
+                if (selected < list.Count) Go(list[selected]);
+                break;
+            case "Escape":
+                Close();
+                break;
+        }
+    }
+
+    public void Dispose() => selfRef?.Dispose();
+}

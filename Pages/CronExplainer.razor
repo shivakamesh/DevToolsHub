@@ -1,0 +1,89 @@
+@page "/cron-explainer"
+@using Cronos
+
+<ToolPage Title="Cron Expression Explainer" Description="Validate cron expressions and preview the next run times in any time zone.">
+    <input class="io" placeholder="e.g. 0 9 * * MON-FRI" @bind="expression" @bind:event="oninput" @bind:after="Run" />
+
+    <div class="toolbar">
+        <label><input type="checkbox" @bind="withSeconds" @bind:after="Run" /> Include seconds field (6 parts)</label>
+        <label>Time zone
+            <select @bind="timeZoneId" @bind:after="Run">
+                @foreach (var tz in timeZones)
+                {
+                    <option value="@tz.Id">@tz.Id</option>
+                }
+            </select>
+        </label>
+    </div>
+
+    <p class="lead">Format: @(withSeconds ? "second " : "")minute hour day-of-month month day-of-week</p>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (nextRuns.Count > 0)
+    {
+        <h3>Next @nextRuns.Count runs</h3>
+        <ul>
+            @foreach (var run in nextRuns)
+            {
+                <li><code>@run.ToString("yyyy-MM-dd HH:mm:ss (ddd) zzz")</code></li>
+            }
+        </ul>
+    }
+
+    <h3>Examples</h3>
+    <div class="toolbar">
+        @foreach (var ex in examples)
+        {
+            <button class="btn secondary" @onclick="() => Use(ex.Expr)">@ex.Label</button>
+        }
+    </div>
+</ToolPage>
+
+@code {
+    private string expression = "0 9 * * MON-FRI";
+    private bool withSeconds;
+    private string timeZoneId = TimeZoneInfo.Utc.Id;
+    private string? error;
+    private List<DateTimeOffset> nextRuns = [];
+    private readonly IReadOnlyList<TimeZoneInfo> timeZones = TimeZoneInfo.GetSystemTimeZones();
+
+    private readonly (string Label, string Expr)[] examples =
+    [
+        ("Every minute", "* * * * *"),
+        ("Every 15 min", "*/15 * * * *"),
+        ("Daily 02:00", "0 2 * * *"),
+        ("Weekdays 09:00", "0 9 * * MON-FRI"),
+        ("1st of month", "0 0 1 * *"),
+    ];
+
+    protected override void OnInitialized() => Run();
+
+    private void Use(string expr)
+    {
+        withSeconds = false;
+        expression = expr;
+        Run();
+    }
+
+    private void Run()
+    {
+        error = null;
+        nextRuns = [];
+        if (string.IsNullOrWhiteSpace(expression)) return;
+        try
+        {
+            var cron = CronExpression.Parse(expression.Trim(), withSeconds ? CronFormat.IncludeSeconds : CronFormat.Standard);
+            var tz = timeZones.FirstOrDefault(t => t.Id == timeZoneId) ?? TimeZoneInfo.Utc;
+            nextRuns = cron.GetOccurrences(DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddYears(5), tz)
+                           .Take(10).ToList();
+            if (nextRuns.Count == 0) error = "This expression never fires in the next 5 years.";
+        }
+        catch (CronFormatException ex)
+        {
+            error = ex.Message;
+        }
+    }
+}

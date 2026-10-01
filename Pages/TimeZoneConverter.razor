@@ -1,0 +1,88 @@
+@page "/time-zone-converter"
+
+<ToolPage Title="Time Zone Converter" Description="See the same moment across multiple time zones.">
+    <div class="toolbar">
+        <input type="datetime-local" @bind="local" @bind:after="Update" />
+        <label>From
+            <select @bind="sourceZone" @bind:after="Update">
+                @foreach (var z in zones) { <option value="@z.Id">@z.DisplayName</option> }
+            </select>
+        </label>
+        <button class="btn secondary" @onclick="Now">Now</button>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+
+    <table class="table">
+        <thead><tr><th>Time zone</th><th>Local time</th><th>Offset</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var id in targets)
+            {
+                var zone = Find(id);
+                if (zone is null) continue;
+                var t = TimeZoneInfo.ConvertTime(instant, zone);
+                <tr>
+                    <td>@zone.DisplayName</td>
+                    <td><strong>@t.ToString("ddd yyyy-MM-dd HH:mm")</strong></td>
+                    <td>UTC@(t.Offset >= TimeSpan.Zero ? "+" : "-")@t.Offset.ToString(@"hh\:mm")</td>
+                    <td><button class="btn secondary" @onclick="() => targets.Remove(id)">✕</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="toolbar">
+        <select @bind="toAdd">
+            @foreach (var z in zones) { <option value="@z.Id">@z.DisplayName</option> }
+        </select>
+        <button class="btn" @onclick="Add">Add zone</button>
+    </div>
+</ToolPage>
+
+@code {
+    private readonly List<TimeZoneInfo> zones = TimeZoneInfo.GetSystemTimeZones().OrderBy(z => z.BaseUtcOffset).ThenBy(z => z.Id).ToList();
+    private readonly List<string> targets = [];
+    private DateTime local = DateTime.Now;
+    private string sourceZone = TimeZoneInfo.Local.Id;
+    private string toAdd = "UTC";
+    private DateTimeOffset instant = DateTimeOffset.Now;
+    private string? error;
+
+    protected override void OnInitialized()
+    {
+        foreach (var id in new[] { "UTC", "America/New_York", "Europe/London", "Europe/Berlin", "Asia/Kolkata", "Asia/Tokyo", "Australia/Sydney" })
+            if (Find(id) is not null) targets.Add(id);
+        if (Find(sourceZone) is null) sourceZone = "UTC";
+        Update();
+    }
+
+    private TimeZoneInfo? Find(string id) => zones.FirstOrDefault(z => z.Id == id);
+
+    private void Now()
+    {
+        local = DateTime.Now;
+        sourceZone = TimeZoneInfo.Local.Id;
+        Update();
+    }
+
+    private void Add()
+    {
+        if (!targets.Contains(toAdd)) targets.Add(toAdd);
+    }
+
+    private void Update()
+    {
+        error = null;
+        var zone = Find(sourceZone) ?? TimeZoneInfo.Utc;
+        var unspecified = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
+        if (zone.IsInvalidTime(unspecified))
+        {
+            error = "That local time does not exist in the selected zone (daylight saving gap).";
+            return;
+        }
+        instant = new DateTimeOffset(unspecified, zone.GetUtcOffset(unspecified));
+    }
+}

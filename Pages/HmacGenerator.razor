@@ -1,0 +1,66 @@
+@page "/hmac-generator"
+@using System.Text
+
+<ToolPage Title="HMAC Generator" Description="Compute HMAC-SHA1, SHA256, SHA384 and SHA512 signatures.">
+    <h3>Message</h3>
+    <textarea class="io" rows="8" @bind="message" @bind:event="oninput" @bind:after="Compute"></textarea>
+
+    <div class="toolbar">
+        <label>Key <input class="small-input wide" @bind="key" @bind:event="oninput" @bind:after="Compute" /></label>
+        <label>Key format
+            <select @bind="keyEncoding" @bind:after="Compute">
+                <option>Text</option>
+                <option>Hex</option>
+                <option>Base64</option>
+            </select>
+        </label>
+        <label>Algorithm
+            <select @bind="algorithm" @bind:after="Compute">
+                <option value="SHA1">HMAC-SHA1</option>
+                <option value="SHA256">HMAC-SHA256</option>
+                <option value="SHA384">HMAC-SHA384</option>
+                <option value="SHA512">HMAC-SHA512</option>
+            </select>
+        </label>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Hex</th><td><code class="break">@hex</code></td><td><CopyButton Text="@hex" /></td></tr>
+                <tr><th>Base64</th><td><code class="break">@b64</code></td><td><CopyButton Text="@b64" /></td></tr>
+            </tbody>
+        </table>
+    }
+</ToolPage>
+
+@code {
+    private string message = "{\"event\":\"order.paid\",\"id\":42}";
+    private string key = "webhook-secret";
+    private string keyEncoding = "Text";
+    private string algorithm = "SHA256";
+    private string hex = "", b64 = "";
+    private string? error;
+
+    protected override void OnInitialized() => Compute();
+
+    private void Compute()
+    {
+        error = null;
+        try
+        {
+            var mac = CryptoHelpers.Hmac(algorithm, CryptoHelpers.DecodeKey(key, keyEncoding), Encoding.UTF8.GetBytes(message));
+            hex = Convert.ToHexString(mac).ToLowerInvariant();
+            b64 = Convert.ToBase64String(mac);
+        }
+        catch (FormatException)
+        {
+            error = $"The key is not valid {keyEncoding}.";
+        }
+    }
+}

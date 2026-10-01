@@ -1,0 +1,51 @@
+@page "/case-converter"
+@using System.Globalization
+@using System.Text.RegularExpressions
+
+<ToolPage Title="Case Converter" Description="Convert text between camelCase, PascalCase, snake_case, kebab-case and more." ShareValue="@input">
+    <textarea class="io" rows="5" placeholder="Type or paste text..." @bind="input" @bind:event="oninput"></textarea>
+
+    <table class="table">
+        <tbody>
+            @foreach (var (name, fn) in cases)
+            {
+                var result = string.Join('\n', input.Split('\n').Select(l => fn(Split(l))));
+                <tr><th>@name</th><td><code class="break pre">@result</code></td><td><CopyButton Text="@result" /></td></tr>
+            }
+        </tbody>
+    </table>
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    private string input = "hello world from DevToolsHub";
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(Q)) input = Q;
+    }
+
+    private static readonly (string, Func<List<string>, string>)[] cases =
+    [
+        ("camelCase", w => string.Concat(w.Select((x, i) => i == 0 ? x.ToLowerInvariant() : Cap(x)))),
+        ("PascalCase", w => string.Concat(w.Select(Cap))),
+        ("snake_case", w => string.Join('_', w).ToLowerInvariant()),
+        ("CONSTANT_CASE", w => string.Join('_', w).ToUpperInvariant()),
+        ("kebab-case", w => string.Join('-', w).ToLowerInvariant()),
+        ("Train-Case", w => string.Join('-', w.Select(Cap))),
+        ("dot.case", w => string.Join('.', w).ToLowerInvariant()),
+        ("Title Case", w => string.Join(' ', w.Select(Cap))),
+        ("Sentence case", w => w.Count == 0 ? "" : Cap(string.Join(' ', w).ToLowerInvariant())),
+        ("lower case", w => string.Join(' ', w).ToLowerInvariant()),
+        ("UPPER CASE", w => string.Join(' ', w).ToUpperInvariant()),
+    ];
+
+    private static string Cap(string w) =>
+        w.Length == 0 ? w : char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant();
+
+    private static List<string> Split(string text) =>
+        Regex.Matches(text, @"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+|[^\W_\d]+")
+             .Select(m => m.Value)
+             .ToList();
+}

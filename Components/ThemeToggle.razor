@@ -1,0 +1,22 @@
+@inject IJSRuntime JS
+
+<button class="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle theme" @onclick="ToggleAsync">
+    @(dark ? "☀️" : "🌙")
+</button>
+
+@code {
+    private bool dark = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        dark = await JS.InvokeAsync<string>("devTheme.get") != "light";
+        StateHasChanged();
+    }
+
+    private async Task ToggleAsync()
+    {
+        dark = !dark;
+        await JS.InvokeVoidAsync("devTheme.set", dark ? "dark" : "light");
+    }
+}

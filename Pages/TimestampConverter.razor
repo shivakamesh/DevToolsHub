@@ -1,0 +1,90 @@
+@page "/timestamp-converter"
+@using System.Globalization
+
+<ToolPage Title="Unix Timestamp Converter" Description="Convert Unix epoch timestamps (seconds or milliseconds) to dates and back.">
+    <p>Current Unix time: <code>@DateTimeOffset.UtcNow.ToUnixTimeSeconds()</code>
+        <button class="btn secondary" @onclick="UseNow">Use now</button></p>
+
+    <h3>Timestamp → Date</h3>
+    <input class="io" placeholder="e.g. 1700000000 or 1700000000000" @bind="timestamp" @bind:event="oninput" @bind:after="FromTimestamp" />
+    @if (tsError is not null)
+    {
+        <div class="alert error">@tsError</div>
+    }
+    else if (tsResult is not null)
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Detected unit</th><td>@unit</td></tr>
+                <tr><th>UTC</th><td><code>@tsResult.Value.ToString("yyyy-MM-dd HH:mm:ss.fff 'UTC'")</code></td></tr>
+                <tr><th>Local</th><td><code>@tsResult.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff zzz")</code></td></tr>
+                <tr><th>ISO 8601</th><td><code>@tsResult.Value.ToString("O")</code></td></tr>
+            </tbody>
+        </table>
+    }
+
+    <h3>Date → Timestamp</h3>
+    <input class="io" placeholder="e.g. 2025-01-31 14:30:00 or 2025-01-31T14:30:00Z" @bind="date" @bind:event="oninput" @bind:after="FromDate" />
+    @if (dateError is not null)
+    {
+        <div class="alert error">@dateError</div>
+    }
+    else if (dateResult is not null)
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Seconds</th><td><code>@dateResult.Value.ToUnixTimeSeconds()</code></td></tr>
+                <tr><th>Milliseconds</th><td><code>@dateResult.Value.ToUnixTimeMilliseconds()</code></td></tr>
+            </tbody>
+        </table>
+        <p class="lead">Dates without an offset are treated as UTC.</p>
+    }
+</ToolPage>
+
+@code {
+    private string timestamp = "";
+    private string date = "";
+    private string unit = "";
+    private DateTimeOffset? tsResult, dateResult;
+    private string? tsError, dateError;
+
+    private void UseNow()
+    {
+        timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        FromTimestamp();
+    }
+
+    private void FromTimestamp()
+    {
+        tsError = null;
+        tsResult = null;
+        if (string.IsNullOrWhiteSpace(timestamp)) return;
+        if (!long.TryParse(timestamp.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+        {
+            tsError = "Enter a whole number.";
+            return;
+        }
+        try
+        {
+            var isMillis = Math.Abs(value) >= 100_000_000_000;
+            unit = isMillis ? "milliseconds" : "seconds";
+            tsResult = isMillis ? DateTimeOffset.FromUnixTimeMilliseconds(value) : DateTimeOffset.FromUnixTimeSeconds(value);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            tsError = "Timestamp is out of range.";
+        }
+    }
+
+    private void FromDate()
+    {
+        dateError = null;
+        dateResult = null;
+        if (string.IsNullOrWhiteSpace(date)) return;
+        if (DateTimeOffset.TryParse(date.Trim(), CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
+            dateResult = parsed;
+        else
+            dateError = "Could not parse date. Try yyyy-MM-dd HH:mm:ss.";
+    }
+}

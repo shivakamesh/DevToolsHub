@@ -1,0 +1,67 @@
+@page "/css-generator"
+
+<ToolPage Title="CSS Gradient & Shadow Generator" Description="Design CSS gradients and box shadows with a live preview.">
+    <div class="split">
+        <div>
+            <h2 class="section-title">Gradient</h2>
+            <div class="toolbar">
+                <select @bind="gradientType">
+                    <option value="linear">Linear</option>
+                    <option value="radial">Radial</option>
+                </select>
+                @if (gradientType == "linear")
+                {
+                    <label>Angle <input type="range" min="0" max="360" @bind="angle" @bind:event="oninput" /> @(angle)°</label>
+                }
+            </div>
+            <div class="toolbar">
+                <input type="color" @bind="c1" @bind:event="oninput" />
+                <input type="color" @bind="c2" @bind:event="oninput" />
+                <label><input type="checkbox" @bind="useThird" /> 3rd</label>
+                @if (useThird) { <input type="color" @bind="c3" @bind:event="oninput" /> }
+            </div>
+
+            <h2 class="section-title">Box shadow</h2>
+            <div class="sliders">
+                <label>X <input type="range" min="-50" max="50" @bind="sx" @bind:event="oninput" /> @(sx)px</label>
+                <label>Y <input type="range" min="-50" max="50" @bind="sy" @bind:event="oninput" /> @(sy)px</label>
+                <label>Blur <input type="range" min="0" max="100" @bind="blur" @bind:event="oninput" /> @(blur)px</label>
+                <label>Spread <input type="range" min="-50" max="50" @bind="spread" @bind:event="oninput" /> @(spread)px</label>
+                <label>Opacity <input type="range" min="0" max="100" @bind="opacity" @bind:event="oninput" /> @(opacity)%</label>
+                <label>Color <input type="color" @bind="shadowColor" @bind:event="oninput" /></label>
+                <label><input type="checkbox" @bind="inset" /> Inset</label>
+                <label>Radius <input type="range" min="0" max="100" @bind="radius" @bind:event="oninput" /> @(radius)px</label>
+            </div>
+        </div>
+        <div>
+            <div class="css-preview-stage">
+                <div class="css-preview" style="@Css.Replace("\n", "")"></div>
+            </div>
+            <textarea class="io" rows="5" readonly>@Css</textarea>
+            <CopyButton Text="@Css" />
+        </div>
+    </div>
+</ToolPage>
+
+@code {
+    private string gradientType = "linear";
+    private int angle = 135;
+    private string c1 = "#7c3aed", c2 = "#06b6d4", c3 = "#f472b6";
+    private bool useThird;
+    private int sx = 0, sy = 20, blur = 40, spread = -10, opacity = 45, radius = 24;
+    private string shadowColor = "#000000";
+    private bool inset;
+
+    private string Stops => useThird ? $"{c1}, {c2}, {c3}" : $"{c1}, {c2}";
+
+    private string Css
+    {
+        get
+        {
+            var gradient = gradientType == "linear" ? $"linear-gradient({angle}deg, {Stops})" : $"radial-gradient(circle, {Stops})";
+            var rgb = Convert.FromHexString(shadowColor.TrimStart('#'));
+            var shadow = $"{(inset ? "inset " : "")}{sx}px {sy}px {blur}px {spread}px rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {opacity / 100.0:0.##})";
+            return $"background: {gradient};\nbox-shadow: {shadow};\nborder-radius: {radius}px;";
+        }
+    }
+}

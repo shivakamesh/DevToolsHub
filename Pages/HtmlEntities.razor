@@ -1,0 +1,42 @@
+@page "/html-entities"
+@using System.Net
+@using System.Text
+
+<ToolPage Title="HTML Entity Encoder / Decoder" Description="Encode special characters as HTML entities or decode entities back to text.">
+    <textarea class="io" rows="10" placeholder="Input..." @bind="input" @bind:event="oninput"></textarea>
+    <div class="toolbar">
+        <label><input type="checkbox" @bind="encodeNonAscii" /> Encode all non-ASCII characters</label>
+        <button class="btn" @onclick="Encode">Encode</button>
+        <button class="btn" @onclick="Decode">Decode</button>
+        <CopyButton Text="@output" />
+    </div>
+    <textarea class="io" rows="10" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string input = "<p class=\"note\">Tom & Jerry © 2025 — \"quotes\" & 'apostrophes'</p>";
+    private string output = "";
+    private bool encodeNonAscii;
+
+    private void Encode()
+    {
+        var sb = new StringBuilder();
+        foreach (var rune in input.EnumerateRunes())
+        {
+            var s = rune.ToString();
+            sb.Append(s switch
+            {
+                "<" => "&lt;",
+                ">" => "&gt;",
+                "&" => "&amp;",
+                "\"" => "&quot;",
+                "'" => "&#39;",
+                _ when encodeNonAscii && rune.Value > 127 => $"&#x{rune.Value:X};",
+                _ => s,
+            });
+        }
+        output = sb.ToString();
+    }
+
+    private void Decode() => output = WebUtility.HtmlDecode(input);
+}

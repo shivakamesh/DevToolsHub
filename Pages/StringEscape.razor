@@ -1,0 +1,94 @@
+@page "/string-escape"
+@using System.Text
+@using System.Text.Encodings.Web
+@using System.Text.Json
+@using System.Text.RegularExpressions
+
+<ToolPage Title="String Escape / Unescape" Description="Escape or unescape strings for C#, JSON, JavaScript and SQL literals.">
+    <textarea class="io" rows="10" placeholder="Input..." @bind="input" @bind:event="oninput"></textarea>
+    <div class="toolbar">
+        <label>Language
+            <select @bind="language">
+                <option>C#</option>
+                <option>C# verbatim</option>
+                <option>JSON</option>
+                <option>JavaScript</option>
+                <option>SQL</option>
+            </select>
+        </label>
+        <button class="btn" @onclick="Escape">Escape</button>
+        <button class="btn" @onclick="Unescape">Unescape</button>
+        <CopyButton Text="@output" />
+    </div>
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    <textarea class="io" rows="10" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string input = "Path: C:\\temp\\file.txt\nShe said \"hi\"\tand left. It's done.";
+    private string output = "";
+    private string language = "C#";
+    private string? error;
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    private void Escape()
+    {
+        error = null;
+        output = language switch
+        {
+            "C#" => EscapeC(input, singleQuote: false),
+            "JavaScript" => EscapeC(input, singleQuote: true),
+            "C# verbatim" => input.Replace("\"", "\"\""),
+            "JSON" => JsonSerializer.Serialize(input, JsonOptions)[1..^1],
+            "SQL" => input.Replace("'", "''"),
+            _ => input,
+        };
+    }
+
+    private void Unescape()
+    {
+        error = null;
+        try
+        {
+            output = language switch
+            {
+                "C#" or "JavaScript" => Regex.Unescape(input.Replace("\\'", "'").Replace("\\0", "\0")),
+                "C# verbatim" => input.Replace("\"\"", "\""),
+                "JSON" => JsonSerializer.Deserialize<string>("\"" + input + "\"") ?? "",
+                "SQL" => input.Replace("''", "'"),
+                _ => input,
+            };
+        }
+        catch (Exception ex) when (ex is ArgumentException or JsonException)
+        {
+            error = "Could not unescape: " + ex.Message;
+        }
+    }
+
+    private static string EscapeC(string s, bool singleQuote)
+    {
+        var sb = new StringBuilder(s.Length + 16);
+        foreach (var c in s)
+        {
+            sb.Append(c switch
+            {
+                '\\' => "\\\\",
+                '"' => "\\\"",
+                '\'' when singleQuote => "\\'",
+                '\n' => "\\n",
+                '\r' => "\\r",
+                '\t' => "\\t",
+                '\0' => "\\0",
+                '\b' => "\\b",
+                '\f' => "\\f",
+                _ when char.IsControl(c) => $"\\u{(int)c:x4}",
+                _ => c.ToString(),
+            });
+        }
+        return sb.ToString();
+    }
+}

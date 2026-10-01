@@ -1,0 +1,21 @@
+@page "/url-encoder"
+
+<ToolPage Title="URL Encode / Decode" Description="Percent-encode or decode URLs and query string values.">
+    <textarea class="io" rows="8" placeholder="Input..." @bind="input" @bind:event="oninput"></textarea>
+
+    <div class="toolbar">
+        <button class="btn" @onclick="Encode">Encode</button>
+        <button class="btn" @onclick="Decode">Decode</button>
+        <CopyButton Text="@output" />
+    </div>
+
+    <textarea class="io" rows="8" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string input = "";
+    private string output = "";
+
+    private void Encode() => output = Uri.EscapeDataString(input);
+    private void Decode() => output = Uri.UnescapeDataString(input.Replace('+', ' '));
+}

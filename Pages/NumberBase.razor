@@ -1,0 +1,84 @@
+@page "/number-base"
+@using System.Numerics
+
+<ToolPage Title="Number Base Converter" Description="Convert numbers between binary, octal, decimal, hexadecimal and any base 2-36.">
+    <div class="toolbar">
+        <input class="io" placeholder="Number..." @bind="input" @bind:event="oninput" @bind:after="Convert" />
+        <label>Input base
+            <select @bind="fromBase" @bind:after="Convert">
+                @for (var b = 2; b <= 36; b++) { var v = b; <option value="@v">@v</option> }
+            </select>
+        </label>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (value is not null)
+    {
+        <table class="table">
+            <tbody>
+                @foreach (var (name, b) in new[] { ("Binary", 2), ("Octal", 8), ("Decimal", 10), ("Hexadecimal", 16), ("Base 36", 36) })
+                {
+                    var s = ToBase(value.Value, b);
+                    <tr><th>@name (@b)</th><td><code class="break">@s</code></td><td><CopyButton Text="@s" /></td></tr>
+                }
+                <tr>
+                    <th>Custom <input class="small-input" type="number" min="2" max="36" @bind="customBase" /></th>
+                    <td><code class="break">@ToBase(value.Value, Math.Clamp(customBase, 2, 36))</code></td><td></td>
+                </tr>
+            </tbody>
+        </table>
+    }
+</ToolPage>
+
+@code {
+    private const string Digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+    private string input = "255";
+    private int fromBase = 10;
+    private int customBase = 3;
+    private BigInteger? value;
+    private string? error;
+
+    protected override void OnInitialized() => Convert();
+
+    private void Convert()
+    {
+        error = null;
+        value = null;
+        var s = input.Trim().Replace("_", "").Replace(" ", "").ToLowerInvariant();
+        if (s.Length == 0) return;
+        var negative = s[0] == '-';
+        if (negative) s = s[1..];
+        if (fromBase == 16 && s.StartsWith("0x")) s = s[2..];
+        else if (fromBase == 2 && s.StartsWith("0b")) s = s[2..];
+        else if (fromBase == 8 && s.StartsWith("0o")) s = s[2..];
+        if (s.Length == 0) { error = "Enter digits."; return; }
+
+        BigInteger result = 0;
+        foreach (var c in s)
+        {
+            var d = Digits.IndexOf(c);
+            if (d < 0 || d >= fromBase) { error = $"'{c}' is not a valid base-{fromBase} digit."; return; }
+            result = result * fromBase + d;
+        }
+        value = negative ? -result : result;
+    }
+
+    private static string ToBase(BigInteger n, int b)
+    {
+        if (n.IsZero) return "0";
+        var neg = n.Sign < 0;
+        n = BigInteger.Abs(n);
+        var chars = new List<char>();
+        while (n > 0)
+        {
+            chars.Add(Digits[(int)(n % b)]);
+            n /= b;
+        }
+        if (neg) chars.Add('-');
+        chars.Reverse();
+        return new string(chars.ToArray());
+    }
+}

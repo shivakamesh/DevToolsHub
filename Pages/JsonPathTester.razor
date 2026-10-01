@@ -1,0 +1,62 @@
+@page "/json-path"
+@using Newtonsoft.Json.Linq
+
+<ToolPage Title="JSONPath Tester" Description="Query JSON with JSONPath expressions and see the matching values.">
+    <input class="io" placeholder="JSONPath, e.g. $.store.book[*].author" @bind="path" @bind:event="oninput" @bind:after="Run" />
+    <div class="toolbar">
+        @foreach (var ex in examples)
+        {
+            <button class="btn secondary" @onclick="() => Use(ex)"><code>@ex</code></button>
+        }
+    </div>
+
+    <div class="split">
+        <textarea class="io" rows="18" placeholder="JSON..." @bind="json" @bind:event="oninput" @bind:after="Run"></textarea>
+        <div>
+            @if (error is not null)
+            {
+                <div class="alert error">@error</div>
+            }
+            else
+            {
+                <p><strong>@count</strong> match(es) <CopyButton Text="@output" /></p>
+                <pre class="code">@output</pre>
+            }
+        </div>
+    </div>
+</ToolPage>
+
+@code {
+    private readonly string[] examples = ["$.store.book[*].author", "$..price", "$.store.book[?(@.price < 10)].title", "$.store.book[-1:]"];
+    private string path = "$.store.book[*].author";
+    private string json = "{\n  \"store\": {\n    \"book\": [\n      { \"title\": \"Sayings of the Century\", \"author\": \"Nigel Rees\", \"price\": 8.95 },\n      { \"title\": \"Sword of Honour\", \"author\": \"Evelyn Waugh\", \"price\": 12.99 },\n      { \"title\": \"Moby Dick\", \"author\": \"Herman Melville\", \"price\": 8.99 }\n    ],\n    \"bicycle\": { \"color\": \"red\", \"price\": 19.95 }\n  }\n}";
+    private string output = "";
+    private int count;
+    private string? error;
+
+    protected override void OnInitialized() => Run();
+
+    private void Use(string example)
+    {
+        path = example;
+        Run();
+    }
+
+    private void Run()
+    {
+        error = null;
+        output = "";
+        count = 0;
+        if (string.IsNullOrWhiteSpace(json) || string.IsNullOrWhiteSpace(path)) return;
+        try
+        {
+            var results = JToken.Parse(json).SelectTokens(path).ToList();
+            count = results.Count;
+            output = new JArray(results).ToString(Newtonsoft.Json.Formatting.Indented);
+        }
+        catch (Exception ex) when (ex is Newtonsoft.Json.JsonException or ArgumentException)
+        {
+            error = ex.Message;
+        }
+    }
+}
