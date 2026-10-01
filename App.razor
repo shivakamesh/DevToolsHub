@@ -1,4 +1,11 @@
-﻿<Router AppAssembly="@typeof(App).Assembly">
+﻿@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.WebAssembly.Services
+@inject LazyAssemblyLoader AssemblyLoader
+
+<Router AppAssembly="@typeof(App).Assembly" OnNavigateAsync="OnNavigateAsync">
+    <Navigating>
+        <p class="muted">Loading tool…</p>
+    </Navigating>
     <Found Context="routeData">
         <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
@@ -10,3 +17,23 @@
         </LayoutView>
     </NotFound>
 </Router>
+
+@code {
+    private static readonly Dictionary<string, string[]> LazyAssemblies = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["fake-data"] = ["Bogus.wasm"],
+        ["json-path"] = ["Newtonsoft.Json.wasm"],
+        ["markdown-preview"] = ["Markdig.wasm"],
+        ["format-converter"] = ["YamlDotNet.wasm"],
+        ["qr-code"] = ["QRCoder.wasm"],
+    };
+
+    private readonly HashSet<string> loaded = [];
+
+    private async Task OnNavigateAsync(NavigationContext context)
+    {
+        var path = context.Path.Split('?', '#')[0].Trim('/');
+        if (LazyAssemblies.TryGetValue(path, out var assemblies) && loaded.Add(path))
+            await AssemblyLoader.LoadAssembliesAsync(assemblies);
+    }
+}
