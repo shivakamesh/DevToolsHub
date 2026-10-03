@@ -1,0 +1,38 @@
+@page "/q/{Id}"
+@using DevToolsHub.Services
+@inject DynamicQrStore Store
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Redirecting… | It's All Dev Tools</PageTitle>
+
+@if (notFound)
+{
+    <h1>QR code not found</h1>
+    <p class="lead">This dynamic QR code doesn't exist in this browser. <a href="dynamic-qr-code">Create one</a>.</p>
+}
+else
+{
+    <p class="muted">Redirecting…</p>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    private bool notFound;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await Store.LoadAsync();
+        var code = Store.Find(Id);
+        if (code is null || !DynamicQrStore.IsValidTarget(code.TargetUrl))
+        {
+            notFound = true;
+            StateHasChanged();
+            return;
+        }
+        await Store.RecordScanAsync(code, await JS.InvokeAsync<string?>("devTools.userAgent"));
+        Nav.NavigateTo(code.TargetUrl, forceLoad: true, replace: true);
+    }
+}

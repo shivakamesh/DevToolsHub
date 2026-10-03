@@ -1,0 +1,94 @@
+@page "/power-converter"
+@using System.Globalization
+
+<ToolPage Title="kW, kVA & Amps Converter" Description="Convert between current, active power (kW) and apparent power (kVA) for single-phase, three-phase and DC circuits.">
+    <div class="toolbar">
+        <label>System
+            <select @bind="system">
+                <option value="3">Three-phase</option>
+                <option value="1">Single-phase</option>
+                <option value="dc">DC</option>
+            </select>
+        </label>
+        <label>Voltage (V@(system == "3" ? ", line-line" : "")) <input type="number" min="1" step="any" @bind="voltage" @bind:event="oninput" /></label>
+        @if (system != "dc")
+        {
+            <label>Power factor <input type="number" min="0.01" max="1" step="0.01" @bind="pf" @bind:event="oninput" /></label>
+        }
+    </div>
+    <div class="toolbar">
+        <label>Known value
+            <select @bind="known">
+                <option value="A">Current (A)</option>
+                <option value="kW">Active power (kW)</option>
+                <option value="kVA">Apparent power (kVA)</option>
+                <option value="hp">Mechanical power (hp)</option>
+            </select>
+        </label>
+        <label>Value <input type="number" min="0" step="any" @bind="value" @bind:event="oninput" /></label>
+        @if (known == "hp")
+        {
+            <label>Efficiency (%) <input type="number" min="1" max="100" step="any" @bind="efficiency" @bind:event="oninput" /></label>
+        }
+    </div>
+
+    @{
+        var p = system == "dc" ? 1 : pf;
+    }
+    @if (voltage <= 0 || value < 0 || p is <= 0 or > 1 || (known == "hp" && efficiency is <= 0 or > 100))
+    {
+        <div class="alert error">Enter a positive voltage, a non-negative value, a power factor between 0 and 1 and an efficiency between 0 and 100 %.</div>
+    }
+    else
+    {
+        var k = system == "3" ? Math.Sqrt(3) * voltage : voltage;
+        double kva = known switch
+        {
+            "A" => k * value / 1000,
+            "kW" => value / p,
+            "kVA" => value,
+            _ => value * 0.7457 / (efficiency / 100) / p,
+        };
+        var kw = kva * p;
+        var amps = kva * 1000 / k;
+        var kvar = system == "dc" ? 0 : Math.Sqrt(Math.Max(0, kva * kva - kw * kw));
+
+        <table class="table">
+            <tbody>
+                <tr><th>Current</th><td><strong><code>@Fmt(amps) A</code></strong></td></tr>
+                <tr><th>Active power</th><td><code>@Fmt(kw) kW</code></td></tr>
+                @if (system != "dc")
+                {
+                    <tr><th>Apparent power</th><td><code>@Fmt(kva) kVA</code></td></tr>
+                    <tr><th>Reactive power</th><td><code>@Fmt(kvar) kVAR</code></td></tr>
+                }
+                <tr><th>Equivalent motor output (at @Fmt(efficiency) % eff.)</th><td><code>@Fmt(kw * efficiency / 100 / 0.7457) hp</code></td></tr>
+            </tbody>
+        </table>
+        <p class="lead">
+            @if (system == "3")
+            {
+                <text>I = S / (√3 × V<sub>LL</sub>), P = S × PF</text>
+            }
+            else if (system == "1")
+            {
+                <text>I = S / V, P = S × PF</text>
+            }
+            else
+            {
+                <text>I = P / V</text>
+            }
+        </p>
+    }
+</ToolPage>
+
+@code {
+    private string system = "3";
+    private double voltage = 400;
+    private double pf = 0.85;
+    private string known = "kW";
+    private double value = 22;
+    private double efficiency = 90;
+
+    private static string Fmt(double d) => d.ToString("#,0.##", CultureInfo.InvariantCulture);
+}

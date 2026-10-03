@@ -2,7 +2,7 @@
 @implements IDisposable
 @inject UserPrefs Prefs
 
-<PageTitle>DevToolsHub - Free Online Developer Tools</PageTitle>
+<PageTitle>DevToolsHub - Free Online Developer Tools & Electrical Calculators</PageTitle>
 
 <section class="home-hero">
     <div class="hero-grid" aria-hidden="true"></div>
@@ -10,7 +10,7 @@
     <div class="hero-inner">
         <span class="hero-eyebrow"><span class="live-dot"></span>@ToolCatalog.All.Count free tools · no sign-up · runs locally</span>
         <h1>Developer tools that <span class="hero-accent">respect your data</span></h1>
-        <p class="lead">Everything runs in your browser. Nothing is uploaded, ever.</p>
+        <p class="lead">Developer utilities plus electrical engineering calculators: cable sizing and voltage drop (IEC/NEC), kW/kVA/amps, power factor correction, transformer fault current, resistor color codes and LED resistors. Everything runs in your browser. Nothing is uploaded, ever.</p>
         <div class="home-search">
             <span class="search-ico" aria-hidden="true">⌕</span>
             <input class="io" placeholder="Search tools…" @bind="query" @bind:event="oninput" aria-label="Search tools" />
@@ -20,6 +20,7 @@
             <li><span>🔒</span> 100% client-side</li>
             <li><span>⚡</span> Instant, no installs</li>
             <li><span>🧰</span> @ToolCatalog.Categories.Length categories</li>
+            <li><span>🔌</span> @ToolCatalog.All.Count(t => t.Category == "Engineering") electrical calculators</li>
         </ul>
     </div>
 </section>

@@ -1,0 +1,58 @@
+@page "/transformer-calculator"
+@using System.Globalization
+
+<ToolPage Title="Transformer Current & Fault Calculator" Description="Calculate transformer full-load current on both windings and the maximum short-circuit current from impedance (%Z).">
+    <div class="toolbar">
+        <label>System
+            <select @bind="system">
+                <option value="3">Three-phase</option>
+                <option value="1">Single-phase</option>
+            </select>
+        </label>
+        <label>Rating (kVA) <input type="number" min="0" step="any" @bind="kva" @bind:event="oninput" /></label>
+        <label>Impedance (%Z) <input type="number" min="0.1" step="any" @bind="z" @bind:event="oninput" /></label>
+    </div>
+    <div class="toolbar">
+        <label>Primary voltage (V) <input type="number" min="1" step="any" @bind="vp" @bind:event="oninput" /></label>
+        <label>Secondary voltage (V) <input type="number" min="1" step="any" @bind="vs" @bind:event="oninput" /></label>
+    </div>
+
+    @if (kva <= 0 || z <= 0 || vp <= 0 || vs <= 0)
+    {
+        <div class="alert error">Enter positive values for rating, impedance and voltages.</div>
+    }
+    else
+    {
+        var k = system == "3" ? Math.Sqrt(3) : 1;
+        var ip = kva * 1000 / (k * vp);
+        var isec = kva * 1000 / (k * vs);
+        var iscP = ip * 100 / z;
+        var iscS = isec * 100 / z;
+        var sc = kva / (z / 100) / 1000;
+
+        <table class="table">
+            <thead><tr><th></th><th>Primary</th><th>Secondary</th></tr></thead>
+            <tbody>
+                <tr><th>Full-load current</th><td><code>@Fmt(ip) A</code></td><td><code>@Fmt(isec) A</code></td></tr>
+                <tr><th>Max. short-circuit current</th><td><code>@Fmt(iscP / 1000) kA</code></td><td><strong><code>@Fmt(iscS / 1000) kA</code></strong></td></tr>
+            </tbody>
+        </table>
+        <table class="table">
+            <tbody>
+                <tr><th>Turns ratio</th><td><code>@Fmt(vp / vs) : 1</code></td></tr>
+                <tr><th>Short-circuit power</th><td><code>@Fmt(sc) MVA</code></td></tr>
+            </tbody>
+        </table>
+        <p class="lead">I<sub>sc</sub> = I<sub>FL</sub> × 100 / %Z, assuming an infinite source (upstream impedance ignored). The actual fault current will be lower.</p>
+    }
+</ToolPage>
+
+@code {
+    private string system = "3";
+    private double kva = 1000;
+    private double z = 6;
+    private double vp = 11000;
+    private double vs = 400;
+
+    private static string Fmt(double d) => d.ToString("#,0.##", CultureInfo.InvariantCulture);
+}

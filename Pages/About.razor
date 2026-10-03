@@ -2,16 +2,26 @@
 
 <PageTitle>About | It's All Dev Tools</PageTitle>
 <HeadContent>
-    <meta name="description" content="It's All Dev Tools is a free collection of fast, private developer utilities that run 100% in your browser." />
+    <meta name="description" content="About It's All Dev Tools: a free collection of fast, private developer utilities and electrical engineering calculators that run 100% in your browser." />
     <link rel="canonical" href="https://www.itsalldevtools.com/about" />
 </HeadContent>
 
 <article class="legal glass">
     <h1>About It's All Dev Tools</h1>
-    <p>It's All Dev Tools is a free collection of @ToolCatalog.All.Count developer utilities, including formatters, encoders, generators, converters and inspectors, in one fast, clean place.</p>
+    <p>It's All Dev Tools is a free collection of @ToolCatalog.All.Count utilities across @ToolCatalog.Categories.Length categories, including formatters, encoders, generators, converters, inspectors and engineering calculators, in one fast, clean place.</p>
+
+    <h2>Electrical engineering calculators</h2>
+    <p>Alongside the developer tools, the Engineering category offers @ToolCatalog.All.Count(t => t.Category == "Engineering") calculators for electrical engineers, electricians and electronics hobbyists worldwide:</p>
+    <ul>
+        @foreach (var t in ToolCatalog.All.Where(t => t.Category == "Engineering"))
+        {
+            <li><a href="@t.Href">@t.Name</a>: @t.Summary</li>
+        }
+    </ul>
+    <p>Cable sizing supports both IEC 60364 (mm²) and NEC 310.16 (AWG/kcmil). Power, power factor and transformer calculators handle single-phase, three-phase and DC systems at 50 or 60 Hz, and the electronics tools cover resistor color codes and LED series resistors with standard E24 values. Results are estimates; always verify against your local code and manufacturer data.</p>
 
     <h2>Why we built it</h2>
-    <p>Many online tools are slow, cluttered, or quietly send your data to a server. When you are pasting API responses, JWTs, SQL queries or certificates, that is a real risk. We wanted tools that are:</p>
+    <p>Many online tools send what you paste to a server. When you are pasting API responses, JWTs, SQL queries or certificates, or working through project calculations, that is a real risk.</p>
     <ul>
         <li><strong>Private:</strong> everything runs in your browser using WebAssembly; nothing is uploaded.</li>
         <li><strong>Fast:</strong> results update instantly as you type.</li>

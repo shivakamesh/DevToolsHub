@@ -9,7 +9,9 @@
 </div>
 
 <header class="topbar glass">
-    <button class="menu-btn" aria-label="Toggle menu" @onclick="() => menuOpen = !menuOpen">☰</button>
+    <button class="menu-btn @(menuOpen ? "on" : "")" aria-label="Toggle menu" aria-expanded="@menuOpen" @onclick="() => menuOpen = !menuOpen">
+        <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
+    </button>
     <a class="brand" href="">
         <img class="logo" src="logo.svg" alt="" />
         <span>DevTools<span class="gradient-text">Hub</span></span>
@@ -22,6 +24,7 @@
 <CommandPalette @ref="palette" />
 
 <div class="shell @(collapsed ? "rail" : "")">
+    <div class="nav-backdrop @(menuOpen ? "show" : "")" aria-hidden="true" @onclick="() => menuOpen = false"></div>
     <nav class="sidebar glass @(menuOpen ? "open" : "") @(collapsed ? "collapsed" : "")">
         <div class="side-head">
             @if (!collapsed)

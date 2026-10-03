@@ -1,0 +1,109 @@
+@page "/resistor-color-code"
+@using System.Globalization
+
+<ToolPage Title="Resistor Color Code Calculator" Description="Decode 4, 5 and 6 band resistor color codes into resistance, tolerance and temperature coefficient.">
+    <div class="toolbar">
+        <label>Bands
+            <select @bind="bands">
+                <option value="4">4 bands</option>
+                <option value="5">5 bands</option>
+                <option value="6">6 bands</option>
+            </select>
+        </label>
+    </div>
+    <div class="toolbar">
+        <label>Band 1 @ColorSelect(d1, v => d1 = v, Digits)</label>
+        <label>Band 2 @ColorSelect(d2, v => d2 = v, Digits)</label>
+        @if (bands >= 5)
+        {
+            <label>Band 3 @ColorSelect(d3, v => d3 = v, Digits)</label>
+        }
+        <label>Multiplier @ColorSelect(mult, v => mult = v, Multipliers)</label>
+        <label>Tolerance @ColorSelect(tol, v => tol = v, Tolerances)</label>
+        @if (bands == 6)
+        {
+            <label>Temp. coeff. @ColorSelect(tc, v => tc = v, TempCoeffs)</label>
+        }
+    </div>
+
+    @{
+        var digits = bands >= 5 ? Colors[d1].Digit!.Value * 100 + Colors[d2].Digit!.Value * 10 + Colors[d3].Digit!.Value
+                                : Colors[d1].Digit!.Value * 10 + Colors[d2].Digit!.Value;
+        var ohms = digits * Colors[mult].Multiplier!.Value;
+        var t = Colors[tol].Tolerance!.Value;
+    }
+    <div class="resistor-preview" style="display:flex;gap:6px;align-items:center;margin:1rem 0">
+        @foreach (var c in Shown())
+        {
+            <span title="@c" style="width:18px;height:48px;border:1px solid #888;border-radius:3px;background:@Colors[c].Css"></span>
+        }
+    </div>
+    <table class="table">
+        <tbody>
+            <tr><th>Resistance</th><td><strong><code>@Ohms(ohms) ± @Fmt(t) %</code></strong></td></tr>
+            <tr><th>Range</th><td><code>@Ohms(ohms * (1 - t / 100)) – @Ohms(ohms * (1 + t / 100))</code></td></tr>
+            @if (bands == 6)
+            {
+                <tr><th>Temperature coefficient</th><td><code>@Colors[tc].TempCoeff ppm/K</code></td></tr>
+            }
+        </tbody>
+    </table>
+</ToolPage>
+
+@code {
+    private record Band(string Css, int? Digit, double? Multiplier, double? Tolerance, int? TempCoeff);
+
+    private static readonly Dictionary<string, Band> Colors = new()
+    {
+        ["Black"] = new("#000", 0, 1, null, 250),
+        ["Brown"] = new("#8b4513", 1, 10, 1, 100),
+        ["Red"] = new("#e00", 2, 100, 2, 50),
+        ["Orange"] = new("#ff8c00", 3, 1e3, 0.05, 15),
+        ["Yellow"] = new("#ffd700", 4, 1e4, 0.02, 25),
+        ["Green"] = new("#090", 5, 1e5, 0.5, 20),
+        ["Blue"] = new("#00f", 6, 1e6, 0.25, 10),
+        ["Violet"] = new("#8a2be2", 7, 1e7, 0.1, 5),
+        ["Grey"] = new("#888", 8, 1e8, 0.01, 1),
+        ["White"] = new("#fff", 9, 1e9, null, null),
+        ["Gold"] = new("#d4af37", null, 0.1, 5, null),
+        ["Silver"] = new("#c0c0c0", null, 0.01, 10, null),
+    };
+
+    private static readonly string[] Digits = Colors.Where(c => c.Value.Digit is not null).Select(c => c.Key).ToArray();
+    private static readonly string[] Multipliers = Colors.Where(c => c.Value.Multiplier is not null).Select(c => c.Key).ToArray();
+    private static readonly string[] Tolerances = Colors.Where(c => c.Value.Tolerance is not null).Select(c => c.Key).ToArray();
+    private static readonly string[] TempCoeffs = Colors.Where(c => c.Value.TempCoeff is not null).Select(c => c.Key).ToArray();
+
+    private int bands = 4;
+    private string d1 = "Brown", d2 = "Black", d3 = "Black", mult = "Red", tol = "Gold", tc = "Brown";
+
+    private IEnumerable<string> Shown()
+    {
+        yield return d1;
+        yield return d2;
+        if (bands >= 5) yield return d3;
+        yield return mult;
+        yield return tol;
+        if (bands == 6) yield return tc;
+    }
+
+    private RenderFragment ColorSelect(string current, Action<string> set, string[] options) => __builder =>
+    {
+        <select value="@current" @onchange="e => set(e.Value?.ToString() ?? current)">
+            @foreach (var o in options)
+            {
+                <option value="@o">@o</option>
+            }
+        </select>
+    };
+
+    private static string Fmt(double d) => d.ToString("#,0.###", CultureInfo.InvariantCulture);
+
+    private static string Ohms(double r) => r switch
+    {
+        >= 1e9 => Fmt(r / 1e9) + " GΩ",
+        >= 1e6 => Fmt(r / 1e6) + " MΩ",
+        >= 1e3 => Fmt(r / 1e3) + " kΩ",
+        _ => Fmt(r) + " Ω",
+    };
+}

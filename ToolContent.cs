@@ -212,6 +212,48 @@ public static class ToolContent
             new Faq("What does chmod 755 mean?", "The owner can read, write and execute; group and others can read and execute."),
             new Faq("What does chmod 644 mean?", "The owner can read and write; group and others can only read. It is the usual permission for regular files.")),
 
+        ["cable-size-calculator"] = S("cable size and voltage drop calculator",
+            "Size electrical cables for single-phase, three-phase and DC circuits using IEC 60364-5-52 metric sizes or NEC Table 310.16 AWG and kcmil sizes. The calculator checks current-carrying capacity with a derating factor and voltage drop, and recommends the smallest conductor that satisfies both.",
+            ["Pick IEC or NEC, the system type, conductor and insulation.", "Enter voltage, load current or power, cable length and maximum voltage drop.", "Read the recommended cable size, voltage drop and power loss."],
+            "400 V 3-phase, 32 A, 50 m, Cu PVC  →  6 mm² (≈ 2.1 % drop)",
+            new Faq("What voltage drop is acceptable?", "IEC 60364-5-52 suggests 3 % for lighting and 5 % for other uses on public supplies; NEC informational notes recommend 3 % on branch circuits and 5 % overall."),
+            new Faq("What is the derating factor?", "The product of correction factors for ambient temperature and grouping of circuits. Use 1.0 for a single circuit at 30 °C.")),
+
+        ["ohms-law-calculator"] = S("Ohm's law calculator",
+            "Solve Ohm's law and electrical power equations instantly. Enter any two of voltage, current, resistance and power to find the remaining values for DC or resistive AC circuits.",
+            ["Enter any two known values.", "Read the calculated values.", "Edit a field to recalculate."],
+            "230 V, 10 A  →  23 Ω, 2300 W"),
+
+        ["power-factor-correction"] = S("power factor correction calculator",
+            "Calculate the capacitor bank size needed to raise power factor for single-phase and three-phase loads. Shows kVAR, capacitance per phase in star and delta, and the drop in current, apparent power and line losses.",
+            ["Choose the system, voltage and frequency.", "Enter active power and existing and target power factor.", "Read the required kVAR and capacitance."],
+            "100 kW, PF 0.75 → 0.95  →  55.3 kVAR",
+            new Faq("Why correct power factor?", "A higher power factor lowers current, which reduces cable losses, voltage drop and utility reactive-power charges and frees transformer capacity.")),
+
+        ["power-converter"] = S("kW, kVA and amps converter",
+            "Convert electrical load values between current (A), active power (kW), apparent power (kVA) and motor horsepower for single-phase, three-phase and DC systems using the voltage and power factor.",
+            ["Choose the system, voltage and power factor.", "Pick the known quantity and enter its value.", "Read the calculated amps, kW, kVA and kVAR."],
+            "400 V 3-phase, 22 kW, PF 0.85  →  37.4 A, 25.9 kVA",
+            new Faq("What is the difference between kW and kVA?", "kW is real (active) power that does work; kVA is apparent power. kW = kVA × power factor.")),
+
+        ["resistor-color-code"] = S("resistor color code calculator",
+            "Decode the colored bands on through-hole resistors. Supports 4-band, 5-band and 6-band codes with tolerance and temperature coefficient.",
+            ["Choose the number of bands.", "Select the color of each band.", "Read the resistance and tolerance."],
+            "Brown, Black, Red, Gold  →  1 kΩ ± 5 %",
+            new Faq("Which end do I read from?", "Start from the band closest to a lead; the tolerance band (often gold or silver) is usually spaced slightly apart on the other end.")),
+
+        ["transformer-calculator"] = S("transformer full-load and short-circuit current calculator",
+            "Calculate the rated full-load current of single-phase and three-phase transformers on both windings, and the maximum short-circuit current at the secondary terminals from the percentage impedance.",
+            ["Enter the kVA rating and %Z.", "Enter primary and secondary voltages.", "Read full-load and fault currents."],
+            "1000 kVA, 11 kV / 400 V, 6 %Z  →  1443 A, 24.1 kA",
+            new Faq("Why is the real fault current lower?", "The calculation assumes an infinite upstream source. Utility and cable impedance reduce the actual fault current.")),
+
+        ["led-resistor-calculator"] = S("LED resistor calculator",
+            "Find the current-limiting resistor for one or more LEDs in series, including the nearest standard E24 value, actual current and resistor wattage.",
+            ["Enter supply voltage and LED forward voltage.", "Enter the desired current and number of LEDs.", "Read the resistor value and power rating."],
+            "12 V, red LED 2 V, 20 mA  →  500 Ω → 510 Ω (E24)",
+            new Faq("Why round up to the next standard value?", "A higher resistance keeps the current at or below the target, protecting the LED.")),
+
         ["text-statistics"] = S("word and character counter",
             "Count words, characters (with and without spaces), lines, sentences, paragraphs and UTF-8 bytes, and estimate reading time. Useful for essays, tweets, meta descriptions and SMS limits.",
             ["Paste your text.", "Read the statistics instantly."], null),

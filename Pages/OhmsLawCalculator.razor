@@ -1,0 +1,90 @@
+@page "/ohms-law-calculator"
+@using System.Globalization
+
+<ToolPage Title="Ohm's Law & Power Calculator" Description="Enter any two of voltage, current, resistance and power to calculate the other two.">
+    <div class="toolbar">
+        <label>Voltage (V) <input type="number" step="any" @bind="v" @bind:event="oninput" @bind:after="() => Touch('V')" /></label>
+        <label>Current (A) <input type="number" step="any" @bind="i" @bind:event="oninput" @bind:after="() => Touch('I')" /></label>
+        <label>Resistance (Ω) <input type="number" step="any" @bind="r" @bind:event="oninput" @bind:after="() => Touch('R')" /></label>
+        <label>Power (W) <input type="number" step="any" @bind="p" @bind:event="oninput" @bind:after="() => Touch('P')" /></label>
+        <button class="btn secondary" @onclick="Clear">Clear</button>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (result is { } x)
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Voltage</th><td><code>@Fmt(x.V) V</code></td></tr>
+                <tr><th>Current</th><td><code>@Fmt(x.I) A</code></td></tr>
+                <tr><th>Resistance</th><td><code>@Fmt(x.R) Ω</code></td></tr>
+                <tr><th>Power</th><td><code>@Fmt(x.P) W</code></td></tr>
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p class="lead">Fill in any two values. The two most recently edited fields are used as inputs.</p>
+    }
+    <p class="lead">V = I × R &nbsp;·&nbsp; P = V × I = I²R = V²/R</p>
+</ToolPage>
+
+@code {
+    private readonly record struct Values(double V, double I, double R, double P);
+
+    private double? v = 230, i = 10, r, p;
+    private readonly List<char> order = ['V', 'I'];
+    private Values? result;
+    private string? error;
+
+    protected override void OnInitialized() => Compute();
+
+    private void Touch(char field)
+    {
+        order.Remove(field);
+        if (Get(field) is not null) order.Add(field);
+        Compute();
+    }
+
+    private double? Get(char f) => f switch { 'V' => v, 'I' => i, 'R' => r, _ => p };
+
+    private void Clear()
+    {
+        v = i = r = p = null;
+        order.Clear();
+        result = null;
+        error = null;
+    }
+
+    private void Compute()
+    {
+        error = null;
+        result = null;
+        var known = order.Where(f => Get(f) is not null).TakeLast(2).OrderBy(f => "VIRP".IndexOf(f)).ToArray();
+        if (known.Length < 2) return;
+
+        double a = Get(known[0])!.Value, b = Get(known[1])!.Value;
+        Values x = string.Concat(known) switch
+        {
+            "VI" => new(a, b, a / b, a * b),
+            "VR" => new(a, a / b, b, a * a / b),
+            "VP" => new(a, b / a, a * a / b, b),
+            "IR" => new(a * b, a, b, a * a * b),
+            "IP" => new(b / a, a, b / (a * a), b),
+            _ => new(Math.Sqrt(a * b), Math.Sqrt(b / a), a, b), // RP
+        };
+
+        if (new[] { x.V, x.I, x.R, x.P }.Any(d => double.IsNaN(d) || double.IsInfinity(d)))
+        {
+            error = "These values cannot be combined (division by zero or negative square root).";
+            return;
+        }
+        result = x;
+    }
+
+    private static string Fmt(double d) =>
+        d != 0 && (Math.Abs(d) >= 1e9 || Math.Abs(d) < 1e-4) ? d.ToString("0.####e+0", CultureInfo.InvariantCulture) : d.ToString("#,0.####", CultureInfo.InvariantCulture);
+}

@@ -1,0 +1,154 @@
+@page "/dynamic-qr-code"
+@using DevToolsHub.Services
+@using QRCoder
+@implements IDisposable
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject DynamicQrStore Store
+@inject ProLicense Pro
+
+<ToolPage Title="Dynamic QR Code Generator" Description="Create QR codes whose destination you can change later, and track how often they are scanned.">
+    <div class="alert error">Demo mode: codes and scan analytics are stored only in this browser. Scans from other devices are not tracked.</div>
+
+    <div class="toolbar">
+        <input class="io" placeholder="Name (e.g. Spring flyer)" @bind="newName" style="width:14rem" />
+        <input class="io" placeholder="https://destination.example" @bind="newTarget" @bind:event="oninput" style="flex:1;min-width:16rem" />
+        <button class="btn primary" disabled="@(!CanCreate || !DynamicQrStore.IsValidTarget(newTarget))" @onclick="CreateAsync">Create</button>
+    </div>
+    @if (!CanCreate)
+    {
+        <div class="result-row glass">
+            <span>Free plan is limited to @DynamicQrStore.FreeLimit dynamic QR codes.@(ProLicense.Enabled ? " ⭐ Pro removes the limit." : "")</span>
+            @if (ProLicense.Enabled)
+            {
+                <a class="btn primary" href="pro">Unlock Pro</a>
+            }
+        </div>
+    }
+    else if (!Pro.IsPro)
+    {
+        <p class="muted">@Store.Codes.Count / @DynamicQrStore.FreeLimit free codes used.</p>
+    }
+
+    @foreach (var qr in Store.Codes)
+    {
+        <div class="result-row glass">
+            <span><strong>@qr.Name</strong> · <code>@ShortUrl(qr)</code> · @qr.Scans.Count scans</span>
+            <button class="btn secondary" @onclick="() => Select(qr)">@(selected == qr ? "Selected" : "Manage")</button>
+        </div>
+    }
+
+    @if (selected is not null)
+    {
+        <section class="glass" style="padding:1rem;margin-top:1rem">
+            <h2>@selected.Name</h2>
+            <div class="toolbar">
+                <label>Destination <input class="io" @bind="editTarget" @bind:event="oninput" style="min-width:20rem" /></label>
+                <button class="btn" disabled="@(!DynamicQrStore.IsValidTarget(editTarget) || editTarget == selected.TargetUrl)" @onclick="UpdateAsync">Update destination</button>
+                <button class="btn secondary" @onclick="DeleteAsync">Delete</button>
+            </div>
+
+            @if (png is not null)
+            {
+                <div class="qr-preview glass"><img src="data:image/png;base64,@png" alt="Dynamic QR code" /></div>
+                <div class="toolbar">
+                    <button class="btn" @onclick='() => JS.InvokeVoidAsync("devTools.downloadBase64", $"qr-{selected.Id}.png", "image/png", png)'>Download PNG</button>
+                    <button class="btn secondary" @onclick='() => JS.InvokeVoidAsync("devTools.downloadText", $"qr-{selected.Id}.svg", "image/svg+xml", svg)'>Download SVG</button>
+                    <a class="btn secondary" href="@ShortUrl(selected)" target="_blank" rel="noopener">Test scan</a>
+                </div>
+            }
+
+            <h3>Analytics</h3>
+            <p>Total scans: <strong>@selected.Scans.Count</strong>
+                @if (selected.Scans.Count > 0)
+                {
+                    <span> · Last scan: @selected.Scans[^1].Utc.ToLocalTime().ToString("g")</span>
+                }
+            </p>
+            <p>Mobile: <strong>@selected.Scans.Count(IsMobile)</strong> · Desktop: <strong>@selected.Scans.Count(s => !IsMobile(s))</strong></p>
+            <table>
+                <thead><tr><th>Day</th><th>Scans</th><th></th></tr></thead>
+                <tbody>
+                    @{ var days = Last7Days(selected); var max = Math.Max(1, days.Max(d => d.Count)); }
+                    @foreach (var (day, count) in days)
+                    {
+                        <tr>
+                            <td>@day.ToString("ddd d MMM")</td>
+                            <td>@count</td>
+                            <td style="width:60%"><div style="height:.6rem;border-radius:3px;background:var(--accent, #6366f1);width:@(count * 100 / max)%"></div></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+    }
+</ToolPage>
+
+@code {
+    private string newName = "";
+    private string newTarget = "";
+    private string editTarget = "";
+    private DynamicQr? selected;
+    private string? png;
+    private string svg = "";
+
+    private bool CanCreate => Pro.IsPro || Store.Codes.Count < DynamicQrStore.FreeLimit;
+
+    protected override void OnInitialized() => Pro.Changed += OnProChanged;
+
+    public void Dispose() => Pro.Changed -= OnProChanged;
+
+    private void OnProChanged() => InvokeAsync(StateHasChanged);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await Pro.LoadAsync();
+        await Store.LoadAsync();
+        StateHasChanged();
+    }
+
+    private string ShortUrl(DynamicQr code) => Nav.ToAbsoluteUri($"q/{code.Id}").ToString();
+
+    private async Task CreateAsync()
+    {
+        if (!CanCreate || !DynamicQrStore.IsValidTarget(newTarget)) return;
+        Select(await Store.CreateAsync(newName, newTarget));
+        newName = newTarget = "";
+    }
+
+    private async Task UpdateAsync()
+    {
+        if (selected is null || !DynamicQrStore.IsValidTarget(editTarget)) return;
+        await Store.UpdateTargetAsync(selected, editTarget);
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (selected is null) return;
+        await Store.DeleteAsync(selected);
+        selected = null;
+        png = null;
+    }
+
+    private void Select(DynamicQr code)
+    {
+        selected = code;
+        editTarget = code.TargetUrl;
+        using var data = new QRCodeGenerator().CreateQrCode(ShortUrl(code), QRCodeGenerator.ECCLevel.M);
+        png = Convert.ToBase64String(new PngByteQRCode(data).GetGraphic(10));
+        svg = new SvgQRCode(data).GetGraphic(10);
+    }
+
+    private static bool IsMobile(DynamicQrScan s) =>
+        s.UserAgent?.Contains("Mobi", StringComparison.OrdinalIgnoreCase) == true;
+
+    private static List<(DateTime Day, int Count)> Last7Days(DynamicQr code)
+    {
+        var today = DateTime.Now.Date;
+        return Enumerable.Range(0, 7)
+            .Select(i => today.AddDays(-6 + i))
+            .Select(d => (d, code.Scans.Count(s => s.Utc.ToLocalTime().Date == d)))
+            .ToList();
+    }
+}

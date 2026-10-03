@@ -1,0 +1,238 @@
+@page "/cable-size-calculator"
+@using System.Globalization
+
+<ToolPage Title="Cable Size & Voltage Drop Calculator" Description="Size cables by ampacity and voltage drop using IEC 60364 (mm²) or NEC 310.16 (AWG/kcmil).">
+    <div class="toolbar">
+        <label>Standard
+            <select @bind="standard">
+                <option value="IEC">IEC 60364 (mm², m)</option>
+                <option value="NEC">NEC 310.16 (AWG, ft)</option>
+            </select>
+        </label>
+        <label>System
+            <select @bind="system">
+                <option value="3">Three-phase AC</option>
+                <option value="1">Single-phase AC</option>
+                <option value="0">DC</option>
+            </select>
+        </label>
+        <label>Conductor
+            <select @bind="material">
+                <option value="Cu">Copper</option>
+                <option value="Al">Aluminium</option>
+            </select>
+        </label>
+        @if (standard == "IEC")
+        {
+            <label>Insulation
+                <select @bind="iecInsulation">
+                    <option value="PVC">PVC (70 °C)</option>
+                    <option value="XLPE">XLPE/EPR (90 °C)</option>
+                </select>
+            </label>
+        }
+        else
+        {
+            <label>Temp. rating
+                <select @bind="necColumn">
+                    <option value="0">60 °C</option>
+                    <option value="1">75 °C</option>
+                    <option value="2">90 °C</option>
+                </select>
+            </label>
+        }
+    </div>
+
+    <div class="toolbar">
+        <label>Voltage (V@(system == "3" ? ", line-line" : "")) <input type="number" min="1" step="any" @bind="voltage" @bind:event="oninput" /></label>
+        <label>
+            <select @bind="loadMode">
+                <option value="A">Current (A)</option>
+                <option value="kW">Power (kW)</option>
+            </select>
+            <input type="number" min="0" step="any" @bind="load" @bind:event="oninput" />
+        </label>
+        @if (system != "0")
+        {
+            <label>Power factor <input type="number" min="0.1" max="1" step="0.01" @bind="powerFactor" @bind:event="oninput" /></label>
+        }
+        <label>Length (@(IsIec ? "m" : "ft"), one way) <input type="number" min="0" step="any" @bind="length" @bind:event="oninput" /></label>
+        <label>Max drop (%) <input type="number" min="0.1" step="0.1" @bind="maxDropPct" @bind:event="oninput" /></label>
+        <label>Derating factor <input type="number" min="0.1" max="1.5" step="0.01" @bind="derating" @bind:event="oninput" title="Combined ambient temperature and grouping correction factor" /></label>
+    </div>
+
+    @if (Calculate() is { } r)
+    {
+        @if (r.Error is not null)
+        {
+            <div class="alert error">@r.Error</div>
+        }
+        else
+        {
+            <div class="split">
+                <table class="table">
+                    <tbody>
+                        <tr><th>Design current</th><td><code>@Fmt(r.Current) A</code></td></tr>
+                        <tr><th>Minimum size by ampacity</th><td><code>@(r.ByAmpacity?.Name ?? "exceeds table")</code></td></tr>
+                        <tr><th>Minimum size by voltage drop</th><td><code>@(r.ByDrop?.Name ?? "exceeds table")</code></td></tr>
+                        <tr><th>Recommended size</th><td><strong><code>@(r.Recommended?.Name ?? "Use parallel conductors")</code></strong></td></tr>
+                        @if (r.Recommended is { } rec)
+                        {
+                            <tr><th>Voltage drop</th><td><code>@Fmt(rec.DropV) V (@Fmt(rec.DropPct) %)</code></td></tr>
+                            <tr><th>Voltage at load</th><td><code>@Fmt(voltage - rec.DropV) V</code></td></tr>
+                            <tr><th>Power loss</th><td><code>@Fmt(rec.LossW) W</code></td></tr>
+                        }
+                    </tbody>
+                </table>
+                <table class="table">
+                    <thead><tr><th>Size</th><th>Ampacity (A)</th><th>Drop (%)</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var row in r.Rows)
+                        {
+                            <tr>
+                                <td>@row.Name</td>
+                                <td>@Fmt(row.Ampacity)</td>
+                                <td>@Fmt(row.DropPct)</td>
+                                <td>@(row.AmpOk && row.DropOk ? "✓" : !row.AmpOk ? "ampacity" : "drop")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="lead">
+                @if (IsIec)
+                {
+                    <text>Ampacity: IEC 60364-5-52 Table B.52.4/B.52.5, installation method C (clipped direct), @(system == "3" ? "three" : "two") loaded conductors, 30 °C ambient. Aluminium values are approximate (≈78% of copper).</text>
+                }
+                else
+                {
+                    <text>Ampacity: NEC Table 310.16, not more than three current-carrying conductors, 30 °C (86 °F) ambient. Small-conductor limits of 240.4(D) are applied. NEC recommends ≤3% drop on branch circuits and ≤5% overall.</text>
+                }
+                Voltage drop uses conductor resistance at the insulation's rated temperature and 0.08 mΩ/m reactance. Results are estimates; always verify against your local code and manufacturer data.
+            </p>
+        }
+    }
+</ToolPage>
+
+@code {
+    private sealed record Size(string Name, double AreaMm2, double[] CuAmps, double[] AlAmps, double CuLimit = 0, double AlLimit = 0);
+    private sealed record Row(string Name, double Ampacity, double DropV, double DropPct, double LossW, bool AmpOk, bool DropOk);
+    private sealed record Result(double Current, Row? ByAmpacity, Row? ByDrop, Row? Recommended, List<Row> Rows, string? Error = null);
+
+    // IEC 60364-5-52 method C, copper: [PVC 2 loaded, PVC 3 loaded, XLPE 2 loaded, XLPE 3 loaded]
+    private static readonly (double Area, double[] Amps)[] IecCu =
+    [
+        (1.5, [19.5, 17.5, 24, 22]), (2.5, [27, 24, 33, 30]), (4, [36, 32, 45, 40]), (6, [46, 41, 58, 52]),
+        (10, [63, 57, 80, 71]), (16, [85, 76, 107, 96]), (25, [112, 96, 138, 119]), (35, [138, 119, 171, 147]),
+        (50, [168, 144, 209, 179]), (70, [213, 184, 269, 229]), (95, [258, 223, 328, 278]), (120, [299, 259, 382, 322]),
+        (150, [344, 299, 441, 371]), (185, [392, 341, 506, 424]), (240, [461, 403, 599, 500]), (300, [530, 464, 693, 576]),
+    ];
+
+    // NEC 310.16: [60 °C, 75 °C, 90 °C]
+    private static readonly Size[] NecSizes =
+    [
+        new("14 AWG", 2.08, [15, 20, 25], [], 15),
+        new("12 AWG", 3.31, [20, 25, 30], [15, 20, 25], 20, 15),
+        new("10 AWG", 5.26, [30, 35, 40], [25, 30, 35], 30, 25),
+        new("8 AWG", 8.37, [40, 50, 55], [35, 40, 45]),
+        new("6 AWG", 13.3, [55, 65, 75], [40, 50, 55]),
+        new("4 AWG", 21.2, [70, 85, 95], [55, 65, 75]),
+        new("3 AWG", 26.7, [85, 100, 115], [65, 75, 85]),
+        new("2 AWG", 33.6, [95, 115, 130], [75, 90, 100]),
+        new("1 AWG", 42.4, [110, 130, 145], [85, 100, 115]),
+        new("1/0 AWG", 53.5, [125, 150, 170], [100, 120, 135]),
+        new("2/0 AWG", 67.4, [145, 175, 195], [115, 135, 150]),
+        new("3/0 AWG", 85.0, [165, 200, 225], [130, 155, 175]),
+        new("4/0 AWG", 107.2, [195, 230, 260], [150, 180, 205]),
+        new("250 kcmil", 126.7, [215, 255, 290], [170, 205, 230]),
+        new("300 kcmil", 152.0, [240, 285, 320], [195, 230, 260]),
+        new("350 kcmil", 177.3, [260, 310, 350], [210, 250, 280]),
+        new("400 kcmil", 202.7, [280, 335, 380], [225, 270, 305]),
+        new("500 kcmil", 253.4, [320, 380, 430], [260, 310, 350]),
+        new("600 kcmil", 304.0, [350, 420, 475], [285, 340, 385]),
+        new("750 kcmil", 380.0, [400, 475, 535], [320, 385, 435]),
+    ];
+
+    private const double FeetToMetres = 0.3048;
+    private const double ReactanceOhmPerM = 0.08e-3;
+
+    private string standard = "IEC";
+    private string system = "3";
+    private string material = "Cu";
+    private string iecInsulation = "PVC";
+    private string necColumn = "1";
+    private string loadMode = "A";
+    private double voltage = 400;
+    private double load = 32;
+    private double powerFactor = 0.85;
+    private double length = 50;
+    private double maxDropPct = 3;
+    private double derating = 1;
+
+    private bool IsIec => standard == "IEC";
+
+    private Result? Calculate()
+    {
+        if (voltage <= 0 || load <= 0 || length <= 0 || maxDropPct <= 0 || derating <= 0)
+            return new Result(0, null, null, null, [], "Enter positive values for voltage, load, length, maximum drop and derating factor.");
+
+        var pf = system == "0" ? 1 : Math.Clamp(powerFactor, 0.01, 1);
+        var current = loadMode == "A" ? load
+            : system == "3" ? load * 1000 / (Math.Sqrt(3) * voltage * pf)
+            : load * 1000 / (voltage * pf);
+
+        var sin = Math.Sqrt(1 - pf * pf);
+        var factor = system == "3" ? Math.Sqrt(3) : 2;
+        var lengthM = IsIec ? length : length * FeetToMetres;
+
+        var cu = material == "Cu";
+        var tempC = IsIec ? (iecInsulation == "PVC" ? 70 : 90) : necColumn switch { "0" => 60, "1" => 75, _ => 90 };
+        var rho20 = cu ? 0.017241 : 0.028264;
+        var alpha = cu ? 0.00393 : 0.00403;
+        var rho = rho20 * (1 + alpha * (tempC - 20));
+        var reactance = system == "0" ? 0 : ReactanceOhmPerM;
+
+        var rows = new List<Row>();
+        foreach (var (name, area, amps, limit) in Sizes(cu))
+        {
+            var r = rho / area;
+            var dropV = factor * current * lengthM * (r * pf + reactance * sin);
+            var dropPct = dropV / voltage * 100;
+            var phases = system == "3" ? 3 : 2;
+            var loss = phases * current * current * r * lengthM;
+            var ampacity = limit > 0 ? Math.Min(amps * derating, limit) : amps * derating;
+            rows.Add(new Row(name, ampacity, dropV, dropPct, loss, ampacity >= current, dropPct <= maxDropPct));
+        }
+
+        return new Result(current,
+            rows.FirstOrDefault(x => x.AmpOk),
+            rows.FirstOrDefault(x => x.DropOk),
+            rows.FirstOrDefault(x => x.AmpOk && x.DropOk),
+            rows);
+    }
+
+    private IEnumerable<(string Name, double Area, double Amps, double Limit)> Sizes(bool cu)
+    {
+        if (IsIec)
+        {
+            var col = (iecInsulation == "PVC" ? 0 : 2) + (system == "3" ? 1 : 0);
+            foreach (var (area, amps) in IecCu)
+            {
+                if (!cu && area < 16) continue;
+                yield return ($"{area.ToString(CultureInfo.InvariantCulture)} mm²", area, cu ? amps[col] : Math.Round(amps[col] * 0.78), 0);
+            }
+        }
+        else
+        {
+            var col = int.Parse(necColumn, CultureInfo.InvariantCulture);
+            foreach (var s in NecSizes)
+            {
+                var table = cu ? s.CuAmps : s.AlAmps;
+                if (table.Length == 0) continue;
+                yield return (s.Name, s.AreaMm2, table[col], cu ? s.CuLimit : s.AlLimit);
+            }
+        }
+    }
+
+    private static string Fmt(double v) => v.ToString("#,0.##", CultureInfo.InvariantCulture);
+}

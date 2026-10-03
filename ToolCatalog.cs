@@ -4,7 +4,7 @@ public record ToolInfo(string Name, string Href, string Icon, string Category, s
 
 public static class ToolCatalog
 {
-    public static readonly string[] Categories = ["Format", "Encode", "Generate", "Convert", "Inspect"];
+    public static readonly string[] Categories = ["Format", "Encode", "Generate", "Convert", "Inspect", "Engineering"];
 
     // Tools ordered by estimated search popularity (most searched first). Unlisted tools go last.
     private static readonly string[] Popularity =
@@ -16,8 +16,9 @@ public static class ToolCatalog
         "http-status-codes", "number-base", "image-to-base64", "html-entities", "user-agent-parser",
         "css-generator", "time-zone-converter", "chmod-calculator", "yaml-validator", "json-path",
         "cron-builder", "fake-data", "gitignore-generator", "byte-size", "hmac-generator",
-        "html-to-pdf", "uptime-monitor", "invoice-generator",
-    ];
+        "ohms-law-calculator", "power-factor-correction",
+                "power-converter", "resistor-color-code", "transformer-calculator", "led-resistor-calculator",
+            ];
 
     private static int Rank(string href)
     {
@@ -84,6 +85,8 @@ public static class ToolCatalog
             "Passwords are created with a cryptographically secure random generator and always include at least one character from each selected set."),
         new("QR Code Generator", "qr-code", "▦", "Generate", "Create QR codes as PNG or SVG.",
             "Enter text or a URL, choose colors, size and error correction level, then download the QR code as PNG or SVG."),
+        new("Dynamic QR Code", "dynamic-qr-code", "▦↻", "Generate", "Editable QR codes with scan analytics.",
+            "Create a QR code that points to a short link, change its destination at any time and see scan counts by day and device. Demo mode: data is stored only in this browser."),
         new("Lorem Ipsum", "lorem-ipsum", "Lo", "Generate", "Placeholder text generator.",
             "Generate placeholder words, sentences or paragraphs, optionally starting with the classic 'Lorem ipsum dolor sit amet'."),
         new("Fake Data Generator", "fake-data", "👤", "Generate", "Realistic test data as JSON or CSV.",
@@ -124,6 +127,22 @@ public static class ToolCatalog
             "Design CSS gradients and box shadows visually with a live preview, then copy the generated CSS."),
         new("Uptime & SSL Monitor", "uptime-monitor", "⏻", "Inspect", "Check uptime and SSL expiry from several regions.",
             "Add one check endpoint per region (saved in your browser), enter a URL and click Check to see HTTP status, response time and SSL certificate expiry from each region."),
+
+        // Engineering
+        new("Cable Size & Voltage Drop", "cable-size-calculator", "⚡", "Engineering", "Electrical cable sizing and voltage drop (IEC / NEC).",
+            "Choose IEC (mm²) or NEC (AWG/kcmil), the supply system, conductor material and insulation, then enter voltage, load, length and the allowed voltage drop. The smallest cable that satisfies both ampacity and voltage drop is recommended."),
+        new("Ohm's Law & Power", "ohms-law-calculator", "Ω", "Engineering", "Calculate voltage, current, resistance and power.",
+            "Enter any two of voltage, current, resistance and power; the other two are calculated using V = I×R and P = V×I. The two most recently edited fields are used as inputs."),
+        new("Power Factor Correction", "power-factor-correction", "cosφ", "Engineering", "Size capacitor banks in kVAR and µF.",
+            "Enter active power, voltage, frequency and the existing and target power factor to get the required capacitor kVAR, capacitance per phase (star or delta) and the reduction in current."),
+        new("kW, kVA & Amps Converter", "power-converter", "kVA", "Engineering", "Convert between amps, kW, kVA and hp.",
+            "Choose single-phase, three-phase or DC, enter the voltage and power factor, then enter a known current, kW, kVA or hp value to calculate the others."),
+        new("Resistor Color Code", "resistor-color-code", "▮▮▮", "Engineering", "Decode 4, 5 and 6 band resistor colors.",
+            "Pick the number of bands and the color of each band to get the resistance, tolerance range and temperature coefficient."),
+        new("Transformer Current & Fault", "transformer-calculator", "⧖", "Engineering", "Full-load and short-circuit current from kVA and %Z.",
+            "Enter the transformer rating, impedance and primary and secondary voltages to get full-load current on each winding and the maximum (infinite bus) short-circuit current."),
+        new("LED Resistor Calculator", "led-resistor-calculator", "💡", "Engineering", "Series resistor value and wattage for LEDs.",
+            "Enter supply voltage, LED forward voltage, current and number of LEDs in series to get the exact and nearest E24 resistor, actual current and required power rating."),
     ];
 
     public static IEnumerable<IGrouping<string, ToolInfo>> ByCategory =>

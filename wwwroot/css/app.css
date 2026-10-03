@@ -171,6 +171,7 @@ code, pre, .io { font-family: "JetBrains Mono", Consolas, monospace; }
 .cat-generate { --cat: #34d399; }
 .cat-convert  { --cat: #f59e0b; }
 .cat-inspect  { --cat: #f472b6; }
+.cat-engineering { --cat: #f87171; }
 .section-title[class*="cat-"] { color: var(--cat); padding-left: .6rem; border-left: 4px solid var(--cat); }
 .nav-group[class*="cat-"] { color: var(--cat); }
 .grid[class*="cat-"] > .card { border-top: 3px solid var(--cat); }

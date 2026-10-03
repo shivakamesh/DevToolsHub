@@ -1,0 +1,91 @@
+@page "/power-factor-correction"
+@using System.Globalization
+
+<ToolPage Title="Power Factor Correction Calculator" Description="Size capacitor banks (kVAR and µF) to improve power factor, and see the current reduction.">
+    <div class="toolbar">
+        <label>System
+            <select @bind="system">
+                <option value="3">Three-phase</option>
+                <option value="1">Single-phase</option>
+            </select>
+        </label>
+        <label>Voltage (V@(system == "3" ? ", line-line" : "")) <input type="number" min="1" step="any" @bind="voltage" @bind:event="oninput" /></label>
+        <label>Frequency
+            <select @bind="frequency">
+                <option value="50">50 Hz</option>
+                <option value="60">60 Hz</option>
+            </select>
+        </label>
+    </div>
+    <div class="toolbar">
+        <label>Active power (kW) <input type="number" min="0" step="any" @bind="kw" @bind:event="oninput" /></label>
+        <label>Existing PF <input type="number" min="0.1" max="1" step="0.01" @bind="pf1" @bind:event="oninput" /></label>
+        <label>Target PF <input type="number" min="0.1" max="1" step="0.01" @bind="pf2" @bind:event="oninput" /></label>
+    </div>
+
+    @if (kw <= 0 || voltage <= 0 || pf1 is <= 0 or > 1 || pf2 is <= 0 or > 1)
+    {
+        <div class="alert error">Enter positive power and voltage, and power factors between 0 and 1.</div>
+    }
+    else if (pf2 <= pf1)
+    {
+        <div class="alert error">Target power factor must be higher than the existing power factor.</div>
+    }
+    else
+    {
+        var q1 = kw * Math.Tan(Math.Acos(pf1));
+        var q2 = kw * Math.Tan(Math.Acos(pf2));
+        var qc = q1 - q2;
+        var s1 = kw / pf1;
+        var s2 = kw / pf2;
+        var div = system == "3" ? Math.Sqrt(3) * voltage : voltage;
+        var i1 = s1 * 1000 / div;
+        var i2 = s2 * 1000 / div;
+        var omega = 2 * Math.PI * frequency;
+        // Three-phase: delta-connected bank, each capacitor sees line voltage. Star: per-phase voltage V/√3.
+        var cDelta = qc * 1000 / (3 * omega * voltage * voltage) * 1e6;
+        var cStar = qc * 1000 / (omega * voltage * voltage) * 1e6;
+        var cSingle = qc * 1000 / (omega * voltage * voltage) * 1e6;
+
+        <div class="split">
+            <table class="table">
+                <tbody>
+                    <tr><th>Required capacitor</th><td><strong><code>@Fmt(qc) kVAR</code></strong></td></tr>
+                    @if (system == "3")
+                    {
+                        <tr><th>Capacitance per phase (delta)</th><td><code>@Fmt(cDelta) µF</code></td></tr>
+                        <tr><th>Capacitance per phase (star)</th><td><code>@Fmt(cStar) µF</code></td></tr>
+                    }
+                    else
+                    {
+                        <tr><th>Capacitance</th><td><code>@Fmt(cSingle) µF</code></td></tr>
+                    }
+                    <tr><th>Current reduction</th><td><code>@Fmt(i1 - i2) A (@Fmt((1 - i2 / i1) * 100) %)</code></td></tr>
+                    <tr><th>Line loss reduction</th><td><code>≈ @Fmt((1 - Math.Pow(i2 / i1, 2)) * 100) %</code></td></tr>
+                </tbody>
+            </table>
+            <table class="table">
+                <thead><tr><th></th><th>Before</th><th>After</th></tr></thead>
+                <tbody>
+                    <tr><th>Power factor</th><td>@Fmt(pf1)</td><td>@Fmt(pf2)</td></tr>
+                    <tr><th>Active power (kW)</th><td>@Fmt(kw)</td><td>@Fmt(kw)</td></tr>
+                    <tr><th>Reactive power (kVAR)</th><td>@Fmt(q1)</td><td>@Fmt(q2)</td></tr>
+                    <tr><th>Apparent power (kVA)</th><td>@Fmt(s1)</td><td>@Fmt(s2)</td></tr>
+                    <tr><th>Current (A)</th><td>@Fmt(i1)</td><td>@Fmt(i2)</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="lead">Q<sub>c</sub> = P × (tan φ₁ − tan φ₂). Choose the next standard capacitor rating above the calculated value and check for harmonics before installing.</p>
+    }
+</ToolPage>
+
+@code {
+    private string system = "3";
+    private double voltage = 400;
+    private double frequency = 50;
+    private double kw = 100;
+    private double pf1 = 0.75;
+    private double pf2 = 0.95;
+
+    private static string Fmt(double d) => d.ToString("#,0.##", CultureInfo.InvariantCulture);
+}
