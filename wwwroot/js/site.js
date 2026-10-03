@@ -27,5 +27,18 @@ window.devTools = {
         a.remove();
         URL.revokeObjectURL(url);
     },
+    printHtml: (html) => {
+        const frame = document.createElement('iframe');
+        frame.setAttribute('sandbox', 'allow-modals allow-same-origin');
+        frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+        frame.onload = () => {
+            const w = frame.contentWindow;
+            w.focus();
+            w.print();
+            setTimeout(() => frame.remove(), 1000);
+        };
+        frame.srcdoc = html;
+        document.body.appendChild(frame);
+    },
     userAgent: () => navigator.userAgent
 };

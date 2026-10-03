@@ -4,54 +4,91 @@
 
 <PageTitle>DevToolsHub - Free Online Developer Tools</PageTitle>
 
-<section class="hero">
-    <span class="pill">✨ @ToolCatalog.All.Count free tools · no sign-up</span>
-    <h1 class="hero-title">Developer tools that <span class="gradient-text">respect your data</span></h1>
-    <p class="lead">Everything runs locally in your browser. Nothing is uploaded, ever.</p>
-    <input class="io search" placeholder="🔍  Search tools...  (tip: press Ctrl+K anywhere)" @bind="query" @bind:event="oninput" />
+<section class="home-hero">
+    <div class="hero-grid" aria-hidden="true"></div>
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="hero-inner">
+        <span class="hero-eyebrow"><span class="live-dot"></span>@ToolCatalog.All.Count free tools · no sign-up · runs locally</span>
+        <h1>Developer tools that <span class="hero-accent">respect your data</span></h1>
+        <p class="lead">Everything runs in your browser. Nothing is uploaded, ever.</p>
+        <div class="home-search">
+            <span class="search-ico" aria-hidden="true">⌕</span>
+            <input class="io" placeholder="Search tools…" @bind="query" @bind:event="oninput" aria-label="Search tools" />
+            <kbd>Ctrl K</kbd>
+        </div>
+        <ul class="hero-stats">
+            <li><span>🔒</span> 100% client-side</li>
+            <li><span>⚡</span> Instant, no installs</li>
+            <li><span>🧰</span> @ToolCatalog.Categories.Length categories</li>
+        </ul>
+    </div>
 </section>
 
 @if (string.IsNullOrWhiteSpace(query))
 {
     var favorites = Resolve(Prefs.Favorites);
     var recent = Resolve(Prefs.Recent);
-    if (favorites.Count > 0)
+    @if (favorites.Count > 0 || recent.Count > 0)
     {
-        <h2 class="section-title">★ Favorites</h2>
-        <div class="chip-row">
-            @foreach (var t in favorites)
+        <div class="quick">
+            @if (favorites.Count > 0)
             {
-                <a class="tool-chip glass" href="@t.Href"><span class="nav-icon">@t.Icon</span> @t.Name</a>
+                <div class="quick-box glass">
+                    <h2>★ Favorites</h2>
+                    <div class="chip-row">
+                        @foreach (var t in favorites)
+                        {
+                            <a class="tool-chip" href="@t.Href"><span class="nav-icon">@t.Icon</span> @t.Name</a>
+                        }
+                    </div>
+                </div>
+            }
+            @if (recent.Count > 0)
+            {
+                <div class="quick-box glass">
+                    <h2>Recently used</h2>
+                    <div class="chip-row">
+                        @foreach (var t in recent)
+                        {
+                            <a class="tool-chip" href="@t.Href"><span class="nav-icon">@t.Icon</span> @t.Name</a>
+                        }
+                    </div>
+                </div>
             }
         </div>
     }
-    if (recent.Count > 0)
-    {
-        <h2 class="section-title">🕒 Recently used</h2>
-        <div class="chip-row">
-            @foreach (var t in recent)
-            {
-                <a class="tool-chip glass" href="@t.Href"><span class="nav-icon">@t.Icon</span> @t.Name</a>
-            }
-        </div>
-    }
-}
 
-@foreach (var group in Filtered().GroupBy(t => t.Category).OrderBy(g => Array.IndexOf(ToolCatalog.Categories, g.Key)))
-{
-    <h2 class="section-title">@group.Key</h2>
-    <div class="grid">
-        @foreach (var t in group)
+    <h2 class="section-title">Popular</h2>
+    <div class="grid popular">
+        @foreach (var (t, i) in ToolCatalog.All.Take(PopularCount).Select((t, i) => (t, i)))
         {
-            <a class="card glass" href="@t.Href">
+            <a class="card glass popular-card cat-@t.Category.ToLowerInvariant()" href="@t.Href">
+                <span class="popular-badge">#@(i + 1)</span>
                 <span class="card-icon">@t.Icon</span>
                 <h3>@t.Name</h3>
                 <p>@t.Summary</p>
-                <span class="card-arrow">→</span>
             </a>
         }
     </div>
 }
+
+<h2 class="section-title">@(string.IsNullOrWhiteSpace(query) ? "All tools" : "Results")</h2>
+<div class="board">
+    @foreach (var group in Filtered().GroupBy(t => t.Category).OrderBy(g => Array.IndexOf(ToolCatalog.Categories, g.Key)))
+    {
+        <section class="board-col cat-@group.Key.ToLowerInvariant()">
+            <header class="board-head"><span class="dot"></span>@group.Key<span class="count">@group.Count()</span></header>
+            @foreach (var t in group)
+            {
+                <a class="board-item" href="@t.Href" title="@t.Summary">
+                    <span class="nav-icon">@t.Icon</span>
+                    <span class="board-name">@t.Name</span>
+                    @if (Prefs.IsFavorite(t.Href)) { <span class="board-star">★</span> }
+                </a>
+            }
+        </section>
+    }
+</div>
 
 @if (!Filtered().Any())
 {
@@ -59,6 +96,7 @@
 }
 
 @code {
+    private const int PopularCount = 4;
     private string query = "";
 
     private IEnumerable<ToolInfo> Filtered() =>

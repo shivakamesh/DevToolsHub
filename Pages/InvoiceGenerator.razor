@@ -1,0 +1,496 @@
+@page "/invoice-generator"
+@using System.Globalization
+@using System.Net
+@using System.Text
+@using System.Text.Json
+@using DevToolsHub.Services
+@implements IDisposable
+@inject IJSRuntime JS
+@inject ProLicense Pro
+
+<ToolPage Title="Invoice / Quote Generator" Description="Create professional invoices and quotes in any currency and export them as PDF.">
+    @if (Pro.IsPro)
+    {
+        <div class="toolbar">
+            <label>Saved
+                <select value="@store.ActiveId" @onchange="OpenSaved">
+                    <option value="">— unsaved —</option>
+                    @foreach (var inv in store.Invoices)
+                    {
+                        <option value="@inv.Id">@inv.DocType @inv.Number · @inv.To.Split('\n')[0]</option>
+                    }
+                </select>
+            </label>
+            <button class="btn" @onclick="NewInvoice">+ New (auto #)</button>
+            <button class="btn" @onclick="SaveInvoice">Save</button>
+            @if (store.ActiveId is not null)
+            {
+                <button class="btn" @onclick="DeleteInvoice">Delete</button>
+            }
+            <label>Prefix <input @bind="store.Prefix" @bind:after="SaveStore" style="width:5rem" /></label>
+            <label>Next # <input type="number" min="1" @bind="store.NextNumber" @bind:after="SaveStore" style="width:5rem" /></label>
+        </div>
+        <div class="toolbar">
+            <label>Template
+                <select value="" @onchange="ApplyTemplate">
+                    <option value="">Apply template…</option>
+                    @foreach (var t in store.Templates)
+                    {
+                        <option value="@t.Name">@t.Name</option>
+                    }
+                </select>
+            </label>
+            <input @bind="templateName" placeholder="Template name" style="width:10rem" />
+            <button class="btn" @onclick="SaveTemplate">Save as template</button>
+            @if (store.Templates.Count > 0)
+            {
+                <button class="btn" @onclick="DeleteTemplate" disabled="@string.IsNullOrWhiteSpace(templateName)">Delete template</button>
+            }
+            <span class="muted">⭐ Pro</span>
+        </div>
+    }
+    else if (ProLicense.Enabled)
+    {
+        <div class="result-row glass">
+            <span>⭐ <strong>Pro</strong> adds your logo, saved clients &amp; templates, multiple invoices with auto-numbering and no footer — from @(ProLicense.Plans[0].Price).</span>
+            <a class="btn primary" href="pro">Unlock Pro</a>
+        </div>
+    }
+
+    <div class="toolbar">
+        <label>Type
+            <select @bind="data.DocType" @bind:after="Changed">
+                <option>Invoice</option>
+                <option>Quote</option>
+            </select>
+        </label>
+        <label>Number <input @bind="data.Number" @bind:after="Changed" style="width:8rem" /></label>
+        <label>Date <input type="date" @bind="data.Date" @bind:after="Changed" /></label>
+        <label>@(data.DocType == "Quote" ? "Valid until" : "Due") <input type="date" @bind="data.DueDate" @bind:after="Changed" /></label>
+        <label>Currency
+            <select @bind="data.Currency" @bind:after="Changed">
+                @foreach (var c in Currencies)
+                {
+                    <option value="@c.Code">@c.Code (@c.Symbol)</option>
+                }
+            </select>
+        </label>
+    </div>
+
+    <div class="toolbar">
+        @if (Pro.IsPro)
+        {
+            <label>Logo <InputFile accept="image/png,image/jpeg,image/svg+xml,image/webp" OnChange="UploadLogo" /></label>
+            @if (!string.IsNullOrEmpty(data.Logo))
+            {
+                <img src="@data.Logo" alt="Logo" style="max-height:2.5rem" />
+                <button class="btn" @onclick="RemoveLogo">Remove logo</button>
+            }
+            <label><input type="checkbox" @bind="data.HideFooter" @bind:after="Changed" /> Hide "Made with DevToolsHub" footer</label>
+        }
+        else if (ProLicense.Enabled)
+        {
+            <span class="muted">🔒 Logo upload and footer removal are Pro features.</span>
+        }
+    </div>
+    @if (logoError is not null)
+    {
+        <div class="alert error">@logoError</div>
+    }
+
+    <div class="split">
+        <label>From<textarea class="io" rows="5" placeholder="Your name / business, address, email, tax ID" @bind="data.From" @bind:event="oninput" @bind:after="Changed"></textarea></label>
+        <div>
+            <label>Bill to<textarea class="io" rows="5" placeholder="Client name, address, email" @bind="data.To" @bind:event="oninput" @bind:after="Changed"></textarea></label>
+            @if (Pro.IsPro)
+            {
+                <div class="toolbar">
+                    <select value="" @onchange="PickClient">
+                        <option value="">Saved clients…</option>
+                        @foreach (var c in store.Clients)
+                        {
+                            <option value="@c">@c.Split('\n')[0]</option>
+                        }
+                    </select>
+                    <button class="btn" @onclick="SaveClient" disabled="@string.IsNullOrWhiteSpace(data.To)">Save client</button>
+                    <button class="btn" @onclick="DeleteClient" disabled="@(!store.Clients.Contains(data.To))">Forget client</button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;margin:1rem 0">
+        <thead>
+            <tr><th align="left">Description</th><th style="width:6rem">Qty</th><th style="width:9rem">Unit price</th><th style="width:9rem" align="right">Amount</th><th style="width:3rem"></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var item in data.Items)
+            {
+                <tr>
+                    <td><input class="io" style="width:100%" @bind="item.Description" @bind:event="oninput" @bind:after="Changed" /></td>
+                    <td><input class="io" type="number" min="0" step="any" style="width:100%" @bind="item.Quantity" @bind:after="Changed" /></td>
+                    <td><input class="io" type="number" min="0" step="any" style="width:100%" @bind="item.UnitPrice" @bind:after="Changed" /></td>
+                    <td align="right">@Money(item.Quantity * item.UnitPrice)</td>
+                    <td><button class="btn" title="Remove line" @onclick="() => Remove(item)">✕</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="toolbar">
+        <button class="btn" @onclick="Add">+ Add line</button>
+        <label>Discount % <input type="number" min="0" max="100" step="any" @bind="data.DiscountPercent" @bind:after="Changed" style="width:5rem" /></label>
+        <label>Tax label <input @bind="data.TaxLabel" @bind:after="Changed" style="width:6rem" /></label>
+        <label>Tax % <input type="number" min="0" max="100" step="any" @bind="data.TaxPercent" @bind:after="Changed" style="width:5rem" /></label>
+    </div>
+
+    <div class="result-row glass">
+        <span>Subtotal: <strong>@Money(Subtotal)</strong></span>
+        <span>Discount: <strong>-@Money(Discount)</strong></span>
+        <span>@data.TaxLabel: <strong>@Money(Tax)</strong></span>
+        <span>Total: <strong>@Money(Total)</strong></span>
+    </div>
+
+    <label>Notes / payment terms<textarea class="io" rows="3" placeholder="Bank details, payment terms, thank-you note" @bind="data.Notes" @bind:event="oninput" @bind:after="Changed"></textarea></label>
+
+    <div class="toolbar">
+        <button class="btn primary" @onclick="ExportPdf">Download PDF</button>
+        <button class="btn" @onclick="DownloadHtml">Download HTML</button>
+        <button class="btn" @onclick="Reset">Reset</button>
+        <span class="muted">Choose "Save as PDF" in the print dialog. Data is stored only in your browser.</span>
+    </div>
+
+    <iframe class="glass" title="Invoice preview" sandbox="" srcdoc="@BuildDocument()" style="width:100%;min-height:36rem;border:0;background:#fff;margin-top:1rem"></iframe>
+</ToolPage>
+
+@code {
+    private const string StorageKey = "devtools.invoice";
+    private const string ProStorageKey = "devtools.invoice.pro";
+    private const long MaxLogoBytes = 512 * 1024;
+
+    private sealed record CurrencyInfo(string Code, string Symbol, int Decimals);
+
+    private static readonly CurrencyInfo[] Currencies =
+    [
+        new("USD", "$", 2), new("EUR", "€", 2), new("GBP", "£", 2), new("INR", "₹", 2), new("JPY", "¥", 0),
+        new("CNY", "¥", 2), new("AUD", "A$", 2), new("CAD", "C$", 2), new("CHF", "CHF ", 2), new("SGD", "S$", 2),
+        new("NZD", "NZ$", 2), new("HKD", "HK$", 2), new("SEK", "kr ", 2), new("NOK", "kr ", 2), new("DKK", "kr ", 2),
+        new("PLN", "zł ", 2), new("BRL", "R$", 2), new("MXN", "MX$", 2), new("ZAR", "R ", 2), new("AED", "AED ", 2),
+        new("SAR", "SAR ", 2), new("KRW", "₩", 0), new("IDR", "Rp ", 0), new("PHP", "₱", 2), new("NGN", "₦", 2),
+        new("TRY", "₺", 2), new("ILS", "₪", 2), new("THB", "฿", 2), new("MYR", "RM ", 2), new("PKR", "Rs ", 2),
+    ];
+
+    private sealed class LineItem
+    {
+        public string Description { get; set; } = "";
+        public decimal Quantity { get; set; } = 1;
+        public decimal UnitPrice { get; set; }
+    }
+
+    private sealed class InvoiceData
+    {
+        public string? Id { get; set; }
+        public string DocType { get; set; } = "Invoice";
+        public string Number { get; set; } = "INV-001";
+        public DateTime Date { get; set; } = DateTime.Today;
+        public DateTime DueDate { get; set; } = DateTime.Today.AddDays(14);
+        public string Currency { get; set; } = "USD";
+        public string From { get; set; } = "";
+        public string To { get; set; } = "";
+        public List<LineItem> Items { get; set; } = [new() { Description = "Consulting services", Quantity = 10, UnitPrice = 50 }];
+        public decimal DiscountPercent { get; set; }
+        public string TaxLabel { get; set; } = "Tax";
+        public decimal TaxPercent { get; set; }
+        public string Notes { get; set; } = "Thank you for your business.";
+        public string? Logo { get; set; }
+        public bool HideFooter { get; set; }
+    }
+
+    private sealed class NamedTemplate
+    {
+        public string Name { get; set; } = "";
+        public InvoiceData Data { get; set; } = new();
+    }
+
+    private sealed class ProStore
+    {
+        public string? ActiveId { get; set; }
+        public string Prefix { get; set; } = "INV-";
+        public int NextNumber { get; set; } = 1;
+        public List<InvoiceData> Invoices { get; set; } = [];
+        public List<string> Clients { get; set; } = [];
+        public List<NamedTemplate> Templates { get; set; } = [];
+    }
+
+    private InvoiceData data = new();
+    private ProStore store = new();
+    private string templateName = "";
+    private string? logoError;
+
+    private CurrencyInfo Cur => Currencies.FirstOrDefault(c => c.Code == data.Currency) ?? Currencies[0];
+    private decimal Subtotal => data.Items.Sum(i => i.Quantity * i.UnitPrice);
+    private decimal Discount => Math.Round(Subtotal * Math.Clamp(data.DiscountPercent, 0, 100) / 100, Cur.Decimals);
+    private decimal Tax => Math.Round((Subtotal - Discount) * Math.Clamp(data.TaxPercent, 0, 100) / 100, Cur.Decimals);
+    private decimal Total => Subtotal - Discount + Tax;
+    private bool ShowFooter => ProLicense.Enabled && !(Pro.IsPro && data.HideFooter);
+
+    private string Money(decimal value) =>
+        Cur.Symbol + Math.Round(value, Cur.Decimals).ToString("N" + Cur.Decimals, CultureInfo.InvariantCulture);
+
+    private static T Clone<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+
+    protected override void OnInitialized() => Pro.Changed += OnProChanged;
+
+    public void Dispose() => Pro.Changed -= OnProChanged;
+
+    private void OnProChanged() => InvokeAsync(StateHasChanged);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await Pro.LoadAsync();
+        data = await Load<InvoiceData>(StorageKey) ?? data;
+        store = await Load<ProStore>(ProStorageKey) ?? store;
+        StateHasChanged();
+    }
+
+    private async Task<T?> Load<T>(string key) where T : class
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", key);
+            return string.IsNullOrEmpty(json) ? null : JsonSerializer.Deserialize<T>(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private Task Changed() =>
+        JS.InvokeVoidAsync("localStorage.setItem", StorageKey, JsonSerializer.Serialize(data)).AsTask();
+
+    private Task SaveStore() =>
+        JS.InvokeVoidAsync("localStorage.setItem", ProStorageKey, JsonSerializer.Serialize(store)).AsTask();
+
+    private Task Add()
+    {
+        data.Items.Add(new LineItem());
+        return Changed();
+    }
+
+    private Task Remove(LineItem item)
+    {
+        data.Items.Remove(item);
+        return Changed();
+    }
+
+    private async Task Reset()
+    {
+        data = new InvoiceData();
+        store.ActiveId = null;
+        await SaveStore();
+        await Changed();
+    }
+
+    // Pro: logo
+    private async Task UploadLogo(InputFileChangeEventArgs e)
+    {
+        logoError = null;
+        if (!Pro.IsPro) return;
+        var file = e.File;
+        if (file.Size > MaxLogoBytes)
+        {
+            logoError = "Logo must be 512 KB or smaller.";
+            return;
+        }
+        using var stream = file.OpenReadStream(MaxLogoBytes);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        data.Logo = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+        await Changed();
+    }
+
+    private Task RemoveLogo()
+    {
+        data.Logo = null;
+        return Changed();
+    }
+
+    // Pro: saved invoices with auto numbering
+    private async Task NewInvoice()
+    {
+        var fresh = new InvoiceData
+        {
+            DocType = data.DocType,
+            From = data.From,
+            Currency = data.Currency,
+            TaxLabel = data.TaxLabel,
+            TaxPercent = data.TaxPercent,
+            Notes = data.Notes,
+            Logo = data.Logo,
+            HideFooter = data.HideFooter,
+            Items = [new LineItem()],
+            Number = $"{store.Prefix}{Math.Max(1, store.NextNumber):000}",
+        };
+        store.NextNumber = Math.Max(1, store.NextNumber) + 1;
+        store.ActiveId = null;
+        data = fresh;
+        await SaveStore();
+        await Changed();
+    }
+
+    private async Task SaveInvoice()
+    {
+        data.Id ??= Guid.NewGuid().ToString("N");
+        var copy = Clone(data);
+        var idx = store.Invoices.FindIndex(i => i.Id == data.Id);
+        if (idx >= 0) store.Invoices[idx] = copy;
+        else store.Invoices.Add(copy);
+        store.ActiveId = data.Id;
+        await SaveStore();
+        await Changed();
+    }
+
+    private async Task OpenSaved(ChangeEventArgs e)
+    {
+        var id = e.Value?.ToString();
+        var found = store.Invoices.FirstOrDefault(i => i.Id == id);
+        store.ActiveId = found?.Id;
+        if (found is not null) data = Clone(found);
+        await SaveStore();
+        await Changed();
+    }
+
+    private async Task DeleteInvoice()
+    {
+        store.Invoices.RemoveAll(i => i.Id == store.ActiveId);
+        store.ActiveId = null;
+        data.Id = null;
+        await SaveStore();
+        await Changed();
+    }
+
+    // Pro: saved clients
+    private async Task PickClient(ChangeEventArgs e)
+    {
+        var client = e.Value?.ToString();
+        if (string.IsNullOrEmpty(client)) return;
+        data.To = client;
+        await Changed();
+    }
+
+    private Task SaveClient()
+    {
+        var client = data.To.Trim();
+        if (client.Length == 0 || store.Clients.Contains(client)) return Task.CompletedTask;
+        data.To = client;
+        store.Clients.Add(client);
+        return SaveStore();
+    }
+
+    private Task DeleteClient()
+    {
+        store.Clients.Remove(data.To);
+        return SaveStore();
+    }
+
+    // Pro: templates
+    private Task SaveTemplate()
+    {
+        var name = templateName.Trim();
+        if (name.Length == 0) return Task.CompletedTask;
+        var tpl = Clone(data);
+        tpl.Id = null;
+        store.Templates.RemoveAll(t => t.Name == name);
+        store.Templates.Add(new NamedTemplate { Name = name, Data = tpl });
+        return SaveStore();
+    }
+
+    private Task DeleteTemplate()
+    {
+        store.Templates.RemoveAll(t => t.Name == templateName.Trim());
+        return SaveStore();
+    }
+
+    private async Task ApplyTemplate(ChangeEventArgs e)
+    {
+        var tpl = store.Templates.FirstOrDefault(t => t.Name == e.Value?.ToString());
+        if (tpl is null) return;
+        templateName = tpl.Name;
+        var number = data.Number;
+        var id = data.Id;
+        data = Clone(tpl.Data);
+        data.Number = number;
+        data.Id = id;
+        data.Date = DateTime.Today;
+        data.DueDate = DateTime.Today.AddDays(14);
+        await Changed();
+    }
+
+    private static string Enc(string? s) => WebUtility.HtmlEncode(s ?? "").Replace("\n", "<br>");
+
+    private string BuildDocument()
+    {
+        var sb = new StringBuilder();
+        sb.Append("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>")
+          .Append(Enc($"{data.DocType} {data.Number}"))
+          .Append("</title><style>")
+          .Append("@page { size: A4; margin: 15mm; } html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }")
+          .Append("body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #111; line-height: 1.45; margin: 0; padding: 16px; }")
+          .Append(".head { display: flex; justify-content: space-between; align-items: flex-start; } h1 { margin: 0; font-size: 28px; letter-spacing: 1px; }")
+          .Append(".logo { max-height: 64px; max-width: 220px; display: block; margin-bottom: 8px; }")
+          .Append(".meta td { padding: 2px 0 2px 16px; text-align: right; } .parties { display: flex; gap: 32px; margin: 24px 0; } .parties div { flex: 1; }")
+          .Append(".label { color: #666; font-size: 12px; text-transform: uppercase; } table.items { width: 100%; border-collapse: collapse; }")
+          .Append("table.items th { background: #f0f2f7; text-align: left; padding: 8px; } table.items td { padding: 8px; border-bottom: 1px solid #e5e7eb; }")
+          .Append(".r { text-align: right; } .totals { margin-left: auto; margin-top: 16px; min-width: 260px; } .totals td { padding: 4px 8px; }")
+          .Append(".grand td { font-weight: 700; font-size: 18px; border-top: 2px solid #111; } .notes { margin-top: 32px; color: #444; }")
+          .Append(".footer { margin-top: 48px; text-align: center; color: #999; font-size: 11px; }")
+          .Append("</style></head><body>");
+
+        sb.Append("<div class=\"head\"><div>");
+        if (Pro.IsPro && !string.IsNullOrEmpty(data.Logo) && data.Logo.StartsWith("data:image/", StringComparison.Ordinal))
+            sb.Append("<img class=\"logo\" alt=\"\" src=\"").Append(WebUtility.HtmlEncode(data.Logo)).Append("\">");
+        sb.Append("<h1>").Append(Enc(data.DocType.ToUpperInvariant())).Append("</h1></div><table class=\"meta\">")
+          .Append("<tr><td class=\"label\">Number</td><td>").Append(Enc(data.Number)).Append("</td></tr>")
+          .Append("<tr><td class=\"label\">Date</td><td>").Append(data.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append("</td></tr>")
+          .Append("<tr><td class=\"label\">").Append(data.DocType == "Quote" ? "Valid until" : "Due").Append("</td><td>")
+          .Append(data.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append("</td></tr></table></div>");
+
+        sb.Append("<div class=\"parties\"><div><div class=\"label\">From</div>").Append(Enc(data.From))
+          .Append("</div><div><div class=\"label\">Bill to</div>").Append(Enc(data.To)).Append("</div></div>");
+
+        sb.Append("<table class=\"items\"><tr><th>Description</th><th class=\"r\">Qty</th><th class=\"r\">Unit price</th><th class=\"r\">Amount</th></tr>");
+        foreach (var i in data.Items)
+        {
+            sb.Append("<tr><td>").Append(Enc(i.Description)).Append("</td><td class=\"r\">")
+              .Append(i.Quantity.ToString("0.##", CultureInfo.InvariantCulture)).Append("</td><td class=\"r\">")
+              .Append(Enc(Money(i.UnitPrice))).Append("</td><td class=\"r\">")
+              .Append(Enc(Money(i.Quantity * i.UnitPrice))).Append("</td></tr>");
+        }
+        sb.Append("</table>");
+
+        sb.Append("<table class=\"totals\"><tr><td>Subtotal</td><td class=\"r\">").Append(Enc(Money(Subtotal))).Append("</td></tr>");
+        if (Discount != 0)
+            sb.Append("<tr><td>Discount (").Append(data.DiscountPercent.ToString("0.##", CultureInfo.InvariantCulture)).Append("%)</td><td class=\"r\">-")
+              .Append(Enc(Money(Discount))).Append("</td></tr>");
+        if (Tax != 0)
+            sb.Append("<tr><td>").Append(Enc(data.TaxLabel)).Append(" (").Append(data.TaxPercent.ToString("0.##", CultureInfo.InvariantCulture)).Append("%)</td><td class=\"r\">")
+              .Append(Enc(Money(Tax))).Append("</td></tr>");
+        sb.Append("<tr class=\"grand\"><td>Total (").Append(Cur.Code).Append(")</td><td class=\"r\">").Append(Enc(Money(Total))).Append("</td></tr></table>");
+
+        if (!string.IsNullOrWhiteSpace(data.Notes))
+            sb.Append("<div class=\"notes\"><div class=\"label\">Notes</div>").Append(Enc(data.Notes)).Append("</div>");
+
+        if (ShowFooter)
+            sb.Append("<div class=\"footer\">Made with DevToolsHub</div>");
+
+        sb.Append("</body></html>");
+        return sb.ToString();
+    }
+
+    private async Task ExportPdf() => await JS.InvokeVoidAsync("devTools.printHtml", BuildDocument());
+
+    private async Task DownloadHtml() =>
+        await JS.InvokeVoidAsync("devTools.downloadText", $"{data.Number}.html", "text/html", BuildDocument());
+}

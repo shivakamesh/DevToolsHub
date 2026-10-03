@@ -1,4 +1,6 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Routing
 
 <div class="bg-orbs" aria-hidden="true">
     <span class="orb orb-1"></span>
@@ -19,15 +21,68 @@
 
 <CommandPalette @ref="palette" />
 
-<div class="shell">
-    <nav class="sidebar glass @(menuOpen ? "open" : "")" @onclick="() => menuOpen = false">
-        <NavLink href="" Match="NavLinkMatch.All"><span class="nav-icon">⌂</span> Home</NavLink>
+<div class="shell @(collapsed ? "rail" : "")">
+    <nav class="sidebar glass @(menuOpen ? "open" : "") @(collapsed ? "collapsed" : "")">
+        <div class="side-head">
+            @if (!collapsed)
+            {
+                <div class="side-filter-wrap">
+                    <span class="side-filter-ico" aria-hidden="true">⌕</span>
+                    <input class="side-filter" placeholder="Filter tools…" @bind="filter" @bind:event="oninput" aria-label="Filter tools" />
+                    @if (!string.IsNullOrEmpty(filter))
+                    {
+                        <button class="side-filter-clear" title="Clear filter" aria-label="Clear filter" @onclick='() => filter = ""'>✕</button>
+                    }
+                </div>
+            }
+            <button class="collapse-btn" title="@(collapsed ? "Expand sidebar" : "Collapse sidebar")"
+                    aria-label="Toggle sidebar" @onclick="ToggleCollapsed">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="16" rx="3" />
+                    <line x1="9" y1="4" x2="9" y2="20" />
+                    <polyline class="collapse-chev" points="15 10 13 12 15 14" />
+                </svg>
+            </button>
+        </div>
+        <NavLink href="" Match="NavLinkMatch.All" title="Home"><span class="nav-icon">⌂</span><span class="nav-label">Home</span></NavLink>
+        @if (string.IsNullOrWhiteSpace(filter))
+        {
+            var favs = Resolve(Prefs.Favorites);
+            var recent = Resolve(Prefs.Recent.Except(Prefs.Favorites)).Take(4).ToList();
+            if (favs.Count > 0)
+            {
+                <div class="side-section">★ Favorites</div>
+                @foreach (var tool in favs)
+                {
+                    <NavLink href="@tool.Href" title="@tool.Name"><span class="nav-icon">@tool.Icon</span><span class="nav-label">@tool.Name</span></NavLink>
+                }
+            }
+            if (recent.Count > 0)
+            {
+                <div class="side-section">Recent</div>
+                @foreach (var tool in recent)
+                {
+                    <NavLink href="@tool.Href" title="@tool.Name"><span class="nav-icon">@tool.Icon</span><span class="nav-label">@tool.Name</span></NavLink>
+                }
+            }
+        }
         @foreach (var group in ToolCatalog.ByCategory)
         {
-            <div class="nav-group">@group.Key</div>
-            @foreach (var tool in group)
+            var tools = group.Where(Matches).ToList();
+            if (tools.Count == 0) continue;
+            var isOpen = collapsed || !string.IsNullOrWhiteSpace(filter) || !closedGroups.Contains(group.Key);
+            <button class="nav-group cat-@group.Key.ToLowerInvariant()" @onclick="() => ToggleGroup(group.Key)" aria-expanded="@isOpen" title="@group.Key">
+                <span class="chev @(isOpen ? "open" : "")">▸</span>
+                                <span class="dot"></span>
+                <span class="nav-label">@group.Key</span>
+                <span class="count">@tools.Count</span>
+            </button>
+            @if (isOpen)
             {
-                <NavLink href="@tool.Href"><span class="nav-icon">@tool.Icon</span> @tool.Name</NavLink>
+                @foreach (var tool in tools)
+                {
+                    <NavLink href="@tool.Href" title="@tool.Name"><span class="nav-icon">@tool.Icon</span><span class="nav-label">@tool.Name</span></NavLink>
+                }
             }
         }
     </nav>
@@ -49,5 +104,66 @@
 
 @code {
     private bool menuOpen;
+    private bool collapsed;
+    private string filter = "";
+    private HashSet<string> closedGroups = [];
     private CommandPalette palette = default!;
+
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+    [Inject] private UserPrefs Prefs { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        Prefs.Changed += OnPrefsChanged;
+    }
+
+    private void OnPrefsChanged() => InvokeAsync(StateHasChanged);
+
+    private static List<ToolInfo> Resolve(IEnumerable<string> hrefs) =>
+        hrefs.Select(ToolCatalog.Find).OfType<ToolInfo>().ToList();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await Prefs.EnsureLoadedAsync();
+        try
+        {
+            collapsed = await JS.InvokeAsync<string?>("localStorage.getItem", "sidebar.collapsed") == "1";
+            var groups = await JS.InvokeAsync<string?>("localStorage.getItem", "sidebar.closedGroups");
+            if (!string.IsNullOrEmpty(groups)) closedGroups = [.. groups.Split('|')];
+            StateHasChanged();
+        }
+        catch (JSException) { }
+    }
+
+    private bool Matches(ToolInfo t) =>
+        string.IsNullOrWhiteSpace(filter) || t.Name.Contains(filter.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private async Task ToggleCollapsed()
+    {
+        collapsed = !collapsed;
+        await JS.InvokeVoidAsync("localStorage.setItem", "sidebar.collapsed", collapsed ? "1" : "0");
+    }
+
+    private async Task ToggleGroup(string key)
+    {
+        if (collapsed) { await ToggleCollapsed(); return; }
+        if (!closedGroups.Remove(key)) closedGroups.Add(key);
+        await JS.InvokeVoidAsync("localStorage.setItem", "sidebar.closedGroups", string.Join('|', closedGroups));
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (!menuOpen) return;
+        menuOpen = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        Prefs.Changed -= OnPrefsChanged;
+    }
 }

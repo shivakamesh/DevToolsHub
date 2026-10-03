@@ -1,0 +1,93 @@
+@page "/pro"
+@using DevToolsHub.Services
+@inject ProLicense License
+@inject NavigationManager Nav
+
+<ToolPage Title="DevToolsHub Pro" Description="Unlock Pro features for the Invoice / Quote Generator with a monthly or yearly subscription.">
+    @if (License.IsPro)
+    {
+        <div class="result-row glass">
+            <strong>✓ Pro is active on this browser</strong>
+            <span>
+                @(License.Plan?.Name ?? "Lifetime") plan
+                @if (License.ExpiresUtc is { } exp)
+                {
+                    <text> · renews / expires @exp.ToLocalTime().ToString("yyyy-MM-dd")</text>
+                }
+            </span>
+        </div>
+        <div class="toolbar">
+            <a class="btn primary" href="invoice-generator">Open Invoice Generator</a>
+            @if (License.Plan is not null)
+            {
+                <a class="btn" href="@ProLicense.ManageLink" target="_blank" rel="noopener">Manage subscription</a>
+            }
+            <button class="btn" @onclick="License.DeactivateAsync">Deactivate on this browser</button>
+        </div>
+    }
+    else
+    {
+        @if (License.IsExpired)
+        {
+            <div class="alert error">Your Pro subscription has expired. Renew below or enter your latest unlock code.</div>
+        }
+        <div class="help">
+            <h2>Pro features</h2>
+            <ul>
+                <li>Upload your logo onto invoices and quotes</li>
+                <li>Saved clients and reusable templates</li>
+                <li>Remove the "Made with DevToolsHub" footer from PDFs</li>
+                <li>Multiple saved invoices with automatic numbering</li>
+            </ul>
+        </div>
+        <div class="grid">
+            @foreach (var plan in ProLicense.Plans)
+            {
+                <div class="card glass">
+                    <h3>@plan.Name</h3>
+                    <p>@plan.Price</p>
+                    <a class="btn primary" href="@plan.PaymentLink" target="_blank" rel="noopener">Subscribe @plan.Name.ToLowerInvariant()</a>
+                </div>
+            }
+        </div>
+        <div class="toolbar">
+            <label>Already subscribed? Unlock code <input @bind="code" placeholder="DTH-YEARLY-XXXX" /></label>
+            <button class="btn" @onclick="Unlock">Unlock</button>
+            <span class="muted">Cancel anytime from the Stripe billing portal.</span>
+        </div>
+        @if (error is not null)
+        {
+            <div class="alert error">@error</div>
+        }
+    }
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "unlock")] public string? UnlockParam { get; set; }
+    [SupplyParameterFromQuery(Name = "plan")] public string? PlanParam { get; set; }
+
+    private string? code;
+    private string? error;
+
+    protected override void OnInitialized()
+    {
+        if (!ProLicense.Enabled) Nav.NavigateTo("invoice-generator", replace: true);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await License.LoadAsync();
+        if (UnlockParam == "success")
+        {
+            await License.UnlockFromCheckoutAsync(PlanParam);
+            Nav.NavigateTo("pro", replace: true);
+        }
+        StateHasChanged();
+    }
+
+    private async Task Unlock()
+    {
+        error = await License.TryUnlockAsync(code) ? null : "That unlock code is not valid.";
+    }
+}

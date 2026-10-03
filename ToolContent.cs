@@ -1,4 +1,4 @@
-namespace DevToolsHub;
+﻿namespace DevToolsHub;
 
 public record Faq(string Question, string Answer);
 
@@ -71,6 +71,13 @@ public static class ToolContent
             "Compare two blocks of text or code and see exactly what changed. Added and removed lines are highlighted side by side, which is handy for comparing configs, API responses or document versions.",
             ["Paste the original text on the left.", "Paste the changed text on the right.", "Review the highlighted differences."], null,
             new Faq("Does it compare character by character?", "It compares line by line, which is the most readable view for code and configuration files.")),
+
+        ["html-to-pdf"] = S("HTML to PDF converter",
+            "Turn HTML or Markdown into a clean PDF document for invoices, reports, receipts and documentation. Set the page size, orientation and margins with CSS @page rules and preview the result before exporting. Conversion uses your browser's own print engine, so CSS, web fonts and images render exactly as they do on screen.",
+            ["Paste HTML or Markdown.", "Choose page size, orientation and margins.", "Click Download PDF and select Save as PDF."],
+            "<h1>Invoice</h1><table>...</table>  →  invoice.pdf",
+            new Faq("Does JavaScript in my HTML run?", "No. The document is rendered in a sandboxed frame with scripts disabled, so only HTML and CSS are used."),
+            new Faq("How do I add page breaks?", "Use the CSS rule page-break-before: always (or break-before: page) on the element that should start a new page.")),
 
         ["markdown-preview"] = S("Markdown editor with live preview",
             "Write Markdown and see the rendered HTML instantly. Supports GitHub-flavored Markdown including tables, task lists, fenced code blocks and autolinks, making it ideal for drafting README files.",

@@ -6,7 +6,30 @@ public static class ToolCatalog
 {
     public static readonly string[] Categories = ["Format", "Encode", "Generate", "Convert", "Inspect"];
 
-    public static readonly IReadOnlyList<ToolInfo> All =
+    // Tools ordered by estimated search popularity (most searched first). Unlisted tools go last.
+    private static readonly string[] Popularity =
+    [
+        "json-formatter", "diff-checker", "base64", "regex-tester", "jwt-decoder", "url-encoder",
+        "timestamp-converter", "guid-generator", "password-generator", "hash-generator", "qr-code",
+        "color-converter", "lorem-ipsum", "cron-explainer", "format-converter", "xml-formatter",
+        "sql-formatter", "markdown-preview", "case-converter", "json-to-csharp", "text-statistics",
+        "http-status-codes", "number-base", "image-to-base64", "html-entities", "user-agent-parser",
+        "css-generator", "time-zone-converter", "chmod-calculator", "yaml-validator", "json-path",
+        "cron-builder", "fake-data", "gitignore-generator", "byte-size", "hmac-generator",
+        "html-to-pdf", "uptime-monitor", "invoice-generator",
+    ];
+
+    private static int Rank(string href)
+    {
+        var i = Array.IndexOf(Popularity, href);
+        return i < 0 ? int.MaxValue : i;
+    }
+
+    public static readonly IReadOnlyList<ToolInfo> All;
+
+    static ToolCatalog() => All = Source.OrderBy(t => Rank(t.Href)).ToList();
+
+    private static readonly IReadOnlyList<ToolInfo> Source =
     [
         // Format
         new("JSON Formatter", "json-formatter", "{ }", "Format", "Format, validate and minify JSON.",
@@ -85,6 +108,10 @@ public static class ToolCatalog
             "Converts sizes between decimal units (KB = 1000 bytes) and binary units (KiB = 1024 bytes), plus bits."),
         new("Chmod Calculator", "chmod-calculator", "rwx", "Convert", "Unix permissions in octal and symbolic form.",
             "Tick read, write and execute for owner, group and others, or type an octal value like 755, to get the symbolic notation and chmod command."),
+        new("HTML to PDF", "html-to-pdf", "PDF", "Convert", "Convert HTML or Markdown to PDF.",
+            "Paste HTML or Markdown, choose page size, orientation and margins, then click Download PDF and pick Save as PDF in the print dialog. Scripts in the HTML are not executed."),
+        new("Invoice / Quote Generator", "invoice-generator", "🧾", "Generate", "Create invoices and quotes in any currency.",
+            "Fill in your business and client details, add line items, tax and discount, pick a currency, then click Download PDF and choose Save as PDF in the print dialog. Details are saved in your browser only."),
 
         // Inspect
         new("Text Statistics", "text-statistics", "¶", "Inspect", "Count words, characters, lines and bytes.",
@@ -95,6 +122,8 @@ public static class ToolCatalog
             "Paste a User-Agent string, or use your own, to detect the browser, rendering engine, operating system, device type and bots."),
         new("CSS Generator", "css-generator", "✦", "Inspect", "Gradients and box shadows with live preview.",
             "Design CSS gradients and box shadows visually with a live preview, then copy the generated CSS."),
+        new("Uptime & SSL Monitor", "uptime-monitor", "⏻", "Inspect", "Check uptime and SSL expiry from several regions.",
+            "Add one check endpoint per region (saved in your browser), enter a URL and click Check to see HTTP status, response time and SSL certificate expiry from each region."),
     ];
 
     public static IEnumerable<IGrouping<string, ToolInfo>> ByCategory =>

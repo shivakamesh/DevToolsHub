@@ -1,0 +1,104 @@
+@page "/html-to-pdf"
+@using Markdig
+@inject IJSRuntime JS
+
+<ToolPage Title="HTML to PDF" Description="Convert HTML or Markdown into a PDF document." ShareValue="@input">
+    <div class="toolbar">
+        <label>Input
+            <select @bind="mode" @bind:after="Render">
+                <option value="html">HTML</option>
+                <option value="markdown">Markdown</option>
+            </select>
+        </label>
+        <label>Page
+            <select @bind="pageSize" @bind:after="Render">
+                <option>A4</option>
+                <option>Letter</option>
+                <option>Legal</option>
+                <option>A3</option>
+                <option>A5</option>
+            </select>
+        </label>
+        <label>Orientation
+            <select @bind="orientation" @bind:after="Render">
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
+            </select>
+        </label>
+        <label>Margin (mm)
+            <input type="number" min="0" max="50" @bind="margin" @bind:after="Render" style="width:5rem" />
+        </label>
+        <label><input type="checkbox" @bind="printBackground" @bind:after="Render" /> Backgrounds</label>
+    </div>
+
+    <div class="split">
+        <textarea class="io" rows="22" placeholder="Paste HTML or Markdown here" @bind="input" @bind:event="oninput" @bind:after="Render"></textarea>
+        <iframe class="glass" title="PDF preview" sandbox="" srcdoc="@document" style="width:100%;min-height:28rem;border:0;background:#fff"></iframe>
+    </div>
+
+    <div class="toolbar">
+        <button class="btn primary" @onclick="ExportPdf">Download PDF</button>
+        <button class="btn" @onclick="DownloadHtml">Download HTML</button>
+        <span class="muted">Choose "Save as PDF" in the print dialog. Scripts in your HTML are not executed.</span>
+    </div>
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .Build();
+
+    private string mode = "html";
+    private string pageSize = "A4";
+    private string orientation = "portrait";
+    private int margin = 15;
+    private bool printBackground = true;
+    private string document = "";
+
+    private string input =
+        "<h1>Invoice #1024</h1>\n" +
+        "<p><strong>Billed to:</strong> Ada Lovelace</p>\n" +
+        "<table style=\"width:100%;border-collapse:collapse\">\n" +
+        "  <tr style=\"background:#eef\"><th align=\"left\">Item</th><th align=\"right\">Amount</th></tr>\n" +
+        "  <tr><td>Pro plan (monthly)</td><td align=\"right\">$29.00</td></tr>\n" +
+        "  <tr><td>Extra seats x2</td><td align=\"right\">$10.00</td></tr>\n" +
+        "  <tr><th align=\"left\">Total</th><th align=\"right\">$39.00</th></tr>\n" +
+        "</table>\n" +
+        "<p style=\"color:#666\">Thank you for your business.</p>";
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(Q)) input = Q;
+        Render();
+    }
+
+    private void Render()
+    {
+        margin = Math.Clamp(margin, 0, 50);
+        var body = mode == "markdown" ? Markdown.ToHtml(input ?? "", Pipeline) : input ?? "";
+        var css =
+            $"@page {{ size: {pageSize} {orientation}; margin: {margin}mm; }}\n" +
+            (printBackground ? "html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }\n" : "") +
+            "body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; color: #111; }\n" +
+            "table { border-collapse: collapse; } th, td { padding: 4px 8px; }\n" +
+            "pre, code { font-family: ui-monospace, Consolas, monospace; } pre { background: #f5f5f5; padding: 8px; overflow: auto; }\n" +
+            "img { max-width: 100%; }";
+        var isFullDoc = mode == "html" && body.Contains("<html", StringComparison.OrdinalIgnoreCase);
+        if (isFullDoc)
+        {
+            var styleTag = $"<style>{css}</style>";
+            var headIdx = body.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
+            document = headIdx >= 0 ? body.Insert(headIdx + 6, styleTag) : styleTag + body;
+        }
+        else
+        {
+            document = $"<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>document</title><style>{css}</style></head><body>{body}</body></html>";
+        }
+    }
+
+    private async Task ExportPdf() => await JS.InvokeVoidAsync("devTools.printHtml", document);
+
+    private async Task DownloadHtml() => await JS.InvokeVoidAsync("devTools.downloadText", "document.html", "text/html", document);
+}
