@@ -61,7 +61,7 @@ public static class ToolContent
             "Pattern \\d{3}-\\d{4} matches 555-1234",
             new Faq("Which regex flavor does it use?", "The .NET flavor, which is very close to PCRE and JavaScript for everyday patterns and also supports named groups and lookbehind.")),
 
-        ["cron-explainer"] = S("cron expression explainer",
+        ["cron-explainer"] = S("cron expression explainer with time zones",
             "Paste any cron expression and get a plain-English description plus the next scheduled run times. Supports standard 5-field cron and 6-field cron with seconds, as used in Linux crontab, Kubernetes CronJobs, GitHub Actions, Hangfire and Quartz.",
             ["Enter a cron expression.", "Read the human-readable description.", "Check the list of upcoming run times."],
             "*/15 9-17 * * 1-5  →  every 15 minutes, 09:00–17:59, Monday to Friday",
@@ -117,7 +117,7 @@ public static class ToolContent
             new Faq("Does decoding verify the signature?", "No. Decoding only reads the token. Anyone can decode a JWT, which is why you should never put secrets in the payload."),
             new Faq("Is it safe to paste production tokens?", "The token never leaves your browser, but treat live tokens as credentials and prefer test tokens when possible.")),
 
-        ["jwt-generator"] = S("JWT generator",
+        ["jwt-generator"] = S("JWT generator (HS256, HS384, HS512)",
             "Create signed JSON Web Tokens for testing APIs. Edit the payload, choose an HMAC algorithm (HS256, HS384, HS512) and a secret, and get a valid token instantly.",
             ["Edit the JSON payload.", "Choose the algorithm and enter a secret.", "Copy the generated token."], null),
 
@@ -212,7 +212,7 @@ public static class ToolContent
             new Faq("What does chmod 755 mean?", "The owner can read, write and execute; group and others can read and execute."),
             new Faq("What does chmod 644 mean?", "The owner can read and write; group and others can only read. It is the usual permission for regular files.")),
 
-        ["cable-size-calculator"] = S("cable size and voltage drop calculator",
+        ["cable-size-calculator"] = S("cable size and voltage drop calculator (IEC 60364 / NEC)",
             "Size electrical cables for single-phase, three-phase and DC circuits using IEC 60364-5-52 metric sizes or NEC Table 310.16 AWG and kcmil sizes. The calculator checks current-carrying capacity with a derating factor and voltage drop, and recommends the smallest conductor that satisfies both.",
             ["Pick IEC or NEC, the system type, conductor and insulation.", "Enter voltage, load current or power, cable length and maximum voltage drop.", "Read the recommended cable size, voltage drop and power loss."],
             "400 V 3-phase, 32 A, 50 m, Cu PVC  →  6 mm² (≈ 2.1 % drop)",
@@ -224,7 +224,7 @@ public static class ToolContent
             ["Enter any two known values.", "Read the calculated values.", "Edit a field to recalculate."],
             "230 V, 10 A  →  23 Ω, 2300 W"),
 
-        ["power-factor-correction"] = S("power factor correction calculator",
+        ["power-factor-correction"] = S("power factor correction capacitor calculator (kVAR and µF)",
             "Calculate the capacitor bank size needed to raise power factor for single-phase and three-phase loads. Shows kVAR, capacitance per phase in star and delta, and the drop in current, apparent power and line losses.",
             ["Choose the system, voltage and frequency.", "Enter active power and existing and target power factor.", "Read the required kVAR and capacitance."],
             "100 kW, PF 0.75 → 0.95  →  55.3 kVAR",
@@ -242,7 +242,7 @@ public static class ToolContent
             "Brown, Black, Red, Gold  →  1 kΩ ± 5 %",
             new Faq("Which end do I read from?", "Start from the band closest to a lead; the tolerance band (often gold or silver) is usually spaced slightly apart on the other end.")),
 
-        ["transformer-calculator"] = S("transformer full-load and short-circuit current calculator",
+        ["transformer-calculator"] = S("transformer fault current calculator (kVA and %Z)",
             "Calculate the rated full-load current of single-phase and three-phase transformers on both windings, and the maximum short-circuit current at the secondary terminals from the percentage impedance.",
             ["Enter the kVA rating and %Z.", "Enter primary and secondary voltages.", "Read full-load and fault currents."],
             "1000 kVA, 11 kV / 400 V, 6 %Z  →  1443 A, 24.1 kA",
