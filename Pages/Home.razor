@@ -3,6 +3,14 @@
 @inject UserPrefs Prefs
 
 <PageTitle>DevToolsHub - Free Online Developer Tools & Electrical Calculators</PageTitle>
+<HeadContent>
+    <meta name="description" content="Free developer tools: JSON formatter, regex tester, cron explainer, Base64, JWT decoder, hash, GUID and password generators. 100% in your browser." />
+    <link rel="canonical" href="https://www.itsalldevtools.com/" />
+    <meta property="og:title" content="DevToolsHub - Free Online Developer Tools" />
+    <meta property="og:description" content="Free developer tools that run 100% in your browser. Nothing is uploaded." />
+    <meta property="og:url" content="https://www.itsalldevtools.com/" />
+    <script type="application/ld+json">{"@@context":"https://schema.org","@@type":"WebSite","name":"It's All Dev Tools","url":"https://www.itsalldevtools.com/"}</script>
+</HeadContent>
 
 <section class="home-hero">
     <div class="hero-grid" aria-hidden="true"></div>
@@ -109,10 +117,12 @@
     private static List<ToolInfo> Resolve(IEnumerable<string> hrefs) =>
         hrefs.Select(ToolCatalog.Find).OfType<ToolInfo>().ToList();
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized() => Prefs.Changed += OnPrefsChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        Prefs.Changed += OnPrefsChanged;
-        await Prefs.EnsureLoadedAsync();
+        if (firstRender)
+            await Prefs.EnsureLoadedAsync();
     }
 
     private void OnPrefsChanged() => InvokeAsync(StateHasChanged);
