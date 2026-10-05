@@ -54,7 +54,24 @@
         <a class="dismiss">âœ•</a>
     </div>
     <script src="js/site.js" defer></script>
-    <script src="_framework/blazor.webassembly.js" defer></script>
+    <script>
+        (function () {
+            var started = false;
+            var events = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'scroll', 'focusin'];
+            function start() {
+                if (started) return;
+                started = true;
+                events.forEach(function (e) { window.removeEventListener(e, start, true); });
+                var s = document.createElement('script');
+                s.src = '_framework/blazor.webassembly.js';
+                s.setAttribute('autostart', 'false');
+                s.onload = function () { Blazor.start(); };
+                document.body.appendChild(s);
+            }
+            events.forEach(function (e) { window.addEventListener(e, start, { capture: true, passive: true }); });
+            window.addEventListener('load', function () { setTimeout(start, 4000); });
+        })();
+    </script>
 </body>
 
 </html>
