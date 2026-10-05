@@ -19,6 +19,14 @@ jobs:
         with:
           submodules: true
           lfs: false
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish (with prerendering)
+        run: dotnet publish DevToolsHub.csproj -c Release -o publish
+      - name: Verify prerendered output
+        run: grep -q "<h1>" publish/wwwroot/json-formatter/index.html
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -28,9 +36,10 @@ jobs:
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "/" # App source code path
+          app_location: "publish/wwwroot" # Prebuilt, prerendered app
           api_location: "" # Api source code path - optional
-          output_location: "wwwroot" # Built app content directory - optional
+          output_location: "" # Built app content directory - optional
+          skip_app_build: true
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
