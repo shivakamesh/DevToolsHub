@@ -1,61 +1,105 @@
 ---
-title: I built 50+ free developer tools that run 100% in your browser (Blazor WebAssembly)
+title: "Stop pasting production tokens into random websites 🔐 — I built 50+ dev tools that never leave your browser"
 published: false
-description: No sign-up, no uploads, works offline. Here's why I built It's All Dev Tools and what I learned shipping a prerendered Blazor WASM site.
+description: JSON, JWT, Regex, Base64, cron, QR codes and even electrical engineering calculators. Free, no sign-up, 100% client-side with Blazor WebAssembly.
 tags: showdev, dotnet, blazor, webdev
 cover_image: https://www.itsalldevtools.com/logo.png
-canonical_url: https://www.itsalldevtools.com
 ---
 
-Hi DEV 👋 — this is my first post here!
+> **TL;DR** — I built **[It's All Dev Tools](https://www.itsalldevtools.com)**: 50+ free developer utilities that run **entirely in your browser**. No uploads. No sign-up. Works offline. Built with **Blazor WebAssembly + .NET 8**. 🚀
 
-I want to share a side project I've been building: **[It's All Dev Tools](https://www.itsalldevtools.com)**, a collection of 50+ free developer utilities and electrical engineering calculators.
+---
 
-## The problem
+## 😬 Be honest… have you ever done this?
 
-You know the drill: you need to pretty-print some JSON, decode a JWT, or check a cron expression. You Google it, land on a site full of ads, and paste in... a production token. 😬
+It's 6 PM. Something's broken in production. You grab a JWT from the logs, Google **"jwt decoder"**, click the first result and paste it in.
 
-Most online tools send your input to a server. That's fine for lorem ipsum, but not for JWTs, certificates, API payloads, or customer data.
+Then it hits you:
 
-## The idea
+> *"Wait… where did that token just go?"*
 
-Build tools that:
+Most online tools quietly send your input to **their server**. That's fine for lorem ipsum. It's **not** fine for:
 
-- 🔒 **Run 100% in the browser** — nothing you type is uploaded
-- 🚫 **Need no sign-up**
-- ✈️ **Work offline** once a page has loaded
-- ⚡ **Load fast** and are easy to find via search
+- 🔑 Access tokens and API keys
+- 📜 Certificates
+- 📦 API payloads with customer data
+- 🧾 Internal config files
 
-## What's inside
+So I built the toolbox I actually wanted to use.
 
-**Format & validate** — JSON formatter, JSON → C# classes, JSON ↔ YAML ↔ XML ↔ CSV, SQL formatter, .NET regex tester, diff checker, JSONPath tester, Markdown preview
+---
 
-**Encode & decode** — Base64, URL, HTML entities, JWT decoder/generator, HMAC, X.509 certificate decoder
+## ✨ Meet It's All Dev Tools
 
-**Generate** — hashes, GUIDs, passwords, QR codes, fake data, cron builder, `.gitignore` generator, invoices
+| | |
+|---|---|
+| 🔒 **Private by design** | Everything runs client-side. Your data never leaves the tab. |
+| 🚫 **No sign-up** | Open the page, use the tool. That's it. |
+| ✈️ **Works offline** | Once a page loads, you can pull the network cable. |
+| ⚡ **Fast** | Pages are prerendered to static HTML, then come alive with Blazor. |
+| 💸 **Free** | No paywalls, no "upgrade to Pro" pop-ups. |
 
-**Convert** — Unix timestamps, number bases, colors + contrast checker, time zones, byte sizes, chmod
+👉 **Try it now: [itsalldevtools.com](https://www.itsalldevtools.com)**
 
-**Electrical engineering** ⚡ — cable size & voltage drop (IEC/NEC), Ohm's law, power factor correction, kW/kVA/amps, resistor color codes, transformer fault current
+---
 
-## The tech stack
+## 🧰 What's in the toolbox?
 
-- **Blazor WebAssembly on .NET 8** — all the logic is C#, running client-side
-- **Prerendered to static HTML** — so pages load instantly and are indexable by search engines, then Blazor takes over for interactivity
-- **Static hosting** — no backend needed for the core tools
+### 🧹 Format & validate
+[JSON Formatter](https://www.itsalldevtools.com/json-formatter) · [JSON → C#](https://www.itsalldevtools.com/json-to-csharp) · [JSON ↔ YAML ↔ XML ↔ CSV](https://www.itsalldevtools.com/format-converter) · [SQL Formatter](https://www.itsalldevtools.com/sql-formatter) · [Regex Tester](https://www.itsalldevtools.com/regex-tester) · [Diff Checker](https://www.itsalldevtools.com/diff-checker) · [JSONPath Tester](https://www.itsalldevtools.com/json-path) · [Markdown Preview](https://www.itsalldevtools.com/markdown-preview)
 
-A nice bonus of using .NET: the [Regex Tester](https://www.itsalldevtools.com/regex-tester) uses the *actual* .NET regex engine, so what you test is exactly what your C# code will do. Same for [JSON to C#](https://www.itsalldevtools.com/json-to-csharp).
+### 🔐 Encode & decode
+[Base64](https://www.itsalldevtools.com/base64) · [URL Encoder](https://www.itsalldevtools.com/url-encoder) · [JWT Decoder](https://www.itsalldevtools.com/jwt-decoder) · [JWT Generator](https://www.itsalldevtools.com/jwt-generator) · [HMAC](https://www.itsalldevtools.com/hmac-generator) · [X.509 Certificate Decoder](https://www.itsalldevtools.com/certificate-decoder)
 
-## Lessons learned
+### 🎲 Generate
+[Hashes](https://www.itsalldevtools.com/hash-generator) · [GUIDs](https://www.itsalldevtools.com/guid-generator) · [Passwords](https://www.itsalldevtools.com/password-generator) · [QR Codes](https://www.itsalldevtools.com/qr-code) · [Fake Data](https://www.itsalldevtools.com/fake-data) · [Cron Builder](https://www.itsalldevtools.com/cron-builder) · [.gitignore](https://www.itsalldevtools.com/gitignore-generator) · [Invoices](https://www.itsalldevtools.com/invoice-generator)
 
-1. **Prerendering matters.** A plain Blazor WASM app shows a loading spinner and is hard for crawlers. Prerendering fixed both first-load speed and SEO.
-2. **Keep the payload lean.** Trimming and lazy-loading make a big difference to WASM download size.
-3. **Privacy is a feature.** "Nothing leaves your browser" turned out to be the thing people care about most.
+### 🔄 Convert
+[Unix Timestamps](https://www.itsalldevtools.com/timestamp-converter) · [Number Bases](https://www.itsalldevtools.com/number-base) · [Colors & Contrast](https://www.itsalldevtools.com/color-converter) · [Time Zones](https://www.itsalldevtools.com/time-zone-converter) · [Byte Sizes](https://www.itsalldevtools.com/byte-size) · [Chmod](https://www.itsalldevtools.com/chmod-calculator)
 
-## Try it & tell me what's missing
+### ⚡ Bonus: Electrical engineering
+Because why not? 😄
+[Cable Size & Voltage Drop (IEC/NEC)](https://www.itsalldevtools.com/cable-size-calculator) · [Ohm's Law](https://www.itsalldevtools.com/ohms-law-calculator) · [Power Factor Correction](https://www.itsalldevtools.com/power-factor-correction) · [kW / kVA / Amps](https://www.itsalldevtools.com/power-converter) · [Resistor Color Code](https://www.itsalldevtools.com/resistor-color-code) · [Transformer Fault Current](https://www.itsalldevtools.com/transformer-calculator)
 
-👉 **https://www.itsalldevtools.com**
+---
 
-The source is on GitHub: [shivakamesh/DevToolsHub](https://github.com/shivakamesh/DevToolsHub)
+## 🛠️ Under the hood
 
-What tool do you wish existed (without ads or uploads)? Drop it in the comments — I'm actively adding new ones. 🙌
+```text
+┌───────────────────────────────┐
+│   Prerendered static HTML     │  ← fast first paint + SEO
+├───────────────────────────────┤
+│  Blazor WebAssembly (.NET 8)  │  ← all tool logic in C#
+├───────────────────────────────┤
+│         Your browser          │  ← the only place your data lives
+└───────────────────────────────┘
+```
+
+**My favorite perk of using .NET:** the [Regex Tester](https://www.itsalldevtools.com/regex-tester) runs the **real .NET regex engine**. What matches here matches in your C# code. No more "works in the JS tester, fails in production" surprises. 🎯
+
+---
+
+## 💡 3 things I learned building it
+
+**1. Prerendering is a must for Blazor WASM.**
+Without it, users stare at a loading spinner and search engines see an empty page. With it, content appears instantly and Google can index every tool.
+
+**2. Privacy turned out to be the real selling point.**
+"Runs in your browser" sounds like a tech detail. For developers handling real tokens and data, it's the reason to use the site.
+
+**3. Small tools add up.**
+Each tool is tiny on its own. Together they replace a dozen ad-filled bookmarks.
+
+---
+
+## 🙌 Your turn
+
+I'm actively adding new tools, and I'd love your input:
+
+- 💬 **What tool do you Google every week?** Tell me in the comments.
+- 🐛 **Found a bug?** [Open an issue on GitHub](https://github.com/shivakamesh/DevToolsHub/issues).
+- ⭐ **Like the idea?** [Star the repo](https://github.com/shivakamesh/DevToolsHub). It really helps!
+
+👉 **[itsalldevtools.com](https://www.itsalldevtools.com)**
+
+Thanks for reading my first DEV post! 💜
