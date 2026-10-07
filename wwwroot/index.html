@@ -31,6 +31,14 @@
             set: t => { localStorage.setItem('theme', t); document.documentElement.dataset.theme = t; }
         };
         document.documentElement.dataset.theme = window.devTheme.get();
+        (function () {
+            var path = location.pathname.replace(/\/index\.html$/i, '/').replace(/(.)\/+$/, '$1').toLowerCase();
+            var link = document.createElement('link');
+            link.rel = 'canonical';
+            link.id = 'static-canonical';
+            link.href = 'https://www.itsalldevtools.com' + path;
+            document.head.appendChild(link);
+        })();
     </script>
 </head>
 
@@ -54,9 +62,15 @@
                 var s = document.createElement('script');
                 s.src = '_framework/blazor.webassembly.js';
                 s.setAttribute('autostart', 'false');
-                s.onload = function () { Blazor.start(); };
+                s.onload = function () {
+                    Blazor.start().then(function () {
+                        var c = document.getElementById('static-canonical');
+                        if (c && document.querySelectorAll('link[rel=canonical]').length > 1) c.remove();
+                    });
+                };
                 document.body.appendChild(s);
             }
+            if (/bot|crawl|spider|slurp|lighthouse|headless/i.test(navigator.userAgent)) { start(); return; }
             events.forEach(function (e) { window.addEventListener(e, start, { capture: true, passive: true }); });
             window.addEventListener('load', function () { setTimeout(start, 4000); });
         })();
