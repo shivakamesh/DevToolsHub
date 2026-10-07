@@ -271,6 +271,59 @@ public static class ToolContent
         ["css-generator"] = S("CSS gradient and box-shadow generator",
             "Design CSS linear and radial gradients and box shadows with live preview and copy-ready CSS code.",
             ["Choose gradient colors and angle.", "Adjust the shadow sliders.", "Copy the generated CSS."], null),
+
+        ["unix-timestamp-to-date"] = S("Unix timestamp to date converter",
+            "Convert Unix epoch timestamps to human-readable dates. Paste one timestamp or a whole list from logs, and each value is shown in UTC, your local time and ISO 8601. Seconds and milliseconds are detected automatically.",
+            ["Paste one or more Unix timestamps, one per line.", "Read the UTC, local and ISO 8601 dates.", "Copy the converted results."],
+            "1700000000  →  2023-11-14T22:13:20Z",
+            new Faq("What is a Unix timestamp?", "It is the number of seconds elapsed since 1 January 1970 00:00:00 UTC (the Unix epoch), ignoring leap seconds."),
+            new Faq("How do I know if a timestamp is in seconds or milliseconds?", "Current timestamps in seconds have 10 digits; in milliseconds they have 13 digits. The converter detects this automatically.")),
+
+        ["csv-to-json"] = S("CSV to JSON converter",
+            "Turn CSV exports from Excel, Google Sheets or databases into JSON. The header row becomes property names, quoted fields and embedded commas are handled correctly, and numbers and booleans can be detected automatically.",
+            ["Paste your CSV data.", "Choose the delimiter and output shape (objects or arrays).", "Copy or download the JSON."],
+            "name,age / Ada,36  →  [{\"name\":\"Ada\",\"age\":36}]",
+            new Faq("Can I use semicolon or tab separated files?", "Yes. Choose a custom delimiter such as semicolon, tab or pipe."),
+            new Faq("Are quoted fields with commas supported?", "Yes. Fields wrapped in double quotes may contain commas, line breaks and escaped quotes.")),
+
+        ["uuid-v7-generator"] = S("UUID v7 generator",
+            "UUID version 7 (RFC 9562) embeds a Unix millisecond timestamp in the first 48 bits, so IDs sort by creation time. That makes them a great database primary key because inserts stay index-friendly, unlike random UUID v4.",
+            ["Choose how many UUIDs to generate.", "Click Generate and copy the list.", "Paste an existing UUIDv7 to decode its timestamp."], null,
+            new Faq("UUID v4 vs v7: which should I use?", "Use v7 when IDs are database keys or need to sort by time; use v4 when you want no embedded information at all."),
+            new Faq("Is UUID v7 unique?", "Yes. Besides the timestamp it contains 74 random bits, so collisions are practically impossible.")),
+
+        ["cidr-calculator"] = S("subnet and CIDR calculator",
+            "Calculate IPv4 subnet details from CIDR notation: network address, broadcast address, first and last usable host, number of hosts, subnet mask and wildcard mask. Handy for cloud VNets/VPCs, firewall rules and network planning.",
+            ["Enter an IP address with prefix, e.g. 10.0.0.0/24.", "Read the network range, mask and host count.", "Copy any value you need."],
+            "192.168.1.0/24  →  mask 255.255.255.0, hosts 192.168.1.1 – 192.168.1.254 (254 usable)",
+            new Faq("How many hosts are in a /24?", "A /24 has 256 addresses, of which 254 are usable hosts (network and broadcast are reserved)."),
+            new Faq("Why does Azure or AWS show fewer usable addresses?", "Cloud providers reserve extra addresses in each subnet (Azure and AWS reserve 5).")),
+
+        ["sql-to-csharp"] = S("SQL to C# class generator",
+            "Generate C# classes or records from SQL CREATE TABLE statements. Column types from SQL Server, PostgreSQL, MySQL and SQLite are mapped to C# types, and nullable columns become nullable properties, ideal for Entity Framework Core or Dapper models.",
+            ["Paste one or more CREATE TABLE statements.", "Choose class or record output.", "Copy the generated C# code."],
+            "CREATE TABLE Users (Id INT NOT NULL, Name NVARCHAR(50) NULL)  →  public class Users { public int Id { get; set; } public string? Name { get; set; } }",
+            new Faq("Which SQL types are supported?", "Common numeric, text, date/time, boolean, GUID/uuid and binary types across the major databases are mapped to their C# equivalents.")),
+
+        ["slug-generator"] = S("URL slug generator",
+            "Convert blog titles and product names into clean, SEO-friendly URL slugs. Accents are transliterated, punctuation is removed and spaces become hyphens.",
+            ["Type or paste your title.", "Choose the separator and casing.", "Copy the slug."],
+            "Héllo, World! 2024  →  hello-world-2024",
+            new Faq("Why are slugs important for SEO?", "Short, readable, keyword-rich URLs are easier to share and help search engines understand the page topic.")),
+
+        ["awg-to-mm2"] = S("AWG to mm² wire gauge converter",
+            "Convert American Wire Gauge (AWG) sizes to metric cross-sectional area in mm² and diameter in mm, or find the nearest AWG for a metric cable size. Useful when working with US and IEC wiring standards side by side.",
+            ["Select an AWG size or enter a mm² value.", "Read the equivalent area and diameter."],
+            "12 AWG  →  3.31 mm² (2.05 mm diameter)",
+            new Faq("Is a higher AWG number a thicker wire?", "No. Higher AWG numbers mean thinner wires; every 6 gauges roughly halves the diameter."),
+            new Faq("What is the closest metric size to 10 AWG?", "10 AWG is 5.26 mm², so 6 mm² is the nearest standard metric size above it.")),
+
+        ["voltage-divider-calculator"] = S("voltage divider calculator",
+            "Calculate the output voltage of a two-resistor voltage divider, or find the resistor value needed for a target output. The current through the divider and the power dissipated in each resistor are shown too.",
+            ["Enter the input voltage and resistor values.", "Read Vout, current and power.", "Or enter a target Vout to solve for R2."],
+            "Vin 12 V, R1 10 kΩ, R2 4.7 kΩ  →  Vout ≈ 3.84 V",
+            new Faq("What is the voltage divider formula?", "Vout = Vin × R2 / (R1 + R2)."),
+            new Faq("Can I power a device from a voltage divider?", "Generally no. The load changes the output voltage; use a regulator to power circuits and dividers for signals or reference levels.")),
     };
 
     public static ToolSeo? For(string href) => Content.GetValueOrDefault(href);

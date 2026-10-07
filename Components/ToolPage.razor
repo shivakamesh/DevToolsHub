@@ -7,6 +7,8 @@
     <meta property="og:title" content="@PageTitleText" />
     <meta property="og:description" content="@MetaDescription" />
     <meta property="og:url" content="@CanonicalUrl" />
+    <meta name="twitter:title" content="@PageTitleText" />
+    <meta name="twitter:description" content="@MetaDescription" />
     <script type="application/ld+json">@((MarkupString)StructuredData)</script>
 </HeadContent>
 
@@ -120,6 +122,19 @@ else if (!string.IsNullOrEmpty(tool?.Help))
                     ["offers"] = new Dictionary<string, object> { ["@type"] = "Offer", ["price"] = "0", ["priceCurrency"] = "USD" },
                 },
             };
+            if (tool is not null)
+            {
+                items.Add(new Dictionary<string, object>
+                {
+                    ["@type"] = "BreadcrumbList",
+                    ["itemListElement"] = new List<object>
+                    {
+                        new Dictionary<string, object> { ["@type"] = "ListItem", ["position"] = 1, ["name"] = "Home", ["item"] = SiteUrl },
+                        new Dictionary<string, object> { ["@type"] = "ListItem", ["position"] = 2, ["name"] = tool.Category, ["item"] = SiteUrl + "#" + tool.Category.ToLowerInvariant() },
+                        new Dictionary<string, object> { ["@type"] = "ListItem", ["position"] = 3, ["name"] = Title, ["item"] = CanonicalUrl },
+                    },
+                });
+            }
             if (seo is not null)
             {
                 items.Add(new Dictionary<string, object>
