@@ -1,0 +1,70 @@
+@page "/slug-generator"
+@using System.Globalization
+@using System.Text
+
+<ToolPage Title="Text to Slug" Description="Convert titles and text into clean, URL-friendly slugs. Removes accents, punctuation and extra separators." ShareValue="@input">
+    <div class="toolbar">
+        <label>Separator
+            <select @bind="separator" @bind:after="Convert">
+                <option value="-">Hyphen (-)</option>
+                <option value="_">Underscore (_)</option>
+                <option value=".">Dot (.)</option>
+            </select>
+        </label>
+        <label><input type="checkbox" @bind="lower" @bind:after="Convert" /> Lowercase</label>
+        <label>Max length <input type="number" min="0" max="500" @bind="maxLength" @bind:after="Convert" /></label>
+        <CopyButton Text="@output" />
+    </div>
+    <p class="lead">One slug is generated per line.</p>
+    <textarea class="io" rows="8" @bind="input" @bind:event="oninput" @bind:after="Convert"></textarea>
+    <textarea class="io" rows="8" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string input = "Hello World! Crème Brûlée & Café — 10 Tips for 2025";
+    private string separator = "-";
+    private bool lower = true;
+    private int maxLength;
+    private string output = "";
+
+    protected override void OnInitialized() => Convert();
+
+    private void Convert() => output = string.Join('\n', input.Split('\n').Select(l => Slugify(l.TrimEnd('\r'))));
+
+    private static readonly Dictionary<char, string> Special = new()
+    {
+        ['ß'] = "ss", ['æ'] = "ae", ['Æ'] = "AE", ['ø'] = "o", ['Ø'] = "O", ['œ'] = "oe", ['Œ'] = "OE",
+        ['đ'] = "d", ['Đ'] = "D", ['ł'] = "l", ['Ł'] = "L", ['þ'] = "th", ['Þ'] = "TH", ['&'] = " and ",
+    };
+
+    private string Slugify(string text)
+    {
+        var sb = new StringBuilder();
+        foreach (var ch in text.Normalize(NormalizationForm.FormD))
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(ch) == UnicodeCategory.NonSpacingMark) continue;
+            if (Special.TryGetValue(ch, out var rep)) sb.Append(rep);
+            else sb.Append(ch);
+        }
+        var result = new StringBuilder();
+        var pendingSep = false;
+        foreach (var ch in sb.ToString())
+        {
+            if (char.IsAsciiLetterOrDigit(ch))
+            {
+                if (pendingSep && result.Length > 0) result.Append(separator);
+                pendingSep = false;
+                result.Append(lower ? char.ToLowerInvariant(ch) : ch);
+            }
+            else if (!(ch is '\'' or '’')) pendingSep = true;
+        }
+        var slug = result.ToString();
+        if (maxLength > 0 && slug.Length > maxLength)
+        {
+            slug = slug[..maxLength];
+            var cut = slug.LastIndexOf(separator[0]);
+            if (cut > 0) slug = slug[..cut];
+        }
+        return slug;
+    }
+}

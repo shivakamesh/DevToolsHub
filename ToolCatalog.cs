@@ -17,7 +17,9 @@ public static class ToolCatalog
         "css-generator", "time-zone-converter", "chmod-calculator", "yaml-validator", "json-path",
         "cron-builder", "fake-data", "gitignore-generator", "byte-size", "hmac-generator",
         "ohms-law-calculator", "power-factor-correction",
-                "power-converter", "resistor-color-code", "transformer-calculator", "led-resistor-calculator",
+                "transformer-calculator", "led-resistor-calculator",
+                        "unix-timestamp-to-date", "csv-to-json", "uuid-v7-generator", "cidr-calculator", "sql-to-csharp",
+                        "slug-generator", "awg-to-mm2", "voltage-divider-calculator",
             ];
 
     private static int Rank(string href)
@@ -53,6 +55,10 @@ public static class ToolCatalog
             "Paste the original and changed text to see added and removed lines. Options let you ignore whitespace and letter case."),
         new("Markdown Preview", "markdown-preview", "M↓", "Format", "Live Markdown to HTML preview.",
             "Write Markdown on the left and see the rendered result instantly. Tables, task lists and other GitHub-style extensions are supported. Raw HTML is disabled for safety."),
+        new("SQL to C#", "sql-to-csharp", "S#", "Format", "Generate C# classes from CREATE TABLE.",
+            "Paste one or more SQL CREATE TABLE statements (SQL Server, PostgreSQL, MySQL or SQLite) to generate C# classes or records with optional data annotations. SQL types are mapped to their C# equivalents and NULL columns become nullable."),
+        new("CSV to JSON", "csv-to-json", "⇢{}", "Format", "Convert CSV rows to a JSON array.",
+            "Paste CSV to get a JSON array of objects (using the header row) or arrays. Quoted fields, escaped quotes and multi-line values are supported. Numbers and booleans can be detected automatically."),
         new("JSON Path Tester", "json-path", "$.", "Format", "Query JSON with JSONPath expressions.",
             "Enter JSON and a JSONPath expression such as $.store.book[*].author or $..price to list matching values."),
 
@@ -81,6 +87,10 @@ public static class ToolCatalog
             "Type text to compute SHA hashes of its UTF-8 bytes instantly. Use the copy buttons to grab individual hashes."),
         new("GUID Generator", "guid-generator", "ID", "Generate", "Generate one or many GUIDs/UUIDs.",
             "Generate up to 1000 random version 4 GUIDs in standard, compact, braces or parentheses format."),
+        new("UUID v7 Generator", "uuid-v7-generator", "v7", "Generate", "Time-ordered UUIDv7 identifiers.",
+            "Generate RFC 9562 version 7 UUIDs, which start with a millisecond Unix timestamp so they sort by creation time and index well in databases. Paste a UUIDv7 to decode its timestamp."),
+        new("Text to Slug", "slug-generator", "a-b", "Generate", "Create URL-friendly slugs from text.",
+            "Converts each line of text into a URL slug: accents are removed, punctuation becomes a separator and repeated separators are collapsed. Choose the separator, case and an optional maximum length."),
         new("Password Generator", "password-generator", "🔒", "Generate", "Strong, secure random passwords.",
             "Passwords are created with a cryptographically secure random generator and always include at least one character from each selected set."),
         new("QR Code Generator", "qr-code", "▦", "Generate", "Create QR codes as PNG or SVG.",
@@ -99,6 +109,8 @@ public static class ToolCatalog
         // Convert
         new("Timestamp Converter", "timestamp-converter", "📅", "Convert", "Unix epoch to date and back.",
             "Converts Unix timestamps in seconds or milliseconds (detected automatically) to dates, and dates back to timestamps."),
+        new("Unix Timestamp to Date", "unix-timestamp-to-date", "⏲→📅", "Convert", "Convert epoch timestamps to readable dates.",
+            "Enter one or more Unix timestamps, one per line. Seconds and milliseconds are detected automatically and each is shown in UTC, your local time zone and ISO 8601."),
         new("Number Base Converter", "number-base", "01", "Convert", "Binary, octal, decimal, hex and more.",
             "Convert whole numbers of any size between bases 2 to 36. Negative numbers are supported."),
         new("Color Converter", "color-converter", "🎨", "Convert", "HEX, RGB, HSL and contrast checker.",
@@ -125,6 +137,8 @@ public static class ToolCatalog
             "Paste a User-Agent string, or use your own, to detect the browser, rendering engine, operating system, device type and bots."),
         new("CSS Generator", "css-generator", "✦", "Inspect", "Gradients and box shadows with live preview.",
             "Design CSS gradients and box shadows visually with a live preview, then copy the generated CSS."),
+        new("Subnet / CIDR Calculator", "cidr-calculator", "/24", "Inspect", "IPv4 subnet, mask and host range.",
+            "Enter an IPv4 address with a prefix (192.168.1.10/24) or a dotted subnet mask to get the network and broadcast addresses, usable host range, host count, subnet and wildcard masks."),
         new("Uptime & SSL Monitor", "uptime-monitor", "⏻", "Inspect", "Check uptime and SSL expiry from several regions.",
             "Add one check endpoint per region (saved in your browser), enter a URL and click Check to see HTTP status, response time and SSL certificate expiry from each region."),
 
@@ -143,6 +157,10 @@ public static class ToolCatalog
             "Enter the transformer rating, impedance and primary and secondary voltages to get full-load current on each winding and the maximum (infinite bus) short-circuit current."),
         new("LED Resistor Calculator", "led-resistor-calculator", "💡", "Engineering", "Series resistor value and wattage for LEDs.",
             "Enter supply voltage, LED forward voltage, current and number of LEDs in series to get the exact and nearest E24 resistor, actual current and required power rating."),
+        new("Voltage Divider Calculator", "voltage-divider-calculator", "V÷", "Engineering", "Output voltage or R2 for a resistor divider.",
+            "Enter Vin and R1, then either R2 to calculate Vout or a target Vout to find R2 (exact and nearest E24). An optional load resistance is taken into account. Divider current and resistor power are also shown."),
+        new("AWG to mm² Converter", "awg-to-mm2", "AWG", "Engineering", "Wire gauge to mm² and diameter.",
+            "Pick an AWG size (4/0 to 40) to see its cross-section in mm² and kcmil, diameter and copper resistance, or enter a metric size in mm² to find the nearest AWG."),
     ];
 
     public static IEnumerable<IGrouping<string, ToolInfo>> ByCategory =>

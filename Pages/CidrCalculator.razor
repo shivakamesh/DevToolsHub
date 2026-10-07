@@ -1,0 +1,115 @@
+@page "/cidr-calculator"
+@using System.Net
+
+<ToolPage Title="Subnet / CIDR Calculator" Description="Calculate IPv4 network address, broadcast, usable host range, subnet mask and wildcard from CIDR notation." ShareValue="@input">
+    <input class="io" placeholder="e.g. 192.168.1.10/24 or 10.0.0.0 255.255.0.0" @bind="input" @bind:event="oninput" @bind:after="Calculate" />
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (result is not null)
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>CIDR</th><td><code>@result.Network/@result.Prefix</code></td></tr>
+                <tr><th>Network address</th><td><code>@result.Network</code></td></tr>
+                <tr><th>Broadcast address</th><td><code>@result.Broadcast</code></td></tr>
+                <tr><th>Usable host range</th><td><code>@result.FirstHost – @result.LastHost</code></td></tr>
+                <tr><th>Total addresses</th><td>@result.Total.ToString("N0")</td></tr>
+                <tr><th>Usable hosts</th><td>@result.Usable.ToString("N0")</td></tr>
+                <tr><th>Subnet mask</th><td><code>@result.Mask</code></td></tr>
+                <tr><th>Wildcard mask</th><td><code>@result.Wildcard</code></td></tr>
+                <tr><th>Binary mask</th><td><code>@result.BinaryMask</code></td></tr>
+                <tr><th>IP class</th><td>@result.Class</td></tr>
+                <tr><th>Type</th><td>@(result.IsPrivate ? "Private (RFC 1918)" : "Public / other")</td></tr>
+            </tbody>
+        </table>
+    }
+
+    <h3>Prefix reference</h3>
+    <table class="table">
+        <thead><tr><th>Prefix</th><th>Mask</th><th>Addresses</th></tr></thead>
+        <tbody>
+            @for (var p = 32; p >= 8; p--)
+            {
+                <tr><td>/@p</td><td><code>@ToIp(MaskOf(p))</code></td><td>@((1L << (32 - p)).ToString("N0"))</td></tr>
+            }
+        </tbody>
+    </table>
+</ToolPage>
+
+@code {
+    private string input = "192.168.1.10/24";
+    private string? error;
+    private Result? result;
+
+    private record Result(string Network, int Prefix, string Broadcast, string FirstHost, string LastHost, long Total, long Usable,
+        string Mask, string Wildcard, string BinaryMask, string Class, bool IsPrivate);
+
+    protected override void OnInitialized() => Calculate();
+
+    private static uint MaskOf(int prefix) => prefix == 0 ? 0u : uint.MaxValue << (32 - prefix);
+
+    private static string ToIp(uint v) => $"{v >> 24}.{(v >> 16) & 255}.{(v >> 8) & 255}.{v & 255}";
+
+    private static bool TryParseIpv4(string s, out uint value)
+    {
+        value = 0;
+        if (!IPAddress.TryParse(s, out var ip) || ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork || s.Count(c => c == '.') != 3)
+            return false;
+        var b = ip.GetAddressBytes();
+        value = (uint)(b[0] << 24 | b[1] << 16 | b[2] << 8 | b[3]);
+        return true;
+    }
+
+    private void Calculate()
+    {
+        error = null;
+        result = null;
+        var text = input.Trim();
+        if (text.Length == 0) return;
+
+        var parts = text.Split(['/', ' '], 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (!TryParseIpv4(parts[0], out var ip))
+        {
+            error = "Enter a valid IPv4 address.";
+            return;
+        }
+        int prefix = 32;
+        if (parts.Length == 2)
+        {
+            if (int.TryParse(parts[1], out var p) && p is >= 0 and <= 32) prefix = p;
+            else if (TryParseIpv4(parts[1], out var mask))
+            {
+                var inv = ~mask;
+                if ((inv & (inv + 1)) != 0)
+                {
+                    error = "Subnet mask must be contiguous.";
+                    return;
+                }
+                prefix = System.Numerics.BitOperations.PopCount(mask);
+            }
+            else
+            {
+                error = "Prefix must be 0–32 or a dotted subnet mask.";
+                return;
+            }
+        }
+
+        var m = MaskOf(prefix);
+        var network = ip & m;
+        var broadcast = network | ~m;
+        var total = 1L << (32 - prefix);
+        long usable = prefix switch { 32 => 1, 31 => 2, _ => total - 2 };
+        var first = prefix >= 31 ? network : network + 1;
+        var last = prefix >= 31 ? broadcast : broadcast - 1;
+        var bin = Convert.ToString(m, 2).PadLeft(32, '0');
+        var binary = string.Join('.', Enumerable.Range(0, 4).Select(i => bin.Substring(i * 8, 8)));
+        var o1 = ip >> 24;
+        var cls = o1 switch { < 128 => "A", < 192 => "B", < 224 => "C", < 240 => "D (multicast)", _ => "E (reserved)" };
+        var isPrivate = o1 == 10 || (o1 == 172 && ((ip >> 16) & 255) is >= 16 and <= 31) || (o1 == 192 && ((ip >> 16) & 255) == 168);
+
+        result = new(ToIp(network), prefix, ToIp(broadcast), ToIp(first), ToIp(last), total, usable,
+            ToIp(m), ToIp(~m), binary, cls, isPrivate);
+    }
+}

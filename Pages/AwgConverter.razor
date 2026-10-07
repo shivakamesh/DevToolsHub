@@ -1,0 +1,66 @@
+@page "/awg-to-mm2"
+@using System.Globalization
+
+<ToolPage Title="AWG to mm² Wire Gauge Converter" Description="Convert American Wire Gauge (AWG) sizes to mm² cross-section and diameter, and find the nearest AWG for a metric wire size.">
+    <h3>AWG → mm²</h3>
+    <div class="toolbar">
+        <label>AWG
+            <select @bind="selected">
+                @foreach (var g in Gauges)
+                {
+                    <option value="@g.Name">@g.Name</option>
+                }
+            </select>
+        </label>
+    </div>
+    @{ var sel = Gauges.First(g => g.Name == selected); }
+    <table class="table">
+        <tbody>
+            <tr><th>Area</th><td><code>@F(sel.Area) mm²</code> (@F(sel.Area / 0.0005067075) kcmil)</td></tr>
+            <tr><th>Diameter</th><td><code>@F(sel.Diameter) mm</code> (@F(sel.Diameter / 25.4) in)</td></tr>
+            <tr><th>Resistance (copper, 20 °C)</th><td>@F(0.017241 / sel.Area * 1000) Ω/km</td></tr>
+        </tbody>
+    </table>
+
+    <h3>mm² → AWG</h3>
+    <input class="io" type="number" step="any" placeholder="e.g. 2.5" @bind="mm2" @bind:event="oninput" />
+    @if (mm2 is > 0)
+    {
+        var nearest = Gauges.OrderBy(g => Math.Abs(Math.Log(g.Area / mm2.Value))).First();
+        var atLeast = Gauges.Where(g => g.Area >= mm2.Value).OrderBy(g => g.Area).FirstOrDefault();
+        <table class="table">
+            <tbody>
+                <tr><th>Nearest AWG</th><td><code>@nearest.Name AWG</code> (@F(nearest.Area) mm²)</td></tr>
+                <tr><th>Smallest AWG ≥ @F(mm2.Value) mm²</th><td>@(atLeast is null ? "Larger than 4/0 – use kcmil" : $"{atLeast.Name} AWG ({F(atLeast.Area)} mm²)")</td></tr>
+            </tbody>
+        </table>
+    }
+
+    <h3>Reference table</h3>
+    <table class="table">
+        <thead><tr><th>AWG</th><th>Diameter (mm)</th><th>Area (mm²)</th><th>Ω/km (Cu)</th></tr></thead>
+        <tbody>
+            @foreach (var g in Gauges)
+            {
+                <tr><td>@g.Name</td><td>@F(g.Diameter)</td><td>@F(g.Area)</td><td>@F(0.017241 / g.Area * 1000)</td></tr>
+            }
+        </tbody>
+    </table>
+    <p class="lead">d = 0.127 mm × 92<sup>(36 − n) / 39</sup>, where 1/0 = 0, 2/0 = −1, 3/0 = −2 and 4/0 = −3.</p>
+</ToolPage>
+
+@code {
+    private string selected = "12";
+    private double? mm2 = 2.5;
+
+    private record Gauge(string Name, double Diameter, double Area);
+
+    private static readonly List<Gauge> Gauges = Enumerable.Range(-3, 44).Select(n =>
+    {
+        var d = 0.127 * Math.Pow(92, (36 - n) / 39.0);
+        var name = n <= 0 ? $"{1 - n}/0" : n.ToString(CultureInfo.InvariantCulture);
+        return new Gauge(name, d, Math.PI / 4 * d * d);
+    }).ToList();
+
+    private static string F(double v) => v.ToString(v >= 100 ? "N1" : "G4", CultureInfo.InvariantCulture);
+}

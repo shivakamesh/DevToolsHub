@@ -1,0 +1,123 @@
+@page "/uuid-v7-generator"
+@using System.Globalization
+@using System.Security.Cryptography
+
+<ToolPage Title="UUID v7 Generator" Description="Generate time-ordered UUID version 7 identifiers (RFC 9562) and decode the timestamp embedded in a UUIDv7.">
+    <div class="toolbar">
+        <label>Count <input type="number" min="1" max="1000" @bind="count" /></label>
+        <label><input type="checkbox" @bind="upper" /> Uppercase</label>
+        <label><input type="checkbox" @bind="hyphens" /> Hyphens</label>
+        <button class="btn" @onclick="Generate">Generate</button>
+        <CopyButton Text="@output" />
+    </div>
+    <textarea class="io" rows="12" readonly>@output</textarea>
+
+    <h3>Decode UUIDv7</h3>
+    <input class="io" placeholder="e.g. 0190f3a2-7c4e-7b2a-9d3e-1f2a3b4c5d6e" @bind="decodeInput" @bind:event="oninput" @bind:after="Decode" />
+    @if (decodeError is not null)
+    {
+        <div class="alert error">@decodeError</div>
+    }
+    else if (decoded is not null)
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Version</th><td>@decodedVersion</td></tr>
+                <tr><th>Unix ms</th><td><code>@decoded.Value.ToUnixTimeMilliseconds()</code></td></tr>
+                <tr><th>UTC</th><td><code>@decoded.Value.ToString("yyyy-MM-dd HH:mm:ss.fff 'UTC'", CultureInfo.InvariantCulture)</code></td></tr>
+                <tr><th>Local</th><td><code>@decoded.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff zzz", CultureInfo.InvariantCulture)</code></td></tr>
+            </tbody>
+        </table>
+    }
+</ToolPage>
+
+@code {
+    private int count = 5;
+    private bool upper;
+    private bool hyphens = true;
+    private string output = "";
+    private string decodeInput = "";
+    private DateTimeOffset? decoded;
+    private int decodedVersion;
+    private string? decodeError;
+
+    protected override void OnInitialized() => Generate();
+
+    private void Generate()
+    {
+        var n = Math.Clamp(count, 1, 1000);
+        var ms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var list = new List<string>(n);
+        byte[]? previous = null;
+        for (var i = 0; i < n; i++)
+        {
+            var bytes = NewV7(ms);
+            // Keep bulk output strictly ordered within the same millisecond.
+            if (previous is not null && Compare(bytes, previous) <= 0)
+            {
+                bytes = (byte[])previous.Clone();
+                Increment(bytes);
+            }
+            previous = bytes;
+            list.Add(Format(bytes));
+        }
+        output = string.Join('\n', list);
+    }
+
+    private static byte[] NewV7(long ms)
+    {
+        var b = new byte[16];
+        RandomNumberGenerator.Fill(b.AsSpan(6));
+        for (var i = 0; i < 6; i++) b[i] = (byte)(ms >> (8 * (5 - i)));
+        b[6] = (byte)(0x70 | (b[6] & 0x0F));
+        b[8] = (byte)(0x80 | (b[8] & 0x3F));
+        return b;
+    }
+
+    private static int Compare(byte[] a, byte[] b)
+    {
+        for (var i = 0; i < 16; i++)
+            if (a[i] != b[i]) return a[i].CompareTo(b[i]);
+        return 0;
+    }
+
+    private static void Increment(byte[] b)
+    {
+        // Increment the random bits (skipping version and variant bits).
+        for (var i = 15; i >= 9; i--)
+            if (++b[i] != 0) return;
+        if ((b[8] & 0x3F) != 0x3F) { b[8]++; return; }
+        b[8] &= 0xC0;
+        if ((b[7]) != 0xFF) { b[7]++; return; }
+        b[7] = 0;
+        b[6] = (byte)(0x70 | ((b[6] + 1) & 0x0F));
+    }
+
+    private string Format(byte[] b)
+    {
+        var hex = Convert.ToHexString(b);
+        if (!upper) hex = hex.ToLowerInvariant();
+        return hyphens ? $"{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..]}" : hex;
+    }
+
+    private void Decode()
+    {
+        decoded = null;
+        decodeError = null;
+        var s = decodeInput.Trim().Trim('{', '}').Replace("-", "");
+        if (s.Length == 0) return;
+        if (s.Length != 32 || !s.All(Uri.IsHexDigit))
+        {
+            decodeError = "Enter a valid UUID.";
+            return;
+        }
+        decodedVersion = Convert.ToInt32(s[12].ToString(), 16);
+        if (decodedVersion != 7)
+        {
+            decodeError = $"This is a version {decodedVersion} UUID; only version 7 contains a Unix timestamp.";
+            return;
+        }
+        var ms = long.Parse(s[..12], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        decoded = DateTimeOffset.FromUnixTimeMilliseconds(ms);
+    }
+}

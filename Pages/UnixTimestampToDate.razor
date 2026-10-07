@@ -1,0 +1,76 @@
+@page "/unix-timestamp-to-date"
+@using System.Globalization
+
+<ToolPage Title="Unix Timestamp to Date" Description="Convert one or many Unix epoch timestamps (seconds or milliseconds) to human-readable UTC and local dates." ShareValue="@input">
+    <p>Current Unix time: <code>@DateTimeOffset.UtcNow.ToUnixTimeSeconds()</code>
+        <button class="btn secondary" @onclick="UseNow">Use now</button></p>
+    <p class="lead">Enter one timestamp per line. Seconds and milliseconds are detected automatically.
+        Need date → timestamp? Use the <a href="timestamp-converter">Timestamp Converter</a>.</p>
+    <textarea class="io" rows="6" placeholder="1700000000&#10;1700000000000" @bind="input" @bind:event="oninput"></textarea>
+
+    @if (rows.Count > 0)
+    {
+        <table class="table">
+            <thead><tr><th>Timestamp</th><th>Unit</th><th>UTC</th><th>Local</th><th>ISO 8601</th></tr></thead>
+            <tbody>
+                @foreach (var r in rows)
+                {
+                    <tr>
+                        <td><code>@r.Input</code></td>
+                        @if (r.Error is not null)
+                        {
+                            <td colspan="4"><span class="alert error">@r.Error</span></td>
+                        }
+                        else
+                        {
+                            <td>@r.Unit</td>
+                            <td><code>@r.Value!.Value.ToString("yyyy-MM-dd HH:mm:ss.fff 'UTC'", CultureInfo.InvariantCulture)</code></td>
+                            <td><code>@r.Value!.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff zzz", CultureInfo.InvariantCulture)</code></td>
+                            <td><code>@r.Value!.Value.ToString("O", CultureInfo.InvariantCulture)</code></td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</ToolPage>
+
+@code {
+    private string _input = "";
+    private string input
+    {
+        get => _input;
+        set { _input = value; Convert(); }
+    }
+
+    private List<Row> rows = [];
+
+    private record Row(string Input, string Unit, DateTimeOffset? Value, string? Error);
+
+    private void UseNow() => input = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+
+    private void Convert()
+    {
+        rows = [];
+        foreach (var raw in _input.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            if (!long.TryParse(line, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+            {
+                rows.Add(new(line, "", null, "Not a whole number."));
+                continue;
+            }
+            try
+            {
+                var isMillis = Math.Abs(value) >= 100_000_000_000;
+                var dto = isMillis ? DateTimeOffset.FromUnixTimeMilliseconds(value) : DateTimeOffset.FromUnixTimeSeconds(value);
+                rows.Add(new(line, isMillis ? "milliseconds" : "seconds", dto, null));
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                rows.Add(new(line, "", null, "Out of range."));
+            }
+        }
+    }
+}

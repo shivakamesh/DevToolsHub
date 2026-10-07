@@ -1,0 +1,139 @@
+@page "/csv-to-json"
+@using System.Globalization
+@using System.Text
+@using System.Text.Json
+@using System.Text.Json.Nodes
+
+<ToolPage Title="CSV to JSON Converter" Description="Convert CSV data to a JSON array of objects or arrays, with quoted fields, custom delimiters and type detection." ShareValue="@csv">
+    <div class="toolbar">
+        <label>Delimiter
+            <select @bind="delimiter" @bind:after="Convert">
+                <option value=",">Comma (,)</option>
+                <option value=";">Semicolon (;)</option>
+                <option value="tab">Tab</option>
+                <option value="|">Pipe (|)</option>
+            </select>
+        </label>
+        <label><input type="checkbox" @bind="header" @bind:after="Convert" /> First row is header</label>
+        <label><input type="checkbox" @bind="inferTypes" @bind:after="Convert" /> Detect numbers &amp; booleans</label>
+        <label><input type="checkbox" @bind="minify" @bind:after="Convert" /> Minify</label>
+        <CopyButton Text="@output" />
+    </div>
+    <textarea class="io" rows="12" @bind="csv" @bind:event="oninput" @bind:after="Convert"></textarea>
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    <textarea class="io" rows="16" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string csv = "id,name,email,active\n1,Ada Lovelace,ada@example.com,true\n2,\"Hopper, Grace\",grace@example.com,false";
+    private string delimiter = ",";
+    private bool header = true;
+    private bool inferTypes = true;
+    private bool minify;
+    private string output = "";
+    private string? error;
+
+    protected override void OnInitialized() => Convert();
+
+    private void Convert()
+    {
+        error = null;
+        output = "";
+        if (string.IsNullOrWhiteSpace(csv)) return;
+        var sep = delimiter == "tab" ? '\t' : delimiter[0];
+        List<List<string>> rows;
+        try
+        {
+            rows = Parse(csv, sep);
+        }
+        catch (FormatException ex)
+        {
+            error = ex.Message;
+            return;
+        }
+        if (rows.Count == 0) return;
+
+        var result = new JsonArray();
+        if (header)
+        {
+            var names = rows[0].Select((h, i) => string.IsNullOrWhiteSpace(h) ? $"column{i + 1}" : h.Trim()).ToList();
+            foreach (var row in rows.Skip(1))
+            {
+                var obj = new JsonObject();
+                for (var i = 0; i < Math.Max(names.Count, row.Count); i++)
+                {
+                    var key = i < names.Count ? names[i] : $"column{i + 1}";
+                    obj[key] = Value(i < row.Count ? row[i] : "");
+                }
+                result.Add(obj);
+            }
+        }
+        else
+        {
+            foreach (var row in rows)
+                result.Add(new JsonArray(row.Select(Value).ToArray()));
+        }
+        output = result.ToJsonString(new JsonSerializerOptions
+        {
+            WriteIndented = !minify,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        });
+    }
+
+    private JsonNode? Value(string s)
+    {
+        if (!inferTypes) return JsonValue.Create(s);
+        if (s.Length == 0) return null;
+        if (bool.TryParse(s, out var b)) return JsonValue.Create(b);
+        if (s is "null" or "NULL") return null;
+        var looksNumeric = !(s.Length > 1 && s[0] == '0' && char.IsDigit(s[1]));
+        if (looksNumeric && long.TryParse(s, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var l)) return JsonValue.Create(l);
+        if (looksNumeric && decimal.TryParse(s, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent, CultureInfo.InvariantCulture, out var d)) return JsonValue.Create(d);
+        return JsonValue.Create(s);
+    }
+
+    private static List<List<string>> Parse(string text, char sep)
+    {
+        var rows = new List<List<string>>();
+        var row = new List<string>();
+        var field = new StringBuilder();
+        var inQuotes = false;
+        var line = 1;
+        for (var i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (inQuotes)
+            {
+                if (c == '"')
+                {
+                    if (i + 1 < text.Length && text[i + 1] == '"') { field.Append('"'); i++; }
+                    else inQuotes = false;
+                }
+                else
+                {
+                    if (c == '\n') line++;
+                    field.Append(c);
+                }
+            }
+            else if (c == '"' && field.Length == 0) inQuotes = true;
+            else if (c == sep) { row.Add(field.ToString()); field.Clear(); }
+            else if (c == '\r') { }
+            else if (c == '\n')
+            {
+                row.Add(field.ToString());
+                field.Clear();
+                if (!(row.Count == 1 && row[0].Length == 0)) rows.Add(row);
+                row = [];
+                line++;
+            }
+            else field.Append(c);
+        }
+        if (inQuotes) throw new FormatException($"Unterminated quoted field (line {line}).");
+        row.Add(field.ToString());
+        if (!(row.Count == 1 && row[0].Length == 0)) rows.Add(row);
+        return rows;
+    }
+}

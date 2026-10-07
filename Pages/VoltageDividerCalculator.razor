@@ -1,0 +1,120 @@
+@page "/voltage-divider-calculator"
+@using System.Globalization
+
+<ToolPage Title="Voltage Divider Calculator" Description="Calculate the output voltage of a resistor voltage divider, or find R2 for a target output voltage, with current and power dissipation.">
+    <div class="toolbar">
+        <label>Solve for
+            <select @bind="mode" @bind:after="Calculate">
+                <option value="vout">Output voltage (Vout)</option>
+                <option value="r2">Bottom resistor (R2)</option>
+            </select>
+        </label>
+    </div>
+    <table class="table">
+        <tbody>
+            <tr><th>Input voltage Vin (V)</th><td><input type="number" step="any" @bind="vin" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>R1 – top resistor (Ω)</th><td><input type="number" step="any" @bind="r1" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            @if (mode == "vout")
+            {
+                <tr><th>R2 – bottom resistor (Ω)</th><td><input type="number" step="any" @bind="r2" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            }
+            else
+            {
+                <tr><th>Target Vout (V)</th><td><input type="number" step="any" @bind="target" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            }
+            <tr><th>Load resistance (Ω, optional)</th><td><input type="number" step="any" placeholder="none" @bind="load" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+        </tbody>
+    </table>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (vout is not null)
+    {
+        <table class="table">
+            <tbody>
+                @if (mode == "r2")
+                {
+                    <tr><th>Exact R2</th><td><code>@Ohms(r2Exact!.Value)</code></td></tr>
+                    <tr><th>Nearest E24 R2</th><td><code>@Ohms(r2Used)</code></td></tr>
+                }
+                <tr><th>Vout@(mode == "r2" ? " (with E24 R2)" : "")</th><td><code>@vout.Value.ToString("G6", CultureInfo.InvariantCulture) V</code></td></tr>
+                <tr><th>Ratio Vout / Vin</th><td>@ratio.ToString("G6", CultureInfo.InvariantCulture)</td></tr>
+                <tr><th>Divider current</th><td>@Amps(current)</td></tr>
+                <tr><th>Power in R1</th><td>@Watts(p1)</td></tr>
+                <tr><th>Power in R2</th><td>@Watts(p2)</td></tr>
+            </tbody>
+        </table>
+        <p class="lead">Vout = Vin × R2 / (R1 + R2). With a load, R2 is replaced by R2 ∥ R<sub>load</sub>.</p>
+    }
+</ToolPage>
+
+@code {
+    private string mode = "vout";
+    private double? vin = 12, r1 = 10_000, r2 = 4_700, target = 3.3, load;
+    private double? vout, r2Exact;
+    private double r2Used, ratio, current, p1, p2;
+    private string? error;
+
+    private static readonly double[] E24 = [1.0, 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 2.0, 2.2, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8, 7.5, 8.2, 9.1];
+
+    protected override void OnInitialized() => Calculate();
+
+    private void Calculate()
+    {
+        error = null;
+        vout = null;
+        r2Exact = null;
+        if (vin is null || r1 is null || r1 <= 0) { error = "Enter Vin and a positive R1."; return; }
+        if (load is not null && load <= 0) { error = "Load resistance must be positive."; return; }
+
+        if (mode == "vout")
+        {
+            if (r2 is null || r2 <= 0) { error = "Enter a positive R2."; return; }
+            r2Used = r2.Value;
+        }
+        else
+        {
+            if (target is null || vin == 0 || target / vin <= 0 || target / vin >= 1) { error = "Target Vout must be between 0 and Vin."; return; }
+            var k = target.Value / vin.Value;
+            var effective = r1.Value * k / (1 - k);
+            if (load is not null)
+            {
+                if (effective >= load) { error = "Target is not reachable with this load; reduce R1."; return; }
+                effective = effective * load.Value / (load.Value - effective);
+            }
+            r2Exact = effective;
+            r2Used = NearestE24(effective);
+        }
+
+        var bottom = load is null ? r2Used : r2Used * load.Value / (r2Used + load.Value);
+        ratio = bottom / (r1.Value + bottom);
+        vout = vin.Value * ratio;
+        current = vin.Value / (r1.Value + bottom);
+        p1 = current * current * r1.Value;
+        p2 = vout.Value * vout.Value / r2Used;
+    }
+
+    private static double NearestE24(double value)
+    {
+        var decade = Math.Pow(10, Math.Floor(Math.Log10(value)));
+        return E24.Select(e => e * decade).Append(10 * decade)
+            .OrderBy(v => Math.Abs(Math.Log(v / value))).First();
+    }
+
+    private static string Ohms(double r) => r switch
+    {
+        >= 1e6 => $"{(r / 1e6).ToString("G4", CultureInfo.InvariantCulture)} MΩ",
+        >= 1e3 => $"{(r / 1e3).ToString("G4", CultureInfo.InvariantCulture)} kΩ",
+        _ => $"{r.ToString("G4", CultureInfo.InvariantCulture)} Ω",
+    };
+
+    private static string Amps(double a) => Math.Abs(a) >= 1
+        ? $"{a.ToString("G4", CultureInfo.InvariantCulture)} A"
+        : Math.Abs(a) >= 1e-3 ? $"{(a * 1e3).ToString("G4", CultureInfo.InvariantCulture)} mA" : $"{(a * 1e6).ToString("G4", CultureInfo.InvariantCulture)} µA";
+
+    private static string Watts(double w) => Math.Abs(w) >= 1
+        ? $"{w.ToString("G4", CultureInfo.InvariantCulture)} W"
+        : $"{(w * 1e3).ToString("G4", CultureInfo.InvariantCulture)} mW";
+}

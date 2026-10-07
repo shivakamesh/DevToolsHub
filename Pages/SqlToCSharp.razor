@@ -1,0 +1,177 @@
+@page "/sql-to-csharp"
+@using System.Text
+@using System.Text.RegularExpressions
+
+<ToolPage Title="SQL to C# Class" Description="Generate C# classes or records from SQL CREATE TABLE statements (SQL Server, PostgreSQL, MySQL, SQLite)." ShareValue="@sql">
+    <div class="toolbar">
+        <label>Output
+            <select @bind="mode" @bind:after="Generate">
+                <option value="class">Class</option>
+                <option value="record">Record</option>
+            </select>
+        </label>
+        <label><input type="checkbox" @bind="annotations" @bind:after="Generate" /> Data annotations</label>
+        <label><input type="checkbox" @bind="nullable" @bind:after="Generate" /> Nullable reference types</label>
+        <CopyButton Text="@output" />
+    </div>
+    <textarea class="io" rows="12" placeholder="CREATE TABLE dbo.Users (Id INT NOT NULL PRIMARY KEY, Name NVARCHAR(100) NOT NULL, Email VARCHAR(255) NULL);" @bind="sql" @bind:event="oninput" @bind:after="Generate"></textarea>
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    <textarea class="io" rows="16" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string sql = "CREATE TABLE dbo.Users (\n    Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,\n    UserName NVARCHAR(100) NOT NULL,\n    Email VARCHAR(255) NULL,\n    IsActive BIT NOT NULL DEFAULT 1,\n    Balance DECIMAL(18,2) NULL,\n    CreatedAt DATETIME2 NOT NULL\n);";
+    private string mode = "class";
+    private bool annotations = true;
+    private bool nullable = true;
+    private string output = "";
+    private string? error;
+
+    protected override void OnInitialized() => Generate();
+
+    private static readonly Regex TableRegex = new(@"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s(]+)\s*\(", RegexOptions.IgnoreCase);
+
+    private record Column(string Name, string SqlType, int? Length, bool Nullable, bool Key);
+
+    private void Generate()
+    {
+        error = null;
+        var sb = new StringBuilder();
+        var matches = TableRegex.Matches(sql);
+        if (matches.Count == 0)
+        {
+            output = "";
+            if (!string.IsNullOrWhiteSpace(sql)) error = "No CREATE TABLE statement found.";
+            return;
+        }
+        foreach (Match m in matches)
+        {
+            var body = ExtractBody(sql, m.Index + m.Length);
+            if (body is null) { error = "Unbalanced parentheses in CREATE TABLE."; continue; }
+            var tableName = Unquote(m.Groups[1].Value.Split('.').Last());
+            var columns = ParseColumns(body);
+            if (sb.Length > 0) sb.AppendLine();
+            Emit(sb, tableName, columns);
+        }
+        output = sb.ToString().TrimEnd();
+    }
+
+    private static string? ExtractBody(string text, int start)
+    {
+        var depth = 1;
+        for (var i = start; i < text.Length; i++)
+        {
+            if (text[i] == '(') depth++;
+            else if (text[i] == ')' && --depth == 0) return text[start..i];
+        }
+        return null;
+    }
+
+    private static List<string> SplitTopLevel(string body)
+    {
+        var parts = new List<string>();
+        var depth = 0;
+        var last = 0;
+        for (var i = 0; i < body.Length; i++)
+        {
+            if (body[i] == '(') depth++;
+            else if (body[i] == ')') depth--;
+            else if (body[i] == ',' && depth == 0)
+            {
+                parts.Add(body[last..i]);
+                last = i + 1;
+            }
+        }
+        parts.Add(body[last..]);
+        return parts.Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
+    }
+
+    private static readonly string[] ConstraintKeywords = ["CONSTRAINT", "PRIMARY", "FOREIGN", "UNIQUE", "CHECK", "INDEX", "KEY"];
+
+    private static List<Column> ParseColumns(string body)
+    {
+        var columns = new List<Column>();
+        var tableKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var part in SplitTopLevel(body))
+        {
+            var first = part.Split((char[]?)null, 2, StringSplitOptions.RemoveEmptyEntries)[0].ToUpperInvariant();
+            if (ConstraintKeywords.Contains(first))
+            {
+                var pk = Regex.Match(part, @"PRIMARY\s+KEY\s*(?:CLUSTERED|NONCLUSTERED)?\s*\(([^)]*)\)", RegexOptions.IgnoreCase);
+                if (pk.Success)
+                    foreach (var k in pk.Groups[1].Value.Split(','))
+                        tableKeys.Add(Unquote(k.Trim().Split(' ')[0]));
+                continue;
+            }
+            var cm = Regex.Match(part, @"^(\[[^\]]+\]|""[^""]+""|`[^`]+`|\S+)\s+([A-Za-z0-9_ ]+?)(?:\s*\(\s*(\w+)\s*(?:,\s*\d+)?\s*\))?(?=\s|$)(.*)$", RegexOptions.Singleline);
+            if (!cm.Success) continue;
+            var rest = cm.Groups[4].Value.ToUpperInvariant();
+            var typeName = cm.Groups[2].Value.Trim().ToLowerInvariant();
+            int? length = int.TryParse(cm.Groups[3].Value, out var l) ? l : null;
+            var isKey = rest.Contains("PRIMARY KEY");
+            var isNullable = !rest.Contains("NOT NULL") && !isKey;
+            columns.Add(new(Unquote(cm.Groups[1].Value), typeName, length, isNullable, isKey));
+        }
+        return columns.Select(c => tableKeys.Contains(c.Name) ? c with { Key = true, Nullable = false } : c).ToList();
+    }
+
+    private static string Unquote(string s) => s.Trim().Trim('[', ']', '"', '`');
+
+    private static (string Type, bool IsValueType) MapType(string sqlType) => sqlType.Split(' ')[0] switch
+    {
+        "bigint" or "int8" or "bigserial" => ("long", true),
+        "int" or "integer" or "int4" or "serial" or "mediumint" => ("int", true),
+        "smallint" or "int2" or "smallserial" => ("short", true),
+        "tinyint" => ("byte", true),
+        "bit" or "bool" or "boolean" => ("bool", true),
+        "decimal" or "numeric" or "money" or "smallmoney" => ("decimal", true),
+        "float" or "double" or "float8" => ("double", true),
+        "real" or "float4" => ("float", true),
+        "date" => ("DateOnly", true),
+        "time" => ("TimeOnly", true),
+        "datetime" or "datetime2" or "smalldatetime" or "timestamp" => ("DateTime", true),
+        "datetimeoffset" or "timestamptz" => ("DateTimeOffset", true),
+        "uniqueidentifier" or "uuid" => ("Guid", true),
+        "binary" or "varbinary" or "image" or "blob" or "bytea" or "rowversion" or "longblob" => ("byte[]", false),
+        _ => ("string", false),
+    };
+
+    private static string Pascal(string name)
+    {
+        var parts = Regex.Split(name, @"[^A-Za-z0-9]+").Where(p => p.Length > 0);
+        var result = string.Concat(parts.Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
+        if (result.Length == 0) return "Column";
+        return char.IsDigit(result[0]) ? "_" + result : result;
+    }
+
+    private void Emit(StringBuilder sb, string table, List<Column> columns)
+    {
+        var className = Pascal(table);
+        if (annotations) sb.AppendLine($"[Table(\"{table}\")]");
+        sb.AppendLine($"public {(mode == "record" ? "record" : "class")} {className}");
+        sb.AppendLine("{");
+        for (var i = 0; i < columns.Count; i++)
+        {
+            var c = columns[i];
+            var (type, isValue) = MapType(c.SqlType);
+            var prop = Pascal(c.Name);
+            if (prop == className) prop += "Value";
+            if (annotations)
+            {
+                if (c.Key) sb.AppendLine("    [Key]");
+                if (prop != c.Name) sb.AppendLine($"    [Column(\"{c.Name}\")]");
+                if (!c.Nullable && !isValue) sb.AppendLine("    [Required]");
+                if (type == "string" && c.Length is > 0) sb.AppendLine($"    [MaxLength({c.Length})]");
+            }
+            var suffix = c.Nullable && (isValue || nullable) ? "?" : "";
+            var init = !c.Nullable && !isValue && nullable ? (type == "string" ? " = string.Empty;" : " = [];") : "";
+            var accessor = mode == "record" ? "{ get; init; }" : "{ get; set; }";
+            sb.AppendLine($"    public {type}{suffix} {prop} {accessor}{init}");
+            if (annotations && i < columns.Count - 1) sb.AppendLine();
+        }
+        sb.AppendLine("}");
+    }
+}
