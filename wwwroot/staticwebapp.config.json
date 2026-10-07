@@ -1,18 +1,249 @@
-{
-    "navigationFallback":  {
-                               "rewrite":  "/index.html",
-                               "exclude":  [
-                                               "/_framework/*",
-                                               "/css/*",
-                                               "/js/*",
-                                               "*.{png,svg,ico,json,xml,txt,webmanifest,css,js}"
-                                           ]
-                           },
+﻿{
     "routes":  [
-                   { "route": "/css/*", "headers": { "cache-control": "public, max-age=604800" } },
-                   { "route": "/js/*", "headers": { "cache-control": "public, max-age=604800" } },
-                   { "route": "/*.{png,svg}", "headers": { "cache-control": "public, max-age=2592000" } }
+                   {
+                       "headers":  {
+                                       "cache-control":  "public, max-age=604800"
+                                   },
+                       "route":  "/css/*"
+                   },
+                   {
+                       "headers":  {
+                                       "cache-control":  "public, max-age=604800"
+                                   },
+                       "route":  "/js/*"
+                   },
+                   {
+                       "headers":  {
+                                       "cache-control":  "public, max-age=2592000"
+                                   },
+                       "route":  "/*.{png,svg}"
+                   },
+                   {
+                       "route":  "/about",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/base64",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/byte-size",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/cable-size-calculator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/case-converter",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/certificate-decoder",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/chmod-calculator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/color-converter",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/contact",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/cron-builder",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/cron-explainer",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/css-generator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/diff-checker",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/dynamic-qr-code",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/fake-data",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/format-converter",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/gitignore-generator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/guid-generator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/hash-generator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/hmac-generator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/html-entities",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/html-to-pdf",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/http-status-codes",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/image-to-base64",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/invoice-generator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/json-formatter",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/json-path",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/json-to-csharp",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/jwt-decoder",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/jwt-generator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/led-resistor-calculator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/lorem-ipsum",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/markdown-preview",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/number-base",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/ohms-law-calculator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/password-generator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/power-converter",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/power-factor-correction",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/privacy",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/pro",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/q/*",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/qr-code",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/regex-tester",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/resistor-color-code",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/sql-formatter",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/string-escape",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/text-statistics",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/timestamp-converter",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/time-zone-converter",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/transformer-calculator",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/uptime-monitor",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/url-encoder",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/user-agent-parser",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/xml-formatter",
+                       "rewrite":  "/index.html"
+                   },
+                   {
+                       "route":  "/yaml-validator",
+                       "rewrite":  "/index.html"
+                   }
                ],
+    "responseOverrides":  {
+                              "404":  {
+                                          "rewrite":  "/404.html"
+                                      }
+                          },
     "mimeTypes":  {
                       ".webmanifest":  "application/manifest+json"
                   }
