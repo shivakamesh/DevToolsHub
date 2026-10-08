@@ -365,7 +365,8 @@ mark { background: rgba(250, 204, 21, .35); color: inherit; }
 .menu-btn.on .burger i:nth-child(1) { top: 5px; transform: rotate(45deg); }
 .menu-btn.on .burger i:nth-child(2) { opacity: 0; }
 .menu-btn.on .burger i:nth-child(3) { top: 5px; transform: rotate(-45deg); }
-.menu-btn { color: var(--text); display: none; place-items: center; }
+.menu-btn { color: var(--text); display: none; place-items: center; padding: 0; }
+.burger-ico { display: block; max-width: none; }
 
 @media (max-width: 800px) {
     /* Top bar */

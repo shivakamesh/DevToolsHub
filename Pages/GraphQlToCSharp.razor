@@ -1,0 +1,164 @@
+@page "/graphql-to-csharp"
+@using System.Text
+@using System.Text.RegularExpressions
+
+<ToolPage Title="GraphQL to C#" Description="Generate C# classes, records, interfaces and enums from a GraphQL schema (SDL).">
+    <textarea class="io" rows="14" placeholder="Paste GraphQL SDL..." @bind="input" @bind:event="oninput"></textarea>
+
+    <div class="toolbar">
+        <label>Namespace <input class="io" style="width: 14rem" @bind="ns" /></label>
+        <label><input type="checkbox" @bind="useRecords" /> Records</label>
+        <label><input type="checkbox" @bind="attributes" /> [JsonPropertyName]</label>
+        <label><input type="checkbox" @bind="skipRoot" /> Skip Query/Mutation/Subscription</label>
+        <button class="btn" @onclick="Generate">Generate</button>
+        <CopyButton Text="@output" />
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    <textarea class="io" rows="18" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private sealed class TypeDef(string kind, string name)
+    {
+        public string Kind { get; } = kind;
+        public string Name { get; } = name;
+        public List<string> Implements { get; } = [];
+        public List<(string Name, string Type)> Fields { get; } = [];
+        public List<string> Values { get; } = [];
+    }
+
+    private static readonly Dictionary<string, string> Scalars = new()
+    {
+        ["Int"] = "int", ["Float"] = "double", ["String"] = "string", ["Boolean"] = "bool", ["ID"] = "string",
+        ["DateTime"] = "DateTimeOffset", ["Date"] = "DateOnly", ["Time"] = "TimeOnly", ["UUID"] = "Guid",
+        ["Long"] = "long", ["BigInt"] = "long", ["Decimal"] = "decimal", ["URL"] = "Uri", ["Uri"] = "Uri", ["JSON"] = "object",
+    };
+
+    private static readonly HashSet<string> ValueTypes = ["int", "double", "bool", "DateTimeOffset", "DateOnly", "TimeOnly", "Guid", "long", "decimal"];
+
+    private string input = ToolSamples.GraphQl;
+
+    private string ns = "MyApi.GraphQL";
+    private bool useRecords;
+    private bool attributes = true;
+    private bool skipRoot = true;
+    private string output = "";
+    private string? error;
+
+    private void Generate()
+    {
+        error = null;
+        output = "";
+        try
+        {
+            var sdl = Regex.Replace(input, "\"\"\"[\\s\\S]*?\"\"\"", " ");
+            sdl = Regex.Replace(sdl, "\"(?:[^\"\\\\\\n]|\\\\.)*\"", " ");
+            sdl = Regex.Replace(sdl, "#[^\\n]*", "");
+            sdl = Regex.Replace(sdl, @"@\w+(\s*\([^)]*\))?", "");
+            string prev;
+            do { prev = sdl; sdl = Regex.Replace(sdl, @"\([^()]*\)", ""); } while (sdl != prev);
+
+            var types = new Dictionary<string, TypeDef>();
+            var unions = new Dictionary<string, List<string>>();
+            var customScalars = Regex.Matches(sdl, @"\bscalar\s+(\w+)").Select(m => m.Groups[1].Value).ToHashSet();
+
+            foreach (Match m in Regex.Matches(sdl, @"\b(type|input|interface|enum)\s+(\w+)([^{]*)\{([^}]*)\}"))
+            {
+                var kind = m.Groups[1].Value;
+                var name = m.Groups[2].Value;
+                if (!types.TryGetValue(name, out var def)) types[name] = def = new TypeDef(kind, name);
+                var impl = Regex.Match(m.Groups[3].Value, @"implements\s+(.+)$");
+                if (impl.Success) def.Implements.AddRange(Regex.Matches(impl.Groups[1].Value, @"\w+").Select(x => x.Value));
+                var body = m.Groups[4].Value;
+                if (kind == "enum")
+                {
+                    def.Values.AddRange(Regex.Matches(body, @"\b[_A-Za-z]\w*\b").Select(x => x.Value));
+                }
+                else
+                {
+                    body = Regex.Replace(body, @"=[^\n,]*", "");
+                    foreach (Match f in Regex.Matches(body, @"(\w+)\s*:\s*([\[\]\w!\s]+?)(?=\s*(?:\w+\s*:|,|$))"))
+                        def.Fields.Add((f.Groups[1].Value, Regex.Replace(f.Groups[2].Value, @"\s+", "")));
+                }
+            }
+            foreach (Match m in Regex.Matches(sdl, @"\bunion\s+(\w+)\s*=\s*\|?\s*(\w+(?:\s*\|\s*\w+)*)"))
+                unions[m.Groups[1].Value] = Regex.Matches(m.Groups[2].Value, @"\w+").Select(x => x.Value).ToList();
+
+            if (types.Count == 0 && unions.Count == 0) throw new InvalidOperationException("No type, input, interface, enum or union definitions found.");
+
+            var interfaces = types.Values.Where(t => t.Kind == "interface").Select(t => t.Name).ToHashSet();
+            string CsName(string n) => interfaces.Contains(n) || unions.ContainsKey(n) ? "I" + n : n;
+            string Map(string t)
+            {
+                var nonNull = t.EndsWith('!');
+                if (nonNull) t = t[..^1];
+                var cs = t.StartsWith('[') && t.EndsWith(']')
+                    ? $"List<{Map(t[1..^1])}>"
+                    : Scalars.TryGetValue(t, out var s) ? s : customScalars.Contains(t) ? "string" : CsName(t);
+                return nonNull ? cs : cs + "?";
+            }
+
+            var sb = new StringBuilder();
+            if (attributes || types.Values.Any(t => t.Kind == "enum")) sb.AppendLine("using System.Text.Json.Serialization;").AppendLine();
+            if (!string.IsNullOrWhiteSpace(ns)) sb.AppendLine($"namespace {ns.Trim()};").AppendLine();
+
+            foreach (var (name, members) in unions)
+                sb.AppendLine($"/// <summary>Union of {string.Join(", ", members)}.</summary>").AppendLine($"public interface I{name} {{ }}").AppendLine();
+
+            foreach (var t in types.Values)
+            {
+                if (skipRoot && t.Kind == "type" && t.Name is "Query" or "Mutation" or "Subscription") continue;
+                if (t.Kind == "enum")
+                {
+                    sb.AppendLine("[JsonConverter(typeof(JsonStringEnumConverter))]").AppendLine($"public enum {t.Name}").AppendLine("{");
+                    foreach (var v in t.Values) sb.AppendLine($"    {Pascal(v)},");
+                    sb.AppendLine("}").AppendLine();
+                    continue;
+                }
+
+                var isInterface = t.Kind == "interface";
+                var bases = t.Implements.Select(CsName).Concat(unions.Where(u => u.Value.Contains(t.Name)).Select(u => "I" + u.Key)).Distinct().ToList();
+                var keyword = isInterface ? "interface" : useRecords ? "record" : "class";
+                sb.Append($"public {keyword} {CsName(t.Name)}");
+                if (bases.Count > 0) sb.Append(" : ").Append(string.Join(", ", bases));
+                sb.AppendLine().AppendLine("{");
+                for (var i = 0; i < t.Fields.Count; i++)
+                {
+                    var (field, gqlType) = t.Fields[i];
+                    var cs = Map(gqlType);
+                    var prop = Pascal(field);
+                    if (attributes) sb.AppendLine($"    [JsonPropertyName(\"{field}\")]");
+                    if (isInterface)
+                    {
+                        sb.AppendLine($"    {cs} {prop} {{ get; }}");
+                    }
+                    else
+                    {
+                        var required = !cs.EndsWith('?') && !ValueTypes.Contains(cs) ? "required " : "";
+                        sb.AppendLine($"    public {required}{cs} {prop} {(useRecords ? "{ get; init; }" : "{ get; set; }")}");
+                    }
+                    if (i < t.Fields.Count - 1) sb.AppendLine();
+                }
+                sb.AppendLine("}").AppendLine();
+            }
+            output = sb.ToString().TrimEnd() + Environment.NewLine;
+        }
+        catch (InvalidOperationException ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private static string Pascal(string s)
+    {
+        var parts = s.Contains('_') || s.All(c => !char.IsLower(c))
+            ? s.ToLowerInvariant().Split('_', StringSplitOptions.RemoveEmptyEntries)
+            : [s];
+        var name = string.Concat(parts.Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
+        return name.Length == 0 ? "Value" : char.IsDigit(name[0]) ? "_" + name : name;
+    }
+}

@@ -1,0 +1,46 @@
+@page "/battery-life-calculator"
+@using System.Globalization
+@using DevToolsHub.Services
+
+<ToolPage Title="Battery Life Calculator" Description="Estimate battery runtime from capacity and load current, including sleep/active duty cycling for low-power devices.">
+    <div class="toolbar">
+        <label>Capacity (mAh) <input type="number" min="0" step="any" @bind="capacity" @bind:event="oninput" /></label>
+        <label>Active current (mA) <input type="number" min="0" step="any" @bind="active" @bind:event="oninput" /></label>
+        <label>Sleep current (mA) <input type="number" min="0" step="any" @bind="sleep" @bind:event="oninput" /></label>
+        <label>Active time (%) <input type="number" min="0" max="100" step="any" @bind="duty" @bind:event="oninput" /></label>
+        <label>Usable capacity (%) <input type="number" min="1" max="100" step="any" @bind="usable" @bind:event="oninput" /></label>
+    </div>
+
+    @{
+        var avg = ElectronicsCalc.AverageCurrent(active, sleep, duty);
+        var hours = ElectronicsCalc.BatteryHours(capacity, avg, usable / 100);
+    }
+    @if (capacity <= 0)
+    {
+        <div class="alert error">Enter a positive battery capacity.</div>
+    }
+    else
+    {
+        <table class="table"><tbody>
+            <tr><th>Average current</th><td>@F(avg) mA</td></tr>
+            <tr><th>Battery life</th><td><strong>@Duration(hours)</strong></td></tr>
+            <tr><th>Hours</th><td>@F(hours)</td></tr>
+        </tbody></table>
+        <p class="lead">Life = capacity × usable fraction / average current. Usable capacity accounts for cut-off voltage, temperature, self-discharge and aging; 70–85 % is a realistic planning value.</p>
+    }
+</ToolPage>
+
+@code {
+    private double capacity = 2000, active = 20, sleep = 0.05, duty = 1, usable = 85;
+
+    private static string F(double v) => double.IsFinite(v) ? v.ToString("#,0.###", CultureInfo.InvariantCulture) : "∞";
+
+    private static string Duration(double h)
+    {
+        if (!double.IsFinite(h)) return "Unlimited (no load)";
+        if (h < 48) return F(h) + " hours";
+        if (h < 24 * 60) return F(h / 24) + " days";
+        if (h < 24 * 730) return F(h / (24 * 30.44)) + " months";
+        return F(h / (24 * 365.25)) + " years";
+    }
+}

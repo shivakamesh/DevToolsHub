@@ -1,0 +1,202 @@
+@page "/openapi-to-csharp"
+@using System.Text
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@using System.Text.RegularExpressions
+@using YamlDotNet.Core
+@using YamlDotNet.Serialization
+
+<ToolPage Title="OpenAPI to C#" Description="Generate C# classes, records and enums from OpenAPI 3.x or Swagger 2.0 schemas (JSON or YAML).">
+    <textarea class="io" rows="14" placeholder="Paste an OpenAPI / Swagger document (JSON or YAML)..." @bind="input" @bind:event="oninput"></textarea>
+
+    <div class="toolbar">
+        <label>Namespace <input class="io" style="width: 14rem" @bind="ns" /></label>
+        <label><input type="checkbox" @bind="useRecords" /> Records</label>
+        <label><input type="checkbox" @bind="attributes" /> [JsonPropertyName]</label>
+        <button class="btn" @onclick="Generate">Generate</button>
+        <CopyButton Text="@output" />
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    <textarea class="io" rows="18" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string input = ToolSamples.OpenApi;
+
+    private string ns = "MyApi.Models";
+    private bool useRecords;
+    private bool attributes = true;
+    private string output = "";
+    private string? error;
+
+    private readonly Queue<(string Name, JsonObject Schema)> pending = new();
+    private readonly HashSet<string> emitted = [];
+    private StringBuilder sb = new();
+
+    private void Generate()
+    {
+        error = null;
+        output = "";
+        pending.Clear();
+        emitted.Clear();
+        sb = new StringBuilder();
+        try
+        {
+            var doc = Parse(input) as JsonObject ?? throw new InvalidOperationException("The document must be an object.");
+            var schemas = (doc["components"]?["schemas"] ?? doc["definitions"]) as JsonObject
+                ?? throw new InvalidOperationException("No components.schemas (OpenAPI 3) or definitions (Swagger 2) found.");
+            foreach (var (name, schema) in schemas)
+                if (schema is JsonObject so) pending.Enqueue((Pascal(name), so));
+            while (pending.TryDequeue(out var item))
+                if (emitted.Add(item.Name)) Emit(item.Name, item.Schema);
+
+            var header = new StringBuilder();
+            if (attributes || sb.ToString().Contains("JsonStringEnumConverter")) header.AppendLine("using System.Text.Json.Serialization;").AppendLine();
+            if (!string.IsNullOrWhiteSpace(ns)) header.AppendLine($"namespace {ns.Trim()};").AppendLine();
+            output = header.Append(sb).ToString().TrimEnd() + Environment.NewLine;
+        }
+        catch (Exception ex) when (ex is JsonException or YamlException or InvalidOperationException)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private void Emit(string name, JsonObject s)
+    {
+        Summary(s, "");
+        if (s["enum"] is JsonArray values)
+        {
+            var isString = Str(s["type"]) is null or "string";
+            if (isString) sb.AppendLine("[JsonConverter(typeof(JsonStringEnumConverter))]");
+            sb.AppendLine($"public enum {name}").AppendLine("{");
+            foreach (var v in values.Select(v => v?.ToString() ?? "null"))
+            {
+                var member = Pascal(v);
+                sb.AppendLine(member.Equals(v, StringComparison.Ordinal) ? $"    {member}," : $"    {member}, // \"{v}\"");
+            }
+            sb.AppendLine("}").AppendLine();
+            return;
+        }
+
+        string? baseType = null;
+        var props = new List<(string Json, JsonNode? Schema)>();
+        var required = new HashSet<string>();
+        void Collect(JsonObject o)
+        {
+            if (o["properties"] is JsonObject p) props.AddRange(p.Select(kv => (kv.Key, kv.Value)));
+            if (o["required"] is JsonArray r) required.UnionWith(r.Select(x => x?.ToString() ?? ""));
+        }
+        Collect(s);
+        if (s["allOf"] is JsonArray all)
+            foreach (var part in all.OfType<JsonObject>())
+            {
+                if (Str(part["$ref"]) is { } r && baseType is null) baseType = RefName(r);
+                else Collect(part);
+            }
+
+        var kind = useRecords ? "record" : "class";
+        sb.AppendLine(baseType is null ? $"public {kind} {name}" : $"public {kind} {name} : {baseType}").AppendLine("{");
+        foreach (var (json, ps) in props)
+        {
+            var propName = Pascal(json);
+            if (propName == name) propName += "Value";
+            var type = TypeOf(ps, name + propName);
+            var isRequired = required.Contains(json);
+            var nullable = !isRequired || Str(ps?["nullable"]) == "true" || (ps?["type"] is JsonArray ta && ta.Any(t => t?.ToString() == "null"));
+            if (ps is JsonObject pso) Summary(pso, "    ");
+            if (attributes) sb.AppendLine($"    [JsonPropertyName(\"{json}\")]");
+            var accessor = useRecords ? "{ get; init; }" : "{ get; set; }";
+            sb.AppendLine($"    public {(isRequired && !nullable ? "required " : "")}{type}{(nullable ? "?" : "")} {propName} {accessor}");
+            sb.AppendLine();
+        }
+        if (props.Count > 0) sb.Length -= Environment.NewLine.Length;
+        sb.AppendLine("}").AppendLine();
+    }
+
+    private string TypeOf(JsonNode? node, string suggested)
+    {
+        if (node is not JsonObject s) return "object";
+        if (Str(s["$ref"]) is { } r) return RefName(r);
+        foreach (var key in new[] { "allOf", "oneOf", "anyOf" })
+            if (s[key] is JsonArray arr)
+            {
+                var options = arr.OfType<JsonObject>().Where(o => Str(o["type"]) != "null").ToList();
+                if (options.Count == 1) return TypeOf(options[0], suggested);
+                if (key == "allOf" && options.Count > 1) { Enqueue(suggested, s); return suggested; }
+                return "object";
+            }
+
+        var type = s["type"] is JsonArray types ? types.Select(t => t?.ToString()).FirstOrDefault(t => t != "null") : Str(s["type"]);
+        if (s["enum"] is JsonArray && type is null or "string" or "integer") { Enqueue(suggested, s); return suggested; }
+        var format = Str(s["format"]);
+        return type switch
+        {
+            "string" => format switch
+            {
+                "date-time" => "DateTimeOffset",
+                "date" => "DateOnly",
+                "time" => "TimeOnly",
+                "uuid" => "Guid",
+                "byte" or "binary" => "byte[]",
+                "uri" => "Uri",
+                _ => "string"
+            },
+            "integer" => format == "int64" ? "long" : "int",
+            "number" => format switch { "float" => "float", "decimal" => "decimal", _ => "double" },
+            "boolean" => "bool",
+            "array" => $"List<{TypeOf(s["items"], suggested + "Item")}>",
+            _ when s["properties"] is JsonObject => Enqueue(suggested, s),
+            _ when s["additionalProperties"] is JsonObject ap => $"Dictionary<string, {TypeOf(ap, suggested + "Value")}>",
+            "object" => "Dictionary<string, object>",
+            _ => "object"
+        };
+    }
+
+    private string Enqueue(string name, JsonObject schema)
+    {
+        pending.Enqueue((name, schema));
+        return name;
+    }
+
+    private void Summary(JsonObject s, string indent)
+    {
+        if (Str(s["description"]) is not { Length: > 0 } d) return;
+        sb.AppendLine($"{indent}/// <summary>");
+        foreach (var line in d.Trim().Split('\n'))
+            sb.AppendLine($"{indent}/// {System.Security.SecurityElement.Escape(line.Trim())}");
+        sb.AppendLine($"{indent}/// </summary>");
+    }
+
+    private static string RefName(string r) => Pascal(r[(r.LastIndexOf('/') + 1)..]);
+
+    private static string? Str(JsonNode? n) => n is JsonValue v ? v.ToString() : null;
+
+    private static string Pascal(string s)
+    {
+        var parts = Regex.Split(s, "[^A-Za-z0-9]+").Where(p => p.Length > 0);
+        var name = string.Concat(parts.Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
+        if (name.Length == 0) return "Value";
+        return char.IsDigit(name[0]) ? "_" + name : name;
+    }
+
+    private static JsonNode? Parse(string text)
+    {
+        var trimmed = text.TrimStart();
+        if (trimmed.StartsWith('{'))
+            return JsonNode.Parse(text, documentOptions: new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+        var obj = new DeserializerBuilder().Build().Deserialize<object>(text);
+        return ToNode(obj);
+    }
+
+    private static JsonNode? ToNode(object? o) => o switch
+    {
+        null => null,
+        Dictionary<object, object> d => new JsonObject(d.Select(kv => KeyValuePair.Create(kv.Key.ToString()!, ToNode(kv.Value)))),
+        List<object> l => new JsonArray(l.Select(ToNode).ToArray()),
+        _ => JsonValue.Create(o.ToString())
+    };
+}

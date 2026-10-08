@@ -1,4 +1,4 @@
-@inherits LayoutComponentBase
+﻿@inherits LayoutComponentBase
 @implements IDisposable
 @using Microsoft.AspNetCore.Components.Routing
 
@@ -10,9 +10,21 @@
 
 <header class="topbar glass">
     <button class="menu-btn @(menuOpen ? "on" : "")" aria-label="Toggle menu" aria-expanded="@menuOpen" @onclick="() => menuOpen = !menuOpen">
-        <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
+        <svg class="burger-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            @if (menuOpen)
+            {
+                <line x1="6" y1="6" x2="18" y2="18" />
+                <line x1="18" y1="6" x2="6" y2="18" />
+            }
+            else
+            {
+                <line x1="4" y1="7" x2="20" y2="7" />
+                <line x1="4" y1="12" x2="20" y2="12" />
+                <line x1="4" y1="17" x2="20" y2="17" />
+            }
+        </svg>
     </button>
-    <a class="brand" href="">
+    <a class="brand" href="/">
         <img class="logo" src="logo.svg" alt="" />
         <span>DevTools<span class="gradient-text">Hub</span></span>
     </a>
@@ -47,7 +59,7 @@
                 </svg>
             </button>
         </div>
-        <NavLink href="" Match="NavLinkMatch.All" title="Home"><span class="nav-icon">⌂</span><span class="nav-label">Home</span></NavLink>
+        <NavLink href="/" Match="NavLinkMatch.All" title="Home"><span class="nav-icon">⌂</span><span class="nav-label">Home</span></NavLink>
         @if (string.IsNullOrWhiteSpace(filter))
         {
             var favs = Resolve(Prefs.Favorites);
@@ -73,7 +85,7 @@
         {
             var tools = group.Where(Matches).ToList();
             if (tools.Count == 0) continue;
-            var isOpen = collapsed || !string.IsNullOrWhiteSpace(filter) || !closedGroups.Contains(group.Key);
+            var isOpen = collapsed || !string.IsNullOrWhiteSpace(filter) || openGroup == group.Key;
             <button class="nav-group cat-@group.Key.ToLowerInvariant()" @onclick="() => ToggleGroup(group.Key)" aria-expanded="@isOpen" title="@group.Key">
                 <span class="chev @(isOpen ? "open" : "")">▸</span>
                                 <span class="dot"></span>
@@ -109,7 +121,8 @@
     private bool menuOpen;
     private bool collapsed;
     private string filter = "";
-    private HashSet<string> closedGroups = [];
+    private string? openGroup;
+    private bool restoreScroll;
     private CommandPalette palette = default!;
 
     [Inject] private IJSRuntime JS { get; set; } = default!;
@@ -129,13 +142,18 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (restoreScroll)
+        {
+            restoreScroll = false;
+            try { await JS.InvokeVoidAsync("devTools.restoreSidebarScroll"); } catch (JSException) { }
+        }
         if (!firstRender) return;
+        try { await JS.InvokeVoidAsync("devTools.trackSidebarScroll"); } catch (JSException) { }
         await Prefs.EnsureLoadedAsync();
         try
         {
             collapsed = await JS.InvokeAsync<string?>("localStorage.getItem", "sidebar.collapsed") == "1";
-            var groups = await JS.InvokeAsync<string?>("localStorage.getItem", "sidebar.closedGroups");
-            if (!string.IsNullOrEmpty(groups)) closedGroups = [.. groups.Split('|')];
+            openGroup = await JS.InvokeAsync<string?>("localStorage.getItem", "sidebar.openGroup");
             StateHasChanged();
         }
         catch (JSException) { }
@@ -153,13 +171,13 @@
     private async Task ToggleGroup(string key)
     {
         if (collapsed) { await ToggleCollapsed(); return; }
-        if (!closedGroups.Remove(key)) closedGroups.Add(key);
-        await JS.InvokeVoidAsync("localStorage.setItem", "sidebar.closedGroups", string.Join('|', closedGroups));
+        openGroup = openGroup == key ? null : key;
+        await JS.InvokeVoidAsync("localStorage.setItem", "sidebar.openGroup", openGroup ?? "");
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        if (!menuOpen) return;
+        restoreScroll = true;
         menuOpen = false;
         InvokeAsync(StateHasChanged);
     }

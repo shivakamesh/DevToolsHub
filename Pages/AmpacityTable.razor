@@ -1,0 +1,147 @@
+@page "/ampacity-table"
+@using System.Globalization
+
+<ToolPage Title="Ampacity Table & Calculator" Description="NEC Table 310.16 conductor ampacity for copper and aluminum at 60/75/90 °C, with ambient temperature and conductor bundling corrections.">
+    <div class="toolbar">
+        <label>Conductor
+            <select @bind="material">
+                <option value="cu">Copper</option>
+                <option value="al">Aluminum / copper-clad Al</option>
+            </select>
+        </label>
+        <label>Ambient °C
+            <input class="io" type="number" style="width: 6rem" step="1" @bind="ambient" @bind:event="oninput" />
+        </label>
+        <label>Current-carrying conductors
+            <input class="io" type="number" style="width: 6rem" min="1" step="1" @bind="conductors" @bind:event="oninput" />
+        </label>
+        <label>Size for column
+            <select @bind="column">
+                <option value="0">60 °C</option>
+                <option value="1">75 °C</option>
+                <option value="2">90 °C</option>
+            </select>
+        </label>
+        <label>Load (A)
+            <input class="io" type="number" style="width: 7rem" min="0" step="any" @bind="load" @bind:event="oninput" />
+        </label>
+    </div>
+
+    @{
+        var adj = BundleFactor(conductors);
+        var rows = Rows.Where(r => (material == "cu" ? r.Cu : r.Al) is not null).ToList();
+        var pick = load > 0 ? rows.FirstOrDefault(r => Adjusted(r, column, adj) >= load) : null;
+    }
+
+    <div class="alert">
+        Temperature correction: 60 °C ×@Factor(0).ToString("0.00"), 75 °C ×@Factor(1).ToString("0.00"), 90 °C ×@Factor(2).ToString("0.00").
+        Bundling adjustment (@conductors conductors): ×@adj.ToString("0.00").
+        @if (load > 0)
+        {
+            if (pick is not null)
+            {
+                <strong> Smallest conductor for @load.ToString("0.##") A at @Temps[column] °C: @pick.Size (@Adjusted(pick, column, adj).ToString("0.#") A).</strong>
+            }
+            else
+            {
+                <strong style="color: var(--error)"> No single conductor in the table carries @load.ToString("0.##") A; use parallel conductors.</strong>
+            }
+        }
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Size</th><th>mm²</th>
+                <th>60 °C</th><th>75 °C</th><th>90 °C</th>
+                <th>60 °C corrected</th><th>75 °C corrected</th><th>90 °C corrected</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var r in rows)
+            {
+                var vals = (material == "cu" ? r.Cu : r.Al)!;
+                <tr style="@(ReferenceEquals(r, pick) ? "background: rgba(52, 211, 153, .15)" : "")">
+                    <th>@r.Size</th>
+                    <td>@r.Mm2.ToString("0.##", CultureInfo.InvariantCulture)</td>
+                    <td>@vals[0]</td><td>@vals[1]</td><td>@vals[2]</td>
+                    <td>@Adjusted(r, 0, adj).ToString("0.#")</td>
+                    <td>@Adjusted(r, 1, adj).ToString("0.#")</td>
+                    <td>@Adjusted(r, 2, adj).ToString("0.#")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <p class="lead">
+        Based on NEC Table 310.16: not more than three current-carrying conductors in a raceway, cable or earth, 30 °C ambient.
+        Small conductors are also limited by NEC 240.4(D) overcurrent protection (Cu: 14 AWG 15 A, 12 AWG 20 A, 10 AWG 30 A; Al: 12 AWG 15 A, 10 AWG 25 A),
+        and terminations are usually rated 60 °C (≤ 100 A) or 75 °C. Always verify against the code edition adopted locally.
+    </p>
+</ToolPage>
+
+@code {
+    private sealed record Row(string Size, double Mm2, int[]? Cu, int[]? Al);
+
+    private static readonly int[] Temps = [60, 75, 90];
+
+    private static readonly Row[] Rows =
+    [
+        new("14 AWG", Awg(14), [15, 20, 25], null),
+        new("12 AWG", Awg(12), [20, 25, 30], [15, 20, 25]),
+        new("10 AWG", Awg(10), [30, 35, 40], [25, 30, 35]),
+        new("8 AWG", Awg(8), [40, 50, 55], [35, 40, 45]),
+        new("6 AWG", Awg(6), [55, 65, 75], [40, 50, 55]),
+        new("4 AWG", Awg(4), [70, 85, 95], [55, 65, 75]),
+        new("3 AWG", Awg(3), [85, 100, 115], [65, 75, 85]),
+        new("2 AWG", Awg(2), [95, 115, 130], [75, 90, 100]),
+        new("1 AWG", Awg(1), [110, 130, 145], [85, 100, 115]),
+        new("1/0 AWG", Awg(0), [125, 150, 170], [100, 120, 135]),
+        new("2/0 AWG", Awg(-1), [145, 175, 195], [115, 135, 150]),
+        new("3/0 AWG", Awg(-2), [165, 200, 225], [130, 155, 175]),
+        new("4/0 AWG", Awg(-3), [195, 230, 260], [150, 180, 205]),
+        new("250 kcmil", Kcmil(250), [215, 255, 290], [170, 205, 230]),
+        new("300 kcmil", Kcmil(300), [240, 285, 320], [195, 230, 260]),
+        new("350 kcmil", Kcmil(350), [260, 310, 350], [210, 250, 280]),
+        new("400 kcmil", Kcmil(400), [280, 335, 380], [225, 270, 305]),
+        new("500 kcmil", Kcmil(500), [320, 380, 430], [260, 310, 350]),
+        new("600 kcmil", Kcmil(600), [350, 420, 475], [285, 340, 385]),
+        new("750 kcmil", Kcmil(750), [400, 475, 535], [320, 385, 435]),
+        new("1000 kcmil", Kcmil(1000), [455, 545, 615], [375, 445, 500]),
+    ];
+
+    private string material = "cu";
+    private double ambient = 30;
+    private int conductors = 3;
+    private int column = 1;
+    private double load;
+
+    private static double Awg(int n)
+    {
+        var d = 0.127 * Math.Pow(92, (36 - n) / 39.0);
+        return Math.PI / 4 * d * d;
+    }
+
+    private static double Kcmil(double k) => k * 0.506707;
+
+    // NEC 310.15(B) correction formula, relative to a 30 °C table ambient.
+    private double Factor(int col)
+    {
+        var tc = Temps[col];
+        return ambient >= tc ? 0 : Math.Min(Math.Sqrt((tc - ambient) / (tc - 30.0)), 1.5);
+    }
+
+    // NEC 310.15(C)(1) adjustment for more than three current-carrying conductors.
+    private static double BundleFactor(int n) => n switch
+    {
+        <= 3 => 1.0,
+        <= 6 => 0.8,
+        <= 9 => 0.7,
+        <= 20 => 0.5,
+        <= 30 => 0.45,
+        <= 40 => 0.4,
+        _ => 0.35
+    };
+
+    private double Adjusted(Row r, int col, double bundle) =>
+        ((material == "cu" ? r.Cu : r.Al)?[col] ?? 0) * Factor(col) * bundle;
+}

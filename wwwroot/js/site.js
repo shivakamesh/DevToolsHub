@@ -8,6 +8,18 @@ window.devTools = {
         });
     },
     focus: (el) => { if (el) el.focus(); },
+    sidebarScroll: 0,
+    trackSidebarScroll: () => {
+        document.addEventListener('scroll', e => {
+            if (e.target instanceof Element && e.target.classList.contains('sidebar')) {
+                window.devTools.sidebarScroll = e.target.scrollTop;
+            }
+        }, true);
+    },
+    restoreSidebarScroll: () => {
+        const el = document.querySelector('.sidebar');
+        if (el) el.scrollTop = window.devTools.sidebarScroll;
+    },
     downloadBase64: (fileName, mime, base64) => {
         const a = document.createElement('a');
         a.href = `data:${mime};base64,${base64}`;

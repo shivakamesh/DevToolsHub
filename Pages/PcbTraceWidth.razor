@@ -1,0 +1,55 @@
+@page "/pcb-trace-width-calculator"
+@using System.Globalization
+@using DevToolsHub.Services
+
+<ToolPage Title="PCB Trace Width Calculator" Description="Calculate the minimum PCB trace width for a given current using IPC-2221, for external and internal layers.">
+    <div class="toolbar">
+        <label>Current (A) <input type="number" min="0" step="any" @bind="amps" @bind:event="oninput" /></label>
+        <label>Temperature rise (°C) <input type="number" min="1" step="any" @bind="rise" @bind:event="oninput" /></label>
+        <label>Copper (oz/ft²)
+            <select @bind="oz">
+                <option value="0.5">0.5 oz (17 µm)</option>
+                <option value="1">1 oz (35 µm)</option>
+                <option value="2">2 oz (70 µm)</option>
+                <option value="3">3 oz (105 µm)</option>
+            </select>
+        </label>
+        <label>Trace length (mm) <input type="number" min="0" step="any" @bind="lengthMm" @bind:event="oninput" /></label>
+    </div>
+
+    @if (amps <= 0 || rise <= 0)
+    {
+        <div class="alert error">Enter a positive current and temperature rise.</div>
+    }
+    else
+    {
+        <table class="table">
+            <thead><tr><th>Layer</th><th>Width (mil)</th><th>Width (mm)</th><th>Resistance</th><th>Voltage drop</th><th>Power loss</th></tr></thead>
+            <tbody>
+                @foreach (var internalLayer in new[] { false, true })
+                {
+                    var w = ElectronicsCalc.TraceWidthMils(amps, rise, oz, internalLayer);
+                    var r = ElectronicsCalc.TraceResistance(w, lengthMm, oz, 25 + rise);
+                    <tr>
+                        <td>@(internalLayer ? "Internal" : "External")</td>
+                        <td><strong>@F(w)</strong></td>
+                        <td>@F(w * 0.0254, "0.###")</td>
+                        <td>@F(r * 1000, "0.###") mΩ</td>
+                        <td>@F(r * amps * 1000, "0.##") mV</td>
+                        <td>@F(r * amps * amps * 1000, "0.##") mW</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <p class="lead">IPC-2221: I = k × ΔT<sup>0.44</sup> × A<sup>0.725</sup>, k = 0.048 (external) or 0.024 (internal), A in mil². Copper thickness 1.378 mil per oz. Valid up to about 35 A, 400 mil width and 10–100 °C rise; IPC-2152 gives less conservative internal widths.</p>
+    }
+</ToolPage>
+
+@code {
+    private double amps = 2;
+    private double rise = 10;
+    private double oz = 1;
+    private double lengthMm = 50;
+
+    private static string F(double v, string fmt = "0.#") => double.IsFinite(v) ? v.ToString(fmt, CultureInfo.InvariantCulture) : "–";
+}

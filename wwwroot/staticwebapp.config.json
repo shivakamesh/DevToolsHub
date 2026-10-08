@@ -275,6 +275,58 @@
                    {
                        "route":  "/yaml-validator",
                        "rewrite":  "/yaml-validator/index.html"
+                   },
+                   {
+                       "route":  "/json-schema-validator",
+                       "rewrite":  "/json-schema-validator/index.html"
+                   },
+                   {
+                       "route":  "/json-diff",
+                       "rewrite":  "/json-diff/index.html"
+                   },
+                   {
+                       "route":  "/epoch-batch-converter",
+                       "rewrite":  "/epoch-batch-converter/index.html"
+                   },
+                   {
+                       "route":  "/svg-optimizer",
+                       "rewrite":  "/svg-optimizer/index.html"
+                   },
+                   {
+                       "route":  "/docker-compose-to-kubernetes",
+                       "rewrite":  "/docker-compose-to-kubernetes/index.html"
+                   },
+                   {
+                       "route":  "/openapi-to-csharp",
+                       "rewrite":  "/openapi-to-csharp/index.html"
+                   },
+                   {
+                       "route":  "/graphql-to-csharp",
+                       "rewrite":  "/graphql-to-csharp/index.html"
+                   },
+                   {
+                       "route":  "/ampacity-table",
+                       "rewrite":  "/ampacity-table/index.html"
+                   },
+                   {
+                       "route":  "/bom-calculator",
+                       "rewrite":  "/bom-calculator/index.html"
+                   },
+                   {
+                       "route":  "/pcb-trace-width-calculator",
+                       "rewrite":  "/pcb-trace-width-calculator/index.html"
+                   },
+                   {
+                       "route":  "/555-timer-calculator",
+                       "rewrite":  "/555-timer-calculator/index.html"
+                   },
+                   {
+                       "route":  "/battery-life-calculator",
+                       "rewrite":  "/battery-life-calculator/index.html"
+                   },
+                   {
+                       "route":  "/smd-resistor-code",
+                       "rewrite":  "/smd-resistor-code/index.html"
                    }
                ],
     "responseOverrides":  {

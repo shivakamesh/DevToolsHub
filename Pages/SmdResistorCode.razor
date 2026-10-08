@@ -1,0 +1,36 @@
+@page "/smd-resistor-code"
+@using DevToolsHub.Services
+
+<ToolPage Title="SMD Resistor Code Calculator" Description="Decode SMD resistor markings: 3-digit, 4-digit, R notation and EIA-96 codes.">
+    <div class="toolbar">
+        <label>Marking <input class="io" style="width: 8rem" placeholder="e.g. 103, 4R7, 01C" @bind="code" @bind:event="oninput" /></label>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(code))
+    {
+        var r = ElectronicsCalc.DecodeSmd(code);
+        if (r is { } v)
+        {
+            <div class="alert ok"><strong>@ElectronicsCalc.FormatOhms(v.Ohms)</strong> — @v.System</div>
+        }
+        else
+        {
+            <div class="alert error">Unrecognized code. Use 3 digits (103), 4 digits (1002), R notation (4R7) or EIA-96 (01C).</div>
+        }
+    }
+
+    <table class="table">
+        <thead><tr><th>System</th><th>Example</th><th>Meaning</th></tr></thead>
+        <tbody>
+            <tr><td>3-digit</td><td><code>472</code></td><td>47 × 10² = 4.7 kΩ</td></tr>
+            <tr><td>4-digit</td><td><code>1002</code></td><td>100 × 10² = 10 kΩ</td></tr>
+            <tr><td>R notation</td><td><code>4R7</code></td><td>R marks the decimal point: 4.7 Ω</td></tr>
+            <tr><td>EIA-96</td><td><code>01C</code></td><td>Code 01 = 100, C = ×100: 10 kΩ</td></tr>
+            <tr><td>Zero-ohm</td><td><code>0</code> / <code>000</code></td><td>Jumper</td></tr>
+        </tbody>
+    </table>
+</ToolPage>
+
+@code {
+    private string code = "103";
+}

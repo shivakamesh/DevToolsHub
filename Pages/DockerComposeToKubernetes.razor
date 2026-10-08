@@ -1,0 +1,417 @@
+@page "/docker-compose-to-kubernetes"
+@using System.Text.RegularExpressions
+@using YamlDotNet.Core
+@using YamlDotNet.Serialization
+
+<ToolPage Title="Docker Compose ↔ Kubernetes Converter" Description="Convert docker-compose.yml to Kubernetes Deployments, Services and PVCs, or Kubernetes manifests back to Compose.">
+    <div class="toolbar">
+        <label>Direction
+            <select @bind="direction">
+                <option value="c2k">Docker Compose → Kubernetes</option>
+                <option value="k2c">Kubernetes → Docker Compose</option>
+            </select>
+        </label>
+        <button class="btn" @onclick="Run">Convert</button>
+        <CopyButton Text="@output" />
+    </div>
+
+    <textarea class="io" rows="14" placeholder="Paste YAML..." @bind="input" @bind:event="oninput"></textarea>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    @foreach (var w in warnings)
+    {
+        <div class="alert">@w</div>
+    }
+    <textarea class="io" rows="18" readonly>@output</textarea>
+</ToolPage>
+
+@code {
+    private string direction = "c2k";
+    private string output = "";
+    private string? error;
+    private readonly List<string> warnings = [];
+
+    private string input = ToolSamples.DockerCompose;
+
+    private static readonly IDeserializer Reader = new DeserializerBuilder().Build();
+    private static readonly ISerializer Writer = new SerializerBuilder()
+        .WithQuotingNecessaryStrings()
+        .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
+        .Build();
+
+    private void Run()
+    {
+        error = null;
+        output = "";
+        warnings.Clear();
+        try
+        {
+            output = direction == "c2k" ? ComposeToK8s(input) : K8sToCompose(input);
+        }
+        catch (Exception ex) when (ex is YamlException or InvalidOperationException or FormatException)
+        {
+            error = ex.Message;
+        }
+    }
+
+    // ---------- Compose -> Kubernetes ----------
+
+    private string ComposeToK8s(string yaml)
+    {
+        var doc = Reader.Deserialize<Dictionary<object, object>>(yaml) ?? throw new InvalidOperationException("The input is empty.");
+        var services = Map(doc, "services") ?? throw new InvalidOperationException("No 'services' section found.");
+        var docs = new List<object>();
+        var claims = new HashSet<string>();
+
+        foreach (var (key, value) in services)
+        {
+            var name = DnsName(key.ToString()!);
+            var svc = value as Dictionary<object, object> ?? [];
+            var labels = new Dictionary<string, object> { ["app"] = name };
+            var image = Str(svc, "image");
+            if (image is null)
+            {
+                image = $"{name}:latest";
+                warnings.Add($"'{name}' uses 'build'; build and push the image yourself and update the image name ({image}).");
+            }
+
+            var container = new Dictionary<string, object> { ["name"] = name, ["image"] = image };
+            if (Cmd(svc.GetValueOrDefault("entrypoint")) is { } entry) container["command"] = entry;
+            if (Cmd(svc.GetValueOrDefault("command")) is { } cmd) container["args"] = cmd;
+
+            var env = Env(svc.GetValueOrDefault("environment"));
+            if (env.Count > 0) container["env"] = env.Select(e => new Dictionary<string, object> { ["name"] = e.Key, ["value"] = e.Value }).ToList();
+            if (svc.ContainsKey("env_file")) warnings.Add($"'{name}' uses env_file; create a ConfigMap or Secret and reference it with envFrom.");
+
+            var ports = new List<(int Port, int Target, string Proto)>();
+            foreach (var p in List(svc, "ports") ?? [])
+                if (ParsePort(p, name) is { } pp) ports.Add(pp);
+            foreach (var e in List(svc, "expose") ?? [])
+                if (int.TryParse(e.ToString()!.Split('/')[0], out var t)) ports.Add((t, t, "TCP"));
+            if (ports.Count > 0)
+                container["ports"] = ports.Select(p => p.Target).Distinct()
+                    .Select(t => new Dictionary<string, object> { ["containerPort"] = t }).ToList();
+
+            if (Map(Map(Map(svc, "deploy"), "resources"), "limits") is { } limits)
+            {
+                var res = new Dictionary<string, object>();
+                if (Str(limits, "cpus") is { } cpu) res["cpu"] = cpu;
+                if (Str(limits, "memory") is { } mem) res["memory"] = Regex.Replace(mem, @"^(\d+(?:\.\d+)?)([kmgt])b?$", m => m.Groups[1].Value + m.Groups[2].Value.ToUpperInvariant() + "i", RegexOptions.IgnoreCase);
+                if (res.Count > 0) container["resources"] = new Dictionary<string, object> { ["limits"] = res };
+            }
+
+            if (Healthcheck(Map(svc, "healthcheck")) is { } probe) container["livenessProbe"] = probe;
+
+            var mounts = new List<object>();
+            var volumes = new List<object>();
+            var i = 0;
+            foreach (var v in List(svc, "volumes") ?? [])
+            {
+                string? source, target;
+                var readOnly = false;
+                if (v is Dictionary<object, object> lv)
+                {
+                    source = Str(lv, "source");
+                    target = Str(lv, "target");
+                    readOnly = Str(lv, "read_only") == "true";
+                }
+                else
+                {
+                    var parts = v.ToString()!.Split(':');
+                    source = parts.Length > 1 ? parts[0] : null;
+                    target = parts.Length > 1 ? parts[1] : parts[0];
+                    readOnly = parts.Length > 2 && parts[2].Contains("ro");
+                }
+                if (target is null) continue;
+                var volName = source is null ? $"{name}-vol{i++}" : DnsName(source);
+                if (source is null)
+                {
+                    volumes.Add(new Dictionary<string, object> { ["name"] = volName, ["emptyDir"] = new Dictionary<string, object>() });
+                }
+                else if (source.StartsWith('.') || source.StartsWith('/') || source.StartsWith('~'))
+                {
+                    volName = $"{name}-host{i++}";
+                    volumes.Add(new Dictionary<string, object> { ["name"] = volName, ["hostPath"] = new Dictionary<string, object> { ["path"] = source } });
+                    warnings.Add($"'{name}' bind-mounts '{source}'. hostPath needs an absolute node path; consider a ConfigMap or PVC instead.");
+                }
+                else
+                {
+                    claims.Add(volName);
+                    volumes.Add(new Dictionary<string, object> { ["name"] = volName, ["persistentVolumeClaim"] = new Dictionary<string, object> { ["claimName"] = volName } });
+                }
+                var mount = new Dictionary<string, object> { ["name"] = volName, ["mountPath"] = target };
+                if (readOnly) mount["readOnly"] = true;
+                mounts.Add(mount);
+            }
+            if (mounts.Count > 0) container["volumeMounts"] = mounts;
+
+            var podSpec = new Dictionary<string, object> { ["containers"] = new List<object> { container } };
+            if (volumes.Count > 0) podSpec["volumes"] = volumes;
+
+            var replicas = int.TryParse(Str(Map(svc, "deploy"), "replicas"), out var r) ? r : 1;
+            docs.Add(new Dictionary<string, object>
+            {
+                ["apiVersion"] = "apps/v1",
+                ["kind"] = "Deployment",
+                ["metadata"] = new Dictionary<string, object> { ["name"] = name, ["labels"] = labels },
+                ["spec"] = new Dictionary<string, object>
+                {
+                    ["replicas"] = replicas,
+                    ["selector"] = new Dictionary<string, object> { ["matchLabels"] = labels },
+                    ["template"] = new Dictionary<string, object>
+                    {
+                        ["metadata"] = new Dictionary<string, object> { ["labels"] = labels },
+                        ["spec"] = podSpec,
+                    },
+                },
+            });
+
+            if (ports.Count > 0)
+            {
+                docs.Add(new Dictionary<string, object>
+                {
+                    ["apiVersion"] = "v1",
+                    ["kind"] = "Service",
+                    ["metadata"] = new Dictionary<string, object> { ["name"] = name },
+                    ["spec"] = new Dictionary<string, object>
+                    {
+                        ["selector"] = labels,
+                        ["ports"] = ports.DistinctBy(p => (p.Port, p.Proto)).Select(p => new Dictionary<string, object>
+                        {
+                            ["name"] = $"{p.Proto.ToLowerInvariant()}-{p.Port}",
+                            ["port"] = p.Port,
+                            ["targetPort"] = p.Target,
+                            ["protocol"] = p.Proto,
+                        }).ToList(),
+                    },
+                });
+            }
+        }
+
+        foreach (var claim in claims)
+        {
+            docs.Add(new Dictionary<string, object>
+            {
+                ["apiVersion"] = "v1",
+                ["kind"] = "PersistentVolumeClaim",
+                ["metadata"] = new Dictionary<string, object> { ["name"] = claim },
+                ["spec"] = new Dictionary<string, object>
+                {
+                    ["accessModes"] = new List<object> { "ReadWriteOnce" },
+                    ["resources"] = new Dictionary<string, object> { ["requests"] = new Dictionary<string, object> { ["storage"] = "1Gi" } },
+                },
+            });
+        }
+
+        if (services.Values.OfType<Dictionary<object, object>>().Any(s => s.ContainsKey("depends_on")))
+            warnings.Add("depends_on has no Kubernetes equivalent; use readiness probes or init containers to order startup.");
+
+        return string.Join("---\n", docs.Select(d => Writer.Serialize(d)));
+    }
+
+    private (int Port, int Target, string Proto)? ParsePort(object p, string service)
+    {
+        if (p is Dictionary<object, object> lp)
+        {
+            if (!int.TryParse(Str(lp, "target"), out var t)) return null;
+            var pub = int.TryParse(Str(lp, "published"), out var pb) ? pb : t;
+            return (pub, t, (Str(lp, "protocol") ?? "tcp").ToUpperInvariant());
+        }
+        var text = p.ToString()!;
+        var proto = "TCP";
+        var slash = text.IndexOf('/');
+        if (slash >= 0)
+        {
+            proto = text[(slash + 1)..].ToUpperInvariant();
+            text = text[..slash];
+        }
+        var parts = text.Split(':');
+        if (text.Contains('-') || !int.TryParse(parts[^1], out var target))
+        {
+            warnings.Add($"Port '{p}' on '{service}' was skipped (port ranges are not supported).");
+            return null;
+        }
+        var published = parts.Length >= 2 && int.TryParse(parts[^2], out var pub2) ? pub2 : target;
+        return (published, target, proto);
+    }
+
+    private static Dictionary<string, object>? Healthcheck(Dictionary<object, object>? hc)
+    {
+        if (hc is null) return null;
+        List<object>? command = hc.GetValueOrDefault("test") switch
+        {
+            List<object> l when l.Count > 1 && l[0].ToString() == "CMD" => l.Skip(1).ToList(),
+            List<object> l when l.Count > 1 && l[0].ToString() == "CMD-SHELL" => ["sh", "-c", string.Join(' ', l.Skip(1))],
+            string s => ["sh", "-c", s],
+            _ => null
+        };
+        if (command is null) return null;
+        var probe = new Dictionary<string, object> { ["exec"] = new Dictionary<string, object> { ["command"] = command } };
+        if (Seconds(Str(hc, "interval")) is { } iv) probe["periodSeconds"] = iv;
+        if (Seconds(Str(hc, "timeout")) is { } to) probe["timeoutSeconds"] = to;
+        if (int.TryParse(Str(hc, "retries"), out var retries)) probe["failureThreshold"] = retries;
+        return probe;
+    }
+
+    private static int? Seconds(string? duration)
+    {
+        if (duration is null) return null;
+        var m = Regex.Match(duration, @"^(?:(\d+)m)?(?:(\d+)s)?$");
+        if (!m.Success || duration.Length == 0) return null;
+        var total = (m.Groups[1].Success ? int.Parse(m.Groups[1].Value) * 60 : 0) + (m.Groups[2].Success ? int.Parse(m.Groups[2].Value) : 0);
+        return Math.Max(1, total);
+    }
+
+    private static List<object>? Cmd(object? value) => value switch
+    {
+        List<object> l => l,
+        string s when s.Length > 0 => s.Split(' ', StringSplitOptions.RemoveEmptyEntries).Cast<object>().ToList(),
+        _ => null
+    };
+
+    private static Dictionary<string, string> Env(object? value)
+    {
+        var env = new Dictionary<string, string>();
+        if (value is Dictionary<object, object> d)
+            foreach (var (k, v) in d) env[k.ToString()!] = v?.ToString() ?? "";
+        else if (value is List<object> l)
+            foreach (var item in l.Select(x => x.ToString()!))
+            {
+                var eq = item.IndexOf('=');
+                if (eq > 0) env[item[..eq]] = item[(eq + 1)..];
+                else env[item] = "";
+            }
+        return env;
+    }
+
+    // ---------- Kubernetes -> Compose ----------
+
+    private string K8sToCompose(string yaml)
+    {
+        var services = new Dictionary<string, object>();
+        var namedVolumes = new Dictionary<string, object>();
+        var workloads = new List<(Dictionary<object, object> Labels, List<string> Services)>();
+        var svcDefs = new List<Dictionary<object, object>>();
+
+        foreach (var part in Regex.Split(yaml, @"^---.*$", RegexOptions.Multiline))
+        {
+            if (string.IsNullOrWhiteSpace(part)) continue;
+            var doc = Reader.Deserialize<Dictionary<object, object>>(part);
+            if (doc is null) continue;
+            var kind = Str(doc, "kind");
+            var meta = Map(doc, "metadata");
+            var baseName = Str(meta, "name") ?? "app";
+
+            if (kind == "Service") { svcDefs.Add(doc); continue; }
+            if (kind is not ("Deployment" or "StatefulSet" or "DaemonSet" or "Pod" or "ReplicaSet"))
+            {
+                warnings.Add($"{kind ?? "Unknown"} '{baseName}' was skipped.");
+                continue;
+            }
+
+            var template = kind == "Pod" ? doc : Map(Map(doc, "spec"), "template");
+            var podSpec = Map(template, "spec");
+            var labels = Map(Map(template, "metadata"), "labels") ?? [];
+            var replicas = int.TryParse(Str(Map(doc, "spec"), "replicas"), out var r) ? r : 1;
+            var podVolumes = (List(podSpec, "volumes") ?? []).OfType<Dictionary<object, object>>().ToList();
+            var containers = (List(podSpec, "containers") ?? []).OfType<Dictionary<object, object>>().ToList();
+            var created = new List<string>();
+
+            foreach (var c in containers)
+            {
+                var name = containers.Count == 1 ? baseName : $"{baseName}-{Str(c, "name")}";
+                var svc = new Dictionary<string, object> { ["image"] = Str(c, "image") ?? "" };
+                if (List(c, "command") is { } command) svc["entrypoint"] = command;
+                if (List(c, "args") is { } args) svc["command"] = args;
+
+                var env = new Dictionary<string, object>();
+                foreach (var e in (List(c, "env") ?? []).OfType<Dictionary<object, object>>())
+                {
+                    if (Str(e, "name") is not { } en) continue;
+                    if (e.ContainsKey("valueFrom")) warnings.Add($"'{name}': env '{en}' uses valueFrom; set its value manually.");
+                    env[en] = Str(e, "value") ?? "";
+                }
+                if (env.Count > 0) svc["environment"] = env;
+                if (c.ContainsKey("envFrom")) warnings.Add($"'{name}' uses envFrom; convert the ConfigMap/Secret to an env_file.");
+
+                var expose = (List(c, "ports") ?? []).OfType<Dictionary<object, object>>()
+                    .Select(p => Str(p, "containerPort")).OfType<string>().Cast<object>().ToList();
+                if (expose.Count > 0) svc["expose"] = expose;
+
+                var mounts = new List<object>();
+                foreach (var m in (List(c, "volumeMounts") ?? []).OfType<Dictionary<object, object>>())
+                {
+                    var vName = Str(m, "name");
+                    var path = Str(m, "mountPath");
+                    var vol = podVolumes.FirstOrDefault(v => Str(v, "name") == vName);
+                    var ro = Str(m, "readOnly") == "true" ? ":ro" : "";
+                    if (Str(Map(vol, "hostPath"), "path") is { } host) mounts.Add($"{host}:{path}{ro}");
+                    else if (Str(Map(vol, "persistentVolumeClaim"), "claimName") is { } claim)
+                    {
+                        namedVolumes[claim] = new Dictionary<string, object>();
+                        mounts.Add($"{claim}:{path}{ro}");
+                    }
+                    else
+                    {
+                        mounts.Add($"{path}");
+                        if (vol is not null && !vol.ContainsKey("emptyDir")) warnings.Add($"'{name}': volume '{vName}' was converted to an anonymous volume.");
+                    }
+                }
+                if (mounts.Count > 0) svc["volumes"] = mounts;
+                if (replicas > 1) svc["deploy"] = new Dictionary<string, object> { ["replicas"] = replicas };
+
+                services[name] = svc;
+                created.Add(name);
+            }
+            workloads.Add((labels, created));
+        }
+
+        foreach (var s in svcDefs)
+        {
+            var spec = Map(s, "spec");
+            var type = Str(spec, "type") ?? "ClusterIP";
+            var selector = Map(spec, "selector") ?? [];
+            if (type is not ("NodePort" or "LoadBalancer")) continue;
+            var targets = workloads
+                .Where(w => selector.Count > 0 && selector.All(kv => w.Labels.TryGetValue(kv.Key, out var lv) && Equals(lv?.ToString(), kv.Value?.ToString())))
+                .SelectMany(w => w.Services);
+            foreach (var target in targets)
+            {
+                var svc = (Dictionary<string, object>)services[target];
+                var list = svc.TryGetValue("ports", out var existing) ? (List<object>)existing : [];
+                foreach (var p in (List(spec, "ports") ?? []).OfType<Dictionary<object, object>>())
+                {
+                    var port = Str(p, "nodePort") ?? Str(p, "port");
+                    var targetPort = Str(p, "targetPort") ?? Str(p, "port");
+                    list.Add($"{port}:{targetPort}");
+                }
+                svc["ports"] = list;
+            }
+        }
+
+        if (services.Count == 0) throw new InvalidOperationException("No Deployment, StatefulSet, DaemonSet or Pod found.");
+        var compose = new Dictionary<string, object> { ["services"] = services };
+        if (namedVolumes.Count > 0) compose["volumes"] = namedVolumes;
+        return Writer.Serialize(compose);
+    }
+
+    // ---------- helpers ----------
+
+    private static Dictionary<object, object>? Map(Dictionary<object, object>? d, string key) =>
+        d?.GetValueOrDefault(key) as Dictionary<object, object>;
+
+    private static List<object>? List(Dictionary<object, object>? d, string key) =>
+        d?.GetValueOrDefault(key) as List<object>;
+
+    private static string? Str(Dictionary<object, object>? d, string key) =>
+        d?.GetValueOrDefault(key) is { } v and not Dictionary<object, object> and not List<object> ? v.ToString() : null;
+
+    private static string DnsName(string s)
+    {
+        var n = Regex.Replace(s.ToLowerInvariant(), "[^a-z0-9-]+", "-").Trim('-');
+        return n.Length == 0 ? "app" : n.Length > 63 ? n[..63].TrimEnd('-') : n;
+    }
+}

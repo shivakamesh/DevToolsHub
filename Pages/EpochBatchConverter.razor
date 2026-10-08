@@ -1,0 +1,103 @@
+@page "/epoch-batch-converter"
+@using System.Globalization
+
+<ToolPage Title="Epoch Batch Converter" Description="Convert many Unix timestamps (seconds, milliseconds, microseconds or nanoseconds) to dates at once, or dates back to epoch.">
+    <textarea class="io" rows="10" placeholder="One timestamp or date per line..." @bind="input" @bind:event="oninput"></textarea>
+    @{ rows = ConvertAll().ToList(); }
+
+    <div class="toolbar">
+        <label>Unit
+            <select @bind="unit">
+                <option value="auto">Auto-detect</option>
+                <option value="s">Seconds</option>
+                <option value="ms">Milliseconds</option>
+                <option value="us">Microseconds</option>
+                <option value="ns">Nanoseconds</option>
+            </select>
+        </label>
+        <CopyButton Text="@Csv(rows)" />
+    </div>
+
+    <table class="table">
+        <thead><tr><th>Input</th><th>Unit</th><th>UTC (ISO 8601)</th><th>Local</th><th>Epoch s</th><th>Epoch ms</th></tr></thead>
+        <tbody>
+            @foreach (var r in rows)
+            {
+                <tr>
+                    <td><code>@r.Input</code></td>
+                    @if (r.Error is not null)
+                    {
+                        <td colspan="5" style="color: var(--error)">@r.Error</td>
+                    }
+                    else
+                    {
+                        <td>@r.Unit</td>
+                        <td><code>@r.Utc</code></td>
+                        <td>@r.Local</td>
+                        <td><code>@r.Seconds</code></td>
+                        <td><code>@r.Millis</code></td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</ToolPage>
+
+@code {
+    private readonly record struct Row(string Input, string Unit, string Utc, string Local, string Seconds, string Millis, string? Error);
+
+    private string input = "1700000000\n1700000000123\n1700000000123456\n1700000000123456789\n2024-02-29T12:00:00Z";
+    private string unit = "auto";
+    private List<Row> rows = [];
+
+    private IEnumerable<Row> ConvertAll()
+    {
+        foreach (var raw in input.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            yield return ConvertLine(line);
+        }
+    }
+
+    private Row ConvertLine(string line)
+    {
+        try
+        {
+            if (decimal.TryParse(line, NumberStyles.Float, CultureInfo.InvariantCulture, out var n))
+            {
+                var u = unit != "auto" ? unit : Math.Abs(Math.Truncate(n)).ToString(CultureInfo.InvariantCulture).Length switch
+                {
+                    <= 11 => "s",
+                    <= 14 => "ms",
+                    <= 17 => "us",
+                    _ => "ns"
+                };
+                var ms = u switch { "s" => n * 1000, "ms" => n, "us" => n / 1000, _ => n / 1_000_000 };
+                return Build(line, u, DateTimeOffset.FromUnixTimeMilliseconds((long)Math.Floor(ms)));
+            }
+            if (DateTimeOffset.TryParse(line, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto))
+                return Build(line, "date", dto);
+            return new(line, "", "", "", "", "", "Not a number or recognizable date.");
+        }
+        catch (Exception ex) when (ex is ArgumentOutOfRangeException or OverflowException)
+        {
+            return new(line, "", "", "", "", "", "Out of the supported date range.");
+        }
+    }
+
+    private static Row Build(string input, string unit, DateTimeOffset d) => new(
+        input,
+        unit,
+        d.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture),
+        d.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff zzz", CultureInfo.InvariantCulture),
+        d.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture),
+        d.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+        null);
+
+    private static string Csv(IEnumerable<Row> rows) =>
+        "input,unit,utc,local,epoch_s,epoch_ms\n" +
+        string.Join('\n', rows.Select(r => r.Error is null
+            ? $"{r.Input},{r.Unit},{r.Utc},{r.Local},{r.Seconds},{r.Millis}"
+            : $"{r.Input},,,,,"));
+}

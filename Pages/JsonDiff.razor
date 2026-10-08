@@ -1,0 +1,123 @@
+@page "/json-diff"
+@using System.Text.Json
+@using System.Text.Json.Nodes
+
+<ToolPage Title="JSON Diff" Description="Compare two JSON documents structurally and list added, removed and changed values by path.">
+    <div class="split">
+        <label>Original JSON
+            <textarea class="io" rows="14" placeholder="Paste original JSON..." @bind="left" @bind:event="oninput"></textarea>
+        </label>
+        <label>Changed JSON
+            <textarea class="io" rows="14" placeholder="Paste changed JSON..." @bind="right" @bind:event="oninput"></textarea>
+        </label>
+    </div>
+
+    <div class="toolbar">
+        <label><input type="checkbox" @bind="ignoreArrayOrder" /> Ignore array order</label>
+        <button class="btn" @onclick="Compare">Compare</button>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (changes is not null)
+    {
+        if (changes.Count == 0)
+        {
+            <div class="alert ok">The documents are equivalent.</div>
+        }
+        else
+        {
+            <p>
+                <strong style="color: var(--ok)">@changes.Count(c => c.Kind == "Added") added</strong>,
+                <strong style="color: var(--error)">@changes.Count(c => c.Kind == "Removed") removed</strong>,
+                <strong>@changes.Count(c => c.Kind == "Changed") changed</strong>
+            </p>
+            <table class="table">
+                <thead><tr><th>Change</th><th>Path</th><th>Old value</th><th>New value</th></tr></thead>
+                <tbody>
+                    @foreach (var c in changes)
+                    {
+                        <tr>
+                            <td style="color: @(c.Kind switch { "Added" => "var(--ok)", "Removed" => "var(--error)", _ => "inherit" })">@c.Kind</td>
+                            <td><code>@c.Path</code></td>
+                            <td><code>@c.Old</code></td>
+                            <td><code>@c.New</code></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+</ToolPage>
+
+@code {
+    private readonly record struct Change(string Kind, string Path, string? Old, string? New);
+
+    private static readonly JsonDocumentOptions Opts = new() { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip };
+
+    private string left = ToolSamples.JsonDiffLeft;
+    private string right = ToolSamples.JsonDiffRight;
+    private bool ignoreArrayOrder;
+    private string? error;
+    private List<Change>? changes;
+
+    private void Compare()
+    {
+        error = null;
+        changes = null;
+        JsonNode? a, b;
+        try { a = JsonNode.Parse(left, documentOptions: Opts); }
+        catch (JsonException ex) { error = $"Original JSON is invalid: {ex.Message}"; return; }
+        try { b = JsonNode.Parse(right, documentOptions: Opts); }
+        catch (JsonException ex) { error = $"Changed JSON is invalid: {ex.Message}"; return; }
+        var list = new List<Change>();
+        Diff(a, b, "$", list);
+        changes = list;
+    }
+
+    private void Diff(JsonNode? a, JsonNode? b, string path, List<Change> list)
+    {
+        if (a is JsonObject oa && b is JsonObject ob)
+        {
+            foreach (var (k, va) in oa)
+            {
+                var p = $"{path}.{k}";
+                if (!ob.TryGetPropertyValue(k, out var vb)) list.Add(new("Removed", p, Str(va), null));
+                else Diff(va, vb, p, list);
+            }
+            foreach (var (k, vb) in ob)
+                if (!oa.ContainsKey(k)) list.Add(new("Added", $"{path}.{k}", null, Str(vb)));
+        }
+        else if (a is JsonArray aa && b is JsonArray ab)
+        {
+            if (ignoreArrayOrder)
+            {
+                var unmatched = Enumerable.Range(0, ab.Count).ToList();
+                for (var i = 0; i < aa.Count; i++)
+                {
+                    var idx = unmatched.FindIndex(j => JsonNode.DeepEquals(aa[i], ab[j]));
+                    if (idx >= 0) unmatched.RemoveAt(idx);
+                    else list.Add(new("Removed", $"{path}[{i}]", Str(aa[i]), null));
+                }
+                foreach (var j in unmatched) list.Add(new("Added", $"{path}[{j}]", null, Str(ab[j])));
+            }
+            else
+            {
+                for (var i = 0; i < Math.Max(aa.Count, ab.Count); i++)
+                {
+                    if (i >= aa.Count) list.Add(new("Added", $"{path}[{i}]", null, Str(ab[i])));
+                    else if (i >= ab.Count) list.Add(new("Removed", $"{path}[{i}]", Str(aa[i]), null));
+                    else Diff(aa[i], ab[i], $"{path}[{i}]", list);
+                }
+            }
+        }
+        else if (!JsonNode.DeepEquals(a, b))
+        {
+            list.Add(new("Changed", path, Str(a), Str(b)));
+        }
+    }
+
+    private static string Str(JsonNode? n) => n?.ToJsonString() ?? "null";
+}

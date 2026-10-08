@@ -1,0 +1,62 @@
+@page "/555-timer-calculator"
+@using System.Globalization
+@using DevToolsHub.Services
+
+<ToolPage Title="555 Timer Calculator" Description="Calculate frequency, duty cycle and pulse width for a 555 timer in astable or monostable mode.">
+    <div class="toolbar">
+        <label><input type="radio" name="mode" checked="@(!mono)" @onchange="() => mono = false" /> Astable</label>
+        <label><input type="radio" name="mode" checked="@mono" @onchange="() => mono = true" /> Monostable</label>
+    </div>
+    <div class="toolbar">
+        <label>R1 (kΩ) <input type="number" min="0" step="any" @bind="r1" @bind:event="oninput" /></label>
+        @if (!mono)
+        {
+            <label>R2 (kΩ) <input type="number" min="0" step="any" @bind="r2" @bind:event="oninput" /></label>
+        }
+        <label>C (µF) <input type="number" min="0" step="any" @bind="c" @bind:event="oninput" /></label>
+    </div>
+
+    @if (r1 <= 0 || c <= 0 || (!mono && r2 <= 0))
+    {
+        <div class="alert error">Enter positive resistor and capacitor values.</div>
+    }
+    else if (mono)
+    {
+        var t = ElectronicsCalc.Timer555Monostable(r1 * 1e3, c * 1e-6);
+        <table class="table"><tbody>
+            <tr><th>Pulse width</th><td><strong>@Time(t)</strong></td></tr>
+        </tbody></table>
+        <p class="lead">t = ln(3) × R × C ≈ 1.1 × R × C.</p>
+    }
+    else
+    {
+        var a = ElectronicsCalc.Timer555Astable(r1 * 1e3, r2 * 1e3, c * 1e-6);
+        <table class="table"><tbody>
+            <tr><th>Frequency</th><td><strong>@Freq(a.FrequencyHz)</strong></td></tr>
+            <tr><th>Period</th><td>@Time(a.HighS + a.LowS)</td></tr>
+            <tr><th>High time</th><td>@Time(a.HighS)</td></tr>
+            <tr><th>Low time</th><td>@Time(a.LowS)</td></tr>
+            <tr><th>Duty cycle</th><td>@a.DutyPercent.ToString("0.#", CultureInfo.InvariantCulture) %</td></tr>
+        </tbody></table>
+        <p class="lead">f = 1 / (ln 2 × (R1 + 2 R2) × C) ≈ 1.44 / ((R1 + 2 R2) × C). Duty cycle is always above 50 % without a diode across R2.</p>
+    }
+</ToolPage>
+
+@code {
+    private bool mono;
+    private double r1 = 1, r2 = 10, c = 10;
+
+    private static string Time(double s) => s switch
+    {
+        >= 1 => s.ToString("0.###", CultureInfo.InvariantCulture) + " s",
+        >= 1e-3 => (s * 1e3).ToString("0.###", CultureInfo.InvariantCulture) + " ms",
+        _ => (s * 1e6).ToString("0.###", CultureInfo.InvariantCulture) + " µs"
+    };
+
+    private static string Freq(double f) => f switch
+    {
+        >= 1e6 => (f / 1e6).ToString("0.###", CultureInfo.InvariantCulture) + " MHz",
+        >= 1e3 => (f / 1e3).ToString("0.###", CultureInfo.InvariantCulture) + " kHz",
+        _ => f.ToString("0.###", CultureInfo.InvariantCulture) + " Hz"
+    };
+}

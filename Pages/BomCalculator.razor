@@ -1,0 +1,67 @@
+@page "/bom-calculator"
+@using System.Globalization
+@using DevToolsHub.Services
+
+<ToolPage Title="BOM Cost Calculator" Description="Paste a bill of materials (CSV from KiCad, Altium, Eagle or a spreadsheet) to consolidate parts and calculate order quantities, MOQ/reel rounding, price breaks and cost per board.">
+    <textarea class="io" rows="10" placeholder="Paste BOM CSV with a header row..." @bind="input" @bind:event="oninput"></textarea>
+    @{ result = BomEngine.Calculate(input, boards, attrition); }
+
+    <p class="lead">Optional columns: <code>MOQ</code>, <code>Multiple</code> (reel/pack size) and <code>Price Breaks</code> such as <code>1:0.10; 100:0.05; 1000:0.02</code>.</p>
+
+    <div class="toolbar">
+        <label>Boards
+            <input class="io" type="number" style="width: 7rem" min="1" step="1" @bind="boards" @bind:event="oninput" />
+        </label>
+        <label>Attrition / overage %
+            <input class="io" type="number" style="width: 6rem" min="0" step="any" @bind="attrition" @bind:event="oninput" />
+        </label>
+        <label>Currency
+            <input class="io" style="width: 4rem" @bind="currency" @bind:event="oninput" />
+        </label>
+        <CopyButton Text="@BomEngine.ToCsv(result.Lines)" />
+    </div>
+
+    @if (result.Error is not null)
+    {
+        <div class="alert error">@result.Error</div>
+    }
+    else if (result.Lines.Count > 0)
+    {
+        <div class="alert ok">
+            @result.Lines.Count unique parts, @result.Placements placements per board.
+            Cost per board (single-unit price): <strong>@Money(result.CostPerBoard)</strong>.
+            Order total for @boards boards: <strong>@Money(result.Total)</strong>
+            (@Money(boards > 0 ? result.Total / boards : 0) per board incl. overage, MOQ and price breaks).
+        </div>
+        <table class="table">
+            <thead>
+                <tr><th>Part</th><th>Description</th><th>References</th><th>Qty/board</th><th>Required</th><th>Order qty</th><th>Unit price</th><th>Extended</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var l in result.Lines)
+                {
+                    <tr>
+                        <td><code>@l.Part</code></td>
+                        <td>@l.Description</td>
+                        <td>@l.References</td>
+                        <td>@l.PerBoard</td>
+                        <td>@l.Required</td>
+                        <td>@l.OrderQty@(l.OrderQty > l.Required ? $" (MOQ {l.Moq}, x{l.Multiple})" : "")</td>
+                        <td>@Money(l.UnitPrice)</td>
+                        <td>@Money(l.Extended)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</ToolPage>
+
+@code {
+    private string input = ToolSamples.Bom;
+    private int boards = 100;
+    private double attrition = 5;
+    private string currency = "$";
+    private BomResult result = new([], null);
+
+    private string Money(decimal v) => currency + v.ToString(v != 0 && Math.Abs(v) < 1 ? "#,0.00##" : "#,0.00", CultureInfo.InvariantCulture);
+}

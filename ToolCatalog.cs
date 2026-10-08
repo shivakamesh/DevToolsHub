@@ -1,4 +1,4 @@
-namespace DevToolsHub;
+﻿namespace DevToolsHub;
 
 public record ToolInfo(string Name, string Href, string Icon, string Category, string Summary, string Help);
 
@@ -20,6 +20,9 @@ public static class ToolCatalog
                 "transformer-calculator", "led-resistor-calculator",
                         "unix-timestamp-to-date", "csv-to-json", "uuid-v7-generator", "cidr-calculator", "sql-to-csharp",
                         "slug-generator", "awg-to-mm2", "voltage-divider-calculator",
+                        "json-schema-validator", "json-diff", "openapi-to-csharp", "docker-compose-to-kubernetes",
+                        "ampacity-table", "bom-calculator",
+                                                "pcb-trace-width-calculator", "555-timer-calculator", "smd-resistor-code", "battery-life-calculator",
             ];
 
     private static int Rank(string href)
@@ -161,6 +164,33 @@ public static class ToolCatalog
             "Enter Vin and R1, then either R2 to calculate Vout or a target Vout to find R2 (exact and nearest E24). An optional load resistance is taken into account. Divider current and resistor power are also shown."),
         new("AWG to mm² Converter", "awg-to-mm2", "AWG", "Engineering", "Wire gauge to mm² and diameter.",
             "Pick an AWG size (4/0 to 40) to see its cross-section in mm² and kcmil, diameter and copper resistance, or enter a metric size in mm² to find the nearest AWG."),
+        new("Ampacity Table", "ampacity-table", "A≈", "Engineering", "NEC 310.16 ampacity with temperature and bundling corrections.",
+            "Choose copper or aluminum, the ambient temperature and the number of current-carrying conductors to see corrected ampacities at 60, 75 and 90 °C. Enter a load to highlight the smallest conductor that carries it."),
+        new("BOM Cost Calculator", "bom-calculator", "BOM", "Engineering", "Consolidate a BOM and calculate order quantities and cost.",
+            "Paste a CSV bill of materials with a header row (Reference, Qty, Value, MPN, Unit Price). Optional MOQ, Multiple and Price Breaks columns are applied. Parts are merged by MPN, order quantities include the attrition percentage, and the cost per board and order total are shown. Copy the purchase list as CSV."),
+                    new("PCB Trace Width Calculator", "pcb-trace-width-calculator", "PCB", "Engineering", "IPC-2221 trace width for a given current.",
+                        "Enter the current, allowed temperature rise, copper weight and trace length to get the minimum width for external and internal layers, plus resistance, voltage drop and power loss."),
+                    new("555 Timer Calculator", "555-timer-calculator", "555", "Engineering", "Frequency, duty cycle and pulse width of a 555.",
+                        "Choose astable or monostable mode and enter R1, R2 and C to get frequency, period, high/low time and duty cycle, or the one-shot pulse width."),
+                    new("Battery Life Calculator", "battery-life-calculator", "🔋", "Engineering", "Estimate battery runtime with sleep/active duty cycling.",
+                        "Enter battery capacity, active and sleep current, the percentage of time active and the usable capacity to get the average current and expected battery life."),
+                    new("SMD Resistor Code", "smd-resistor-code", "103", "Engineering", "Decode SMD resistor markings.",
+                        "Type the marking printed on an SMD resistor: 3-digit (103), 4-digit (1002), R notation (4R7) or EIA-96 (01C) to get the resistance."),
+
+        new("JSON Schema Validator", "json-schema-validator", "{✓}", "Format", "Validate JSON against a JSON Schema.",
+            "Paste a JSON Schema and JSON data, then click Validate. Supports types, required, properties, patterns, formats, enums, array rules, local and external $ref (paste referenced schemas with an $id), dependentRequired/dependentSchemas, unevaluatedProperties, and allOf/anyOf/oneOf/not/if-then-else. Errors are listed by JSON path."),
+        new("JSON Diff", "json-diff", "{±}", "Format", "Compare two JSON documents by path.",
+            "Paste the original and changed JSON to list added, removed and changed values with their JSON paths. Key order is ignored; enable Ignore array order to compare arrays as sets."),
+        new("OpenAPI to C#", "openapi-to-csharp", "OA#", "Format", "Generate C# models from OpenAPI/Swagger.",
+            "Paste an OpenAPI 3.x or Swagger 2.0 document in JSON or YAML. Classes or records and enums are generated from components.schemas or definitions, with optional [JsonPropertyName] attributes."),
+        new("GraphQL to C#", "graphql-to-csharp", "GQ#", "Format", "Generate C# types from a GraphQL schema.",
+            "Paste GraphQL SDL to generate C# classes or records for types and inputs, interfaces, enums and union marker interfaces. Non-null fields become required; lists become List<T>."),
+        new("SVG Optimizer", "svg-optimizer", "SVG", "Format", "Minify and clean up SVG files.",
+            "Paste SVG markup and click Optimize. Comments, metadata, editor namespaces and empty groups are removed and coordinates are rounded. Compare the before and after preview and size."),
+        new("Docker Compose ↔ Kubernetes", "docker-compose-to-kubernetes", "☸", "Convert", "Convert docker-compose.yml to Kubernetes manifests and back.",
+            "Compose services become Deployments, Services and PersistentVolumeClaims (with env, ports, resources, health checks and volumes). Kubernetes Deployments, StatefulSets and Services can be converted back to a Compose file. Unsupported features are listed as warnings."),
+        new("Epoch Batch Converter", "epoch-batch-converter", "⏲", "Convert", "Convert many Unix timestamps at once.",
+            "Paste one timestamp or date per line. Seconds, milliseconds, microseconds and nanoseconds are detected by length (or choose the unit). Results show UTC, local time and epoch seconds and milliseconds, and can be copied as CSV."),
     ];
 
     public static IEnumerable<IGrouping<string, ToolInfo>> ByCategory =>

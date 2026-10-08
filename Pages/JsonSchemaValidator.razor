@@ -1,0 +1,90 @@
+@page "/json-schema-validator"
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@using System.Text.RegularExpressions
+@using DevToolsHub.Services
+
+<ToolPage Title="JSON Schema Validator" Description="Validate JSON data against a JSON Schema (draft-07, 2019-09 and 2020-12). Runs entirely in your browser.">
+    <div class="split">
+        <label>JSON Schema
+            <textarea class="io" rows="16" placeholder="Paste JSON Schema..." @bind="schemaText" @bind:event="oninput"></textarea>
+        </label>
+        <label>JSON data
+            <textarea class="io" rows="16" placeholder="Paste JSON data..." @bind="dataText" @bind:event="oninput"></textarea>
+        </label>
+    </div>
+
+    <details>
+        <summary>Additional referenced schemas (optional)</summary>
+        <p class="lead">Paste a schema or a JSON array of schemas. Each needs an <code>$id</code>; a <code>$ref</code> such as <code>address.json#/definitions/street</code> is matched against it.</p>
+        <textarea class="io" rows="8" placeholder="[ { &quot;$id&quot;: &quot;address.json&quot;, ... } ]" @bind="extraText" @bind:event="oninput"></textarea>
+    </details>
+
+    <div class="toolbar">
+        <button class="btn" @onclick="Validate">Validate</button>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (errors is not null)
+    {
+        if (errors.Count == 0)
+        {
+            <div class="alert ok">Valid. The JSON matches the schema.</div>
+        }
+        else
+        {
+            <div class="alert error">@errors.Count validation error(s) found.</div>
+            <table class="table">
+                <thead><tr><th>Path</th><th>Error</th></tr></thead>
+                <tbody>
+                    @foreach (var e in errors)
+                    {
+                        <tr><td><code>@e.Path</code></td><td>@e.Message</td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+</ToolPage>
+
+@code {
+    private string schemaText = ToolSamples.JsonSchema;
+    private string dataText = ToolSamples.JsonSchemaData;
+    private string extraText = "";
+    private string? error;
+    private List<SchemaError>? errors;
+
+    private void Validate()
+    {
+        error = null;
+        errors = null;
+        JsonNode? schema, data;
+        var extra = new List<JsonNode?>();
+        try { schema = JsonNode.Parse(schemaText, documentOptions: JsonSchemaChecker.ParseOptions); }
+        catch (JsonException ex) { error = $"Invalid schema JSON: {ex.Message}"; return; }
+        try { data = JsonNode.Parse(dataText, documentOptions: JsonSchemaChecker.ParseOptions); }
+        catch (JsonException ex) { error = $"Invalid data JSON: {ex.Message}"; return; }
+        if (!string.IsNullOrWhiteSpace(extraText))
+        {
+            try
+            {
+                var node = JsonNode.Parse(extraText, documentOptions: JsonSchemaChecker.ParseOptions);
+                if (node is JsonArray arr) extra.AddRange(arr.Select(n => n?.DeepClone()));
+                else extra.Add(node);
+            }
+            catch (JsonException ex) { error = $"Invalid additional schema JSON: {ex.Message}"; return; }
+        }
+
+        try
+        {
+            errors = new JsonSchemaChecker(schema, extra).Validate(data);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or FormatException or RegexMatchTimeoutException)
+        {
+            error = ex.Message;
+        }
+    }
+}
