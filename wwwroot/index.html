@@ -31,14 +31,15 @@
             set: t => { localStorage.setItem('theme', t); document.documentElement.dataset.theme = t; }
         };
         document.documentElement.dataset.theme = window.devTheme.get();
-        (function () {
-            var path = location.pathname.replace(/\/index\.html$/i, '/').replace(/(.)\/+$/, '$1').toLowerCase();
+        document.addEventListener('DOMContentLoaded', function () {
+            if (document.querySelector('link[rel=canonical]')) return;
+            var path
             var link = document.createElement('link');
             link.rel = 'canonical';
             link.id = 'static-canonical';
             link.href = 'https://www.itsalldevtools.com' + path;
             document.head.appendChild(link);
-        })();
+        });
     </script>
 </head>
 

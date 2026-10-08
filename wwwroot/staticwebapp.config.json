@@ -19,224 +19,256 @@
                        "route":  "/*.{png,svg}"
                    },
                    {
-                       "route":  "/about",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/base64",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/byte-size",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/cable-size-calculator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/case-converter",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/certificate-decoder",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/chmod-calculator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/color-converter",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/contact",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/cron-builder",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/cron-explainer",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/css-generator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/diff-checker",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/dynamic-qr-code",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/fake-data",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/format-converter",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/gitignore-generator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/guid-generator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/hash-generator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/hmac-generator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/html-entities",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/html-to-pdf",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/http-status-codes",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/image-to-base64",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/invoice-generator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/json-formatter",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/json-path",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/json-to-csharp",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/jwt-decoder",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/jwt-generator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/led-resistor-calculator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/lorem-ipsum",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/markdown-preview",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/number-base",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/ohms-law-calculator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/password-generator",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/power-converter",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/power-factor-correction",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/privacy",
-                       "rewrite":  "/index.html"
-                   },
-                   {
-                       "route":  "/pro",
-                       "rewrite":  "/index.html"
-                   },
-                   {
                        "route":  "/q/*",
                        "rewrite":  "/index.html"
                    },
                    {
+                       "route":  "/about",
+                       "rewrite":  "/about/index.html"
+                   },
+                   {
+                       "route":  "/awg-to-mm2",
+                       "rewrite":  "/awg-to-mm2/index.html"
+                   },
+                   {
+                       "route":  "/base64",
+                       "rewrite":  "/base64/index.html"
+                   },
+                   {
+                       "route":  "/byte-size",
+                       "rewrite":  "/byte-size/index.html"
+                   },
+                   {
+                       "route":  "/cable-size-calculator",
+                       "rewrite":  "/cable-size-calculator/index.html"
+                   },
+                   {
+                       "route":  "/case-converter",
+                       "rewrite":  "/case-converter/index.html"
+                   },
+                   {
+                       "route":  "/certificate-decoder",
+                       "rewrite":  "/certificate-decoder/index.html"
+                   },
+                   {
+                       "route":  "/chmod-calculator",
+                       "rewrite":  "/chmod-calculator/index.html"
+                   },
+                   {
+                       "route":  "/cidr-calculator",
+                       "rewrite":  "/cidr-calculator/index.html"
+                   },
+                   {
+                       "route":  "/color-converter",
+                       "rewrite":  "/color-converter/index.html"
+                   },
+                   {
+                       "route":  "/contact",
+                       "rewrite":  "/contact/index.html"
+                   },
+                   {
+                       "route":  "/cron-builder",
+                       "rewrite":  "/cron-builder/index.html"
+                   },
+                   {
+                       "route":  "/cron-explainer",
+                       "rewrite":  "/cron-explainer/index.html"
+                   },
+                   {
+                       "route":  "/css-generator",
+                       "rewrite":  "/css-generator/index.html"
+                   },
+                   {
+                       "route":  "/csv-to-json",
+                       "rewrite":  "/csv-to-json/index.html"
+                   },
+                   {
+                       "route":  "/diff-checker",
+                       "rewrite":  "/diff-checker/index.html"
+                   },
+                   {
+                       "route":  "/dynamic-qr-code",
+                       "rewrite":  "/dynamic-qr-code/index.html"
+                   },
+                   {
+                       "route":  "/fake-data",
+                       "rewrite":  "/fake-data/index.html"
+                   },
+                   {
+                       "route":  "/format-converter",
+                       "rewrite":  "/format-converter/index.html"
+                   },
+                   {
+                       "route":  "/gitignore-generator",
+                       "rewrite":  "/gitignore-generator/index.html"
+                   },
+                   {
+                       "route":  "/guid-generator",
+                       "rewrite":  "/guid-generator/index.html"
+                   },
+                   {
+                       "route":  "/hash-generator",
+                       "rewrite":  "/hash-generator/index.html"
+                   },
+                   {
+                       "route":  "/hmac-generator",
+                       "rewrite":  "/hmac-generator/index.html"
+                   },
+                   {
+                       "route":  "/html-entities",
+                       "rewrite":  "/html-entities/index.html"
+                   },
+                   {
+                       "route":  "/html-to-pdf",
+                       "rewrite":  "/html-to-pdf/index.html"
+                   },
+                   {
+                       "route":  "/http-status-codes",
+                       "rewrite":  "/http-status-codes/index.html"
+                   },
+                   {
+                       "route":  "/image-to-base64",
+                       "rewrite":  "/image-to-base64/index.html"
+                   },
+                   {
+                       "route":  "/invoice-generator",
+                       "rewrite":  "/invoice-generator/index.html"
+                   },
+                   {
+                       "route":  "/json-formatter",
+                       "rewrite":  "/json-formatter/index.html"
+                   },
+                   {
+                       "route":  "/json-path",
+                       "rewrite":  "/json-path/index.html"
+                   },
+                   {
+                       "route":  "/json-to-csharp",
+                       "rewrite":  "/json-to-csharp/index.html"
+                   },
+                   {
+                       "route":  "/jwt-decoder",
+                       "rewrite":  "/jwt-decoder/index.html"
+                   },
+                   {
+                       "route":  "/jwt-generator",
+                       "rewrite":  "/jwt-generator/index.html"
+                   },
+                   {
+                       "route":  "/led-resistor-calculator",
+                       "rewrite":  "/led-resistor-calculator/index.html"
+                   },
+                   {
+                       "route":  "/lorem-ipsum",
+                       "rewrite":  "/lorem-ipsum/index.html"
+                   },
+                   {
+                       "route":  "/markdown-preview",
+                       "rewrite":  "/markdown-preview/index.html"
+                   },
+                   {
+                       "route":  "/number-base",
+                       "rewrite":  "/number-base/index.html"
+                   },
+                   {
+                       "route":  "/ohms-law-calculator",
+                       "rewrite":  "/ohms-law-calculator/index.html"
+                   },
+                   {
+                       "route":  "/password-generator",
+                       "rewrite":  "/password-generator/index.html"
+                   },
+                   {
+                       "route":  "/power-converter",
+                       "rewrite":  "/power-converter/index.html"
+                   },
+                   {
+                       "route":  "/power-factor-correction",
+                       "rewrite":  "/power-factor-correction/index.html"
+                   },
+                   {
+                       "route":  "/privacy",
+                       "rewrite":  "/privacy/index.html"
+                   },
+                   {
+                       "route":  "/pro",
+                       "rewrite":  "/pro/index.html"
+                   },
+                   {
                        "route":  "/qr-code",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/qr-code/index.html"
                    },
                    {
                        "route":  "/regex-tester",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/regex-tester/index.html"
                    },
                    {
                        "route":  "/resistor-color-code",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/resistor-color-code/index.html"
+                   },
+                   {
+                       "route":  "/slug-generator",
+                       "rewrite":  "/slug-generator/index.html"
                    },
                    {
                        "route":  "/sql-formatter",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/sql-formatter/index.html"
+                   },
+                   {
+                       "route":  "/sql-to-csharp",
+                       "rewrite":  "/sql-to-csharp/index.html"
                    },
                    {
                        "route":  "/string-escape",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/string-escape/index.html"
                    },
                    {
                        "route":  "/text-statistics",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/text-statistics/index.html"
                    },
                    {
                        "route":  "/timestamp-converter",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/timestamp-converter/index.html"
                    },
                    {
                        "route":  "/time-zone-converter",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/time-zone-converter/index.html"
                    },
                    {
                        "route":  "/transformer-calculator",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/transformer-calculator/index.html"
+                   },
+                   {
+                       "route":  "/unix-timestamp-to-date",
+                       "rewrite":  "/unix-timestamp-to-date/index.html"
                    },
                    {
                        "route":  "/uptime-monitor",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/uptime-monitor/index.html"
                    },
                    {
                        "route":  "/url-encoder",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/url-encoder/index.html"
                    },
                    {
                        "route":  "/user-agent-parser",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/user-agent-parser/index.html"
+                   },
+                   {
+                       "route":  "/uuid-v7-generator",
+                       "rewrite":  "/uuid-v7-generator/index.html"
+                   },
+                   {
+                       "route":  "/voltage-divider-calculator",
+                       "rewrite":  "/voltage-divider-calculator/index.html"
                    },
                    {
                        "route":  "/xml-formatter",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/xml-formatter/index.html"
                    },
                    {
                        "route":  "/yaml-validator",
-                       "rewrite":  "/index.html"
+                       "rewrite":  "/yaml-validator/index.html"
                    }
                ],
     "responseOverrides":  {

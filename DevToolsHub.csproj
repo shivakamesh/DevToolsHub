@@ -12,6 +12,7 @@
     <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
     <WasmEnableWebcil>true</WasmEnableWebcil>
     <BlazorWasmPrerenderingDeleteLoadingContents>true</BlazorWasmPrerenderingDeleteLoadingContents>
+    <BlazorWasmPrerenderingUrlPathToExplicitFetch>/pro</BlazorWasmPrerenderingUrlPathToExplicitFetch>
   </PropertyGroup>
 
   <ItemGroup>
