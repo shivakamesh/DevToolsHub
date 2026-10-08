@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="manifest" href="manifest.webmanifest" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="DevToolsHub" />
+    <meta property="og:site_name" content="It's All Dev Tools" />
     <meta property="og:image" content="https://www.itsalldevtools.com/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -33,7 +33,7 @@
         document.documentElement.dataset.theme = window.devTheme.get();
         document.addEventListener('DOMContentLoaded', function () {
             if (document.querySelector('link[rel=canonical]')) return;
-            var path
+            var path = location.pathname.replace(/\/index\.html$/i, '/').replace(/(.)\/+$/, '$1').toLowerCase();
             var link = document.createElement('link');
             link.rel = 'canonical';
             link.id = 'static-canonical';
@@ -49,7 +49,7 @@
     <div id="blazor-error-ui">
         An unhandled error has occurred.
         <a href="" class="reload">Reload</a>
-        <a class="dismiss">âœ•</a>
+        <a class="dismiss">&#x2715;</a>
     </div>
     <script src="js/site.js" defer></script>
     <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "b6f3e467ae89404282beba5b41ef3630"}'></script>

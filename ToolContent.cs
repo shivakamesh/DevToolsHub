@@ -324,6 +324,31 @@ public static class ToolContent
             "Vin 12 V, R1 10 kΩ, R2 4.7 kΩ  →  Vout ≈ 3.84 V",
             new Faq("What is the voltage divider formula?", "Vout = Vin × R2 / (R1 + R2)."),
             new Faq("Can I power a device from a voltage divider?", "Generally no. The load changes the output voltage; use a regulator to power circuits and dividers for signals or reference levels.")),
+
+        ["invoice-generator"] = S("invoice and quote generator",
+            "Create clean, professional invoices and quotes without accounting software or sign-up. Add your business and client details, line items, quantities and unit prices, then apply a discount and tax rate, and the totals are calculated automatically in your chosen currency. When you are done, export the document as a PDF ready to email or print.",
+            ["Enter your business and client details.", "Add line items with quantity and unit price.", "Set discount and tax, then export the invoice or quote as PDF."],
+            "2 × Web design @ 450.00 + 10% tax  →  Subtotal 900.00, Tax 90.00, Total 990.00",
+            new Faq("What is the difference between an invoice and a quote?", "A quote (or estimate) is an offer sent before work starts; an invoice is a request for payment after goods or services are delivered. Switch between the two with one setting."),
+            new Faq("Which currencies are supported?", "All major currencies can be selected, and amounts are formatted with the right symbol and number of decimal places throughout the document.")),
+
+        ["dynamic-qr-code"] = S("dynamic QR code generator",
+            "A dynamic QR code points to a short redirect link instead of encoding the final URL directly, so you can change where it leads after it has been shared and see how often it is scanned. This tool creates dynamic QR codes, lets you edit their destination at any time and counts scans. Codes and scan counts are stored in your browser.",
+            ["Enter the destination URL and a name for the code.", "Download the generated QR code.", "Edit the destination or check the scan count whenever you need."],
+            null,
+            new Faq("What is the difference between a static and a dynamic QR code?", "A static QR code contains the destination URL itself and can never change. A dynamic QR code contains a redirect link, so the destination can be updated without reprinting the code."),
+            new Faq("Where are my codes stored?", "In your browser's local storage, so they are tied to this browser and device. Clearing site data removes them.")),
+
+        ["uptime-monitor"] = new("uptime and SSL certificate checker",
+            "Check whether a website is up, how fast it responds and when its SSL/TLS certificate expires, from several regions at once. Because browsers cannot inspect TLS certificates or send requests from other locations, each region calls a small check endpoint you host (for example an Azure Function or AWS Lambda), giving you a multi-region view without a paid monitoring service.",
+            ["Add one or more regional check endpoints.", "Enter the URL of the site to check.", "Click Check and compare status, response time and certificate expiry per region."],
+            "https://example.com  →  West Europe: 200 OK, 182 ms, certificate expires in 64 days",
+            [
+                new Faq("Why do I need my own check endpoints?", "Browsers block reading certificate details and cannot make requests from other regions. A tiny serverless function in each region performs the check and returns the result."),
+                new Faq("Is my data sent anywhere?", "Only the URL you check is sent, and only to the endpoints you configured. Your endpoint list is stored in your browser's local storage."),
+                new Faq("Why does SSL certificate expiry matter?", "An expired certificate causes browser security warnings and breaks API clients, so it is worth checking well before the expiry date."),
+                new Faq("Is it free?", "Yes, the checker is free with no sign-up. You only pay for whatever hosting your own check endpoints use, which is usually within serverless free tiers."),
+            ]),
     };
 
     public static ToolSeo? For(string href) => Content.GetValueOrDefault(href);
