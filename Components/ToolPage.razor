@@ -1,4 +1,4 @@
-@implements IDisposable
+﻿@implements IDisposable
 
 <PageTitle>@PageTitleText</PageTitle>
 <HeadContent>
@@ -98,10 +98,11 @@ else if (!string.IsNullOrEmpty(tool?.Help))
 
     private ToolInfo? tool;
     private ToolSeo? seo;
+    private string currentPath = "";
 
     private string PageTitleText => $"{Title} – Free Online {(seo is null ? "Tool" : Cap(seo.Keyword))} | It's All Dev Tools";
     private string MetaDescription => $"{Description} Free, fast and private – runs 100% in your browser, nothing is uploaded.";
-    private string CanonicalUrl => SiteUrl + (tool?.Href ?? "");
+    private string CanonicalUrl => SiteUrl + (tool?.Href ?? currentPath);
 
     private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
@@ -157,8 +158,8 @@ else if (!string.IsNullOrEmpty(tool?.Help))
 
     protected override void OnInitialized()
     {
-        var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0];
-        tool = ToolCatalog.Find(path);
+        currentPath = Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0];
+        tool = ToolCatalog.Find(currentPath);
         seo = tool is null ? null : ToolContent.For(tool.Href);
         Prefs.Changed += OnPrefsChanged;
     }

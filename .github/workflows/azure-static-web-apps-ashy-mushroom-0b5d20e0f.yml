@@ -25,8 +25,8 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Publish (with prerendering)
         run: dotnet publish DevToolsHub.csproj -c Release -o publish
-      - name: Verify prerendered output
-        run: grep -q "<h1>" publish/wwwroot/json-formatter/index.html
+      - name: Verify SEO (routes, sitemap, prerendered pages)
+        run: bash tools/verify-seo.sh publish/wwwroot
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
