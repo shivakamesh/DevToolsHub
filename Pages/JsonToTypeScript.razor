@@ -1,0 +1,351 @@
+@page "/json-to-typescript"
+@using System.Text
+@using System.Text.Json
+@using System.Text.Json.Nodes
+
+<ToolPage Title="JSON to TypeScript, Zod and Python" Description="Generate TypeScript interfaces, Zod schemas or Python classes from JSON." ShareValue="@input">
+    <div class="chips">
+        @foreach (var t in Targets)
+        {
+            <button class="chip @(target == t.Key ? "on" : "")" @onclick="() => { target = t.Key; Generate(); }">@t.Value</button>
+        }
+    </div>
+    <div class="split">
+        <textarea class="io" rows="20" spellcheck="false" placeholder="Paste JSON here..." @bind="input" @bind:event="oninput" @bind:after="Generate"></textarea>
+        <textarea class="io" rows="20" readonly spellcheck="false">@output</textarea>
+    </div>
+
+    <div class="toolbar">
+        <label>Root name <input class="small-input" @bind="rootName" @bind:event="oninput" @bind:after="Generate" /></label>
+        @if (target is "typescript")
+        {
+            <label>
+                <select @bind="useTypeAlias" @bind:after="Generate">
+                    <option value="false">interface</option>
+                    <option value="true">type</option>
+                </select>
+            </label>
+            <label><input type="checkbox" @bind="exported" @bind:after="Generate" /> export</label>
+            <label><input type="checkbox" @bind="readOnly" @bind:after="Generate" /> readonly</label>
+        }
+        <label><input type="checkbox" @bind="optionalNulls" @bind:after="Generate" /> Null values are optional</label>
+        <CopyButton Text="@output" />
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    private static readonly Dictionary<string, string> Targets = new()
+    {
+        ["typescript"] = "TypeScript",
+        ["zod"] = "Zod",
+        ["pydantic"] = "Python Pydantic",
+        ["dataclass"] = "Python dataclass",
+    };
+
+    private string input = "{\n  \"id\": 1,\n  \"name\": \"Ada\",\n  \"email\": \"ada@example.com\",\n  \"active\": true,\n  \"score\": 9.5,\n  \"manager\": null,\n  \"tags\": [\"admin\", \"dev\"],\n  \"address\": { \"city\": \"London\", \"zip\": \"N1\" },\n  \"orders\": [ { \"orderId\": 10, \"total\": 25.99 }, { \"orderId\": 11, \"total\": 4, \"coupon\": \"X\" } ]\n}";
+    private string target = "typescript";
+    private string rootName = "Root";
+    private bool useTypeAlias;
+    private bool exported = true;
+    private bool readOnly;
+    private bool optionalNulls = true;
+    private string output = "";
+    private string? error;
+
+    // Type model
+    private abstract record T;
+    private sealed record Prim(string Kind) : T;            // string, int, float, bool, null, any
+    private sealed record Arr(T Item) : T;
+    private sealed record Obj(string Name) : T;
+    private sealed record Union(List<T> Options) : T;
+
+    private sealed class ObjType
+    {
+        public required string Name { get; init; }
+        public List<(string Key, T Type, bool Optional)> Props { get; } = [];
+    }
+
+    private readonly List<ObjType> types = [];
+    private readonly HashSet<string> names = [];
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(Q)) input = Q;
+        Generate();
+    }
+
+    private void Generate()
+    {
+        error = null;
+        output = "";
+        types.Clear();
+        names.Clear();
+        if (string.IsNullOrWhiteSpace(input)) return;
+        try
+        {
+            var node = JsonNode.Parse(input, documentOptions: new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+            var root = Pascal(string.IsNullOrWhiteSpace(rootName) ? "Root" : rootName);
+            var rootType = Infer([node], root);
+            output = target switch
+            {
+                "zod" => RenderZod(rootType, root),
+                "pydantic" => RenderPython(rootType, root, pydantic: true),
+                "dataclass" => RenderPython(rootType, root, pydantic: false),
+                _ => RenderTs(rootType, root),
+            };
+        }
+        catch (JsonException ex)
+        {
+            error = "Invalid JSON: " + ex.Message;
+        }
+    }
+
+    // ---------- inference ----------
+
+    private T Infer(List<JsonNode?> samples, string nameHint)
+    {
+        var kinds = new List<T>();
+        var objects = samples.OfType<JsonObject>().ToList();
+        var arrays = samples.OfType<JsonArray>().ToList();
+
+        if (objects.Count > 0) kinds.Add(BuildObject(objects, nameHint));
+        if (arrays.Count > 0) kinds.Add(new Arr(Infer(arrays.SelectMany(a => a).ToList(), Singular(nameHint))));
+
+        foreach (var v in samples.OfType<JsonValue>())
+        {
+            var p = v.GetValueKind() switch
+            {
+                JsonValueKind.String => new Prim("string"),
+                JsonValueKind.True or JsonValueKind.False => new Prim("bool"),
+                JsonValueKind.Number => new Prim(v.TryGetValue<long>(out _) ? "int" : "float"),
+                _ => new Prim("any"),
+            };
+            if (!kinds.Contains(p)) kinds.Add(p);
+        }
+        if (samples.Any(s => s is null)) kinds.Add(new Prim("null"));
+
+        // int + float => float
+        if (kinds.Contains(new Prim("int")) && kinds.Contains(new Prim("float"))) kinds.Remove(new Prim("int"));
+        kinds = kinds.Distinct().ToList();
+
+        return kinds.Count switch
+        {
+            0 => new Prim("any"),
+            1 => kinds[0],
+            _ => new Union(kinds),
+        };
+    }
+
+    private Obj BuildObject(List<JsonObject> objects, string nameHint)
+    {
+        var name = Unique(Pascal(nameHint));
+        var type = new ObjType { Name = name };
+        types.Add(type);
+        var keys = objects.SelectMany(o => o.Select(p => p.Key)).Distinct().ToList();
+        foreach (var key in keys)
+        {
+            var present = objects.Where(o => o.ContainsKey(key)).Select(o => o[key]).ToList();
+            var t = Infer(present, key);
+            var optional = present.Count < objects.Count;
+            if (optionalNulls && IsNullable(t)) optional = true;
+            type.Props.Add((key, t, optional));
+        }
+        return new Obj(name);
+    }
+
+    private static bool IsNullable(T t) => t is Prim { Kind: "null" } || t is Union u && u.Options.Contains(new Prim("null"));
+
+    private string Unique(string name)
+    {
+        var n = name.Length == 0 ? "Item" : name;
+        var i = 2;
+        var candidate = n;
+        while (!names.Add(candidate)) candidate = n + i++;
+        return candidate;
+    }
+
+    private static string Singular(string s) =>
+        s.EndsWith("ies") ? s[..^3] + "y" :
+        s.EndsWith("ses") || s.EndsWith("xes") ? s[..^2] :
+        s.EndsWith('s') && !s.EndsWith("ss") && s.Length > 1 ? s[..^1] :
+        s + "Item";
+
+    private static string Pascal(string s)
+    {
+        var sb = new StringBuilder();
+        var upper = true;
+        foreach (var c in s)
+        {
+            if (!char.IsLetterOrDigit(c)) { upper = true; continue; }
+            sb.Append(upper ? char.ToUpperInvariant(c) : c);
+            upper = false;
+        }
+        if (sb.Length > 0 && char.IsDigit(sb[0])) sb.Insert(0, '_');
+        return sb.ToString();
+    }
+
+    private static string Snake(string s)
+    {
+        var sb = new StringBuilder();
+        for (var i = 0; i < s.Length; i++)
+        {
+            var c = s[i];
+            if (!char.IsLetterOrDigit(c)) { if (sb.Length > 0 && sb[^1] != '_') sb.Append('_'); continue; }
+            if (char.IsUpper(c) && i > 0 && (char.IsLower(s[i - 1]) || char.IsDigit(s[i - 1]))) sb.Append('_');
+            sb.Append(char.ToLowerInvariant(c));
+        }
+        var r = sb.ToString().Trim('_');
+        if (r.Length == 0 || char.IsDigit(r[0])) r = "field_" + r;
+        return PythonKeywords.Contains(r) ? r + "_" : r;
+    }
+
+    private static readonly HashSet<string> PythonKeywords =
+        ["class", "def", "from", "import", "global", "pass", "return", "yield", "lambda", "in", "is", "not", "and", "or", "if", "else", "elif", "for", "while", "try", "except", "finally", "with", "as", "assert", "del", "raise", "break", "continue", "None", "True", "False", "async", "await", "type", "id"];
+
+    private static bool IsIdentifier(string s) =>
+        s.Length > 0 && (char.IsLetter(s[0]) || s[0] is '_' or '$') && s.All(c => char.IsLetterOrDigit(c) || c is '_' or '$');
+
+    private static string Quote(string s) => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+
+    // ---------- TypeScript ----------
+
+    private string Ts(T t) => t switch
+    {
+        Prim { Kind: "int" or "float" } => "number",
+        Prim { Kind: "bool" } => "boolean",
+        Prim { Kind: "string" } => "string",
+        Prim { Kind: "null" } => "null",
+        Prim => "unknown",
+        Obj o => o.Name,
+        Arr a => a.Item is Union ? $"({Ts(a.Item)})[]" : $"{Ts(a.Item)}[]",
+        Union u => string.Join(" | ", u.Options.Select(Ts)),
+        _ => "unknown",
+    };
+
+    private string RenderTs(T root, string rootName)
+    {
+        var sb = new StringBuilder();
+        var exp = exported ? "export " : "";
+        var ro = readOnly ? "readonly " : "";
+        if (root is not Obj)
+        {
+            sb.AppendLine($"{exp}type {rootName} = {Ts(root)};");
+            sb.AppendLine();
+        }
+        foreach (var t in types)
+        {
+            sb.AppendLine(useTypeAlias ? $"{exp}type {t.Name} = {{" : $"{exp}interface {t.Name} {{");
+            foreach (var p in t.Props)
+            {
+                var key = IsIdentifier(p.Key) ? p.Key : Quote(p.Key);
+                sb.AppendLine($"  {ro}{key}{(p.Optional ? "?" : "")}: {Ts(p.Type)};");
+            }
+            sb.AppendLine(useTypeAlias ? "};" : "}");
+            sb.AppendLine();
+        }
+        return sb.ToString().TrimEnd() + "\n";
+    }
+
+    // ---------- Zod ----------
+
+    private string Zod(T t) => t switch
+    {
+        Prim { Kind: "int" } => "z.number().int()",
+        Prim { Kind: "float" } => "z.number()",
+        Prim { Kind: "bool" } => "z.boolean()",
+        Prim { Kind: "string" } => "z.string()",
+        Prim { Kind: "null" } => "z.null()",
+        Prim => "z.unknown()",
+        Obj o => o.Name + "Schema",
+        Arr a => $"z.array({Zod(a.Item)})",
+        Union u when u.Options.Count == 2 && u.Options.Contains(new Prim("null")) => Zod(u.Options.First(o => o != new Prim("null"))) + ".nullable()",
+        Union u => $"z.union([{string.Join(", ", u.Options.Select(Zod))}])",
+        _ => "z.unknown()",
+    };
+
+    private string RenderZod(T root, string rootName)
+    {
+        var sb = new StringBuilder("import { z } from \"zod\";\n\n");
+        // Dependencies first: types are discovered parent-first, so emit in reverse.
+        foreach (var t in Enumerable.Reverse(types))
+        {
+            sb.AppendLine($"export const {t.Name}Schema = z.object({{");
+            foreach (var p in t.Props)
+            {
+                var key = IsIdentifier(p.Key) ? p.Key : Quote(p.Key);
+                sb.AppendLine($"  {key}: {Zod(p.Type)}{(p.Optional ? ".optional()" : "")},");
+            }
+            sb.AppendLine("});");
+            sb.AppendLine($"export type {t.Name} = z.infer<typeof {t.Name}Schema>;");
+            sb.AppendLine();
+        }
+        if (root is not Obj)
+        {
+            sb.AppendLine($"export const {rootName}Schema = {Zod(root)};");
+            sb.AppendLine($"export type {rootName} = z.infer<typeof {rootName}Schema>;");
+        }
+        return sb.ToString().TrimEnd() + "\n";
+    }
+
+    // ---------- Python ----------
+
+    private string Py(T t) => t switch
+    {
+        Prim { Kind: "int" } => "int",
+        Prim { Kind: "float" } => "float",
+        Prim { Kind: "bool" } => "bool",
+        Prim { Kind: "string" } => "str",
+        Prim { Kind: "null" } => "None",
+        Prim => "Any",
+        Obj o => o.Name,
+        Arr a => $"List[{Py(a.Item)}]",
+        Union u when u.Options.Count == 2 && u.Options.Contains(new Prim("null")) => $"Optional[{Py(u.Options.First(o => o != new Prim("null")))}]",
+        Union u => $"Union[{string.Join(", ", u.Options.Select(Py))}]",
+        _ => "Any",
+    };
+
+    private string RenderPython(T root, string rootName, bool pydantic)
+    {
+        var body = new StringBuilder();
+        var needsField = false;
+        foreach (var t in Enumerable.Reverse(types))
+        {
+            body.AppendLine(pydantic ? $"class {t.Name}(BaseModel):" : $"@dataclass\nclass {t.Name}:");
+            if (t.Props.Count == 0) body.AppendLine("    pass");
+            // Dataclasses need required fields before fields with defaults.
+            var ordered = pydantic ? t.Props : t.Props.OrderBy(p => p.Optional).ToList();
+            foreach (var p in ordered)
+            {
+                var name = Snake(p.Key);
+                var type = Py(p.Type);
+                if (p.Optional && !type.StartsWith("Optional[") && type != "None") type = $"Optional[{type}]";
+                var defaultValue = p.Optional ? " = None" : "";
+                if (pydantic && name != p.Key)
+                {
+                    needsField = true;
+                    defaultValue = p.Optional ? $" = Field(default=None, alias={Quote(p.Key)})" : $" = Field(alias={Quote(p.Key)})";
+                }
+                body.AppendLine($"    {name}: {type}{defaultValue}");
+            }
+            body.AppendLine();
+            body.AppendLine();
+        }
+        if (root is not Obj) body.AppendLine($"{rootName} = {Py(root)}");
+
+        var text = body.ToString();
+        var typing = new[] { "Any", "List", "Optional", "Union" }.Where(n => text.Contains(n + "[") || text.Contains(": " + n) || text.Contains("= " + n)).ToList();
+        var header = new StringBuilder("from __future__ import annotations\n\n");
+        if (!pydantic) header.AppendLine("from dataclasses import dataclass");
+        if (typing.Count > 0) header.AppendLine($"from typing import {string.Join(", ", typing)}");
+        if (pydantic) header.AppendLine(needsField ? "\nfrom pydantic import BaseModel, Field" : "\nfrom pydantic import BaseModel");
+        header.AppendLine().AppendLine();
+        return (header + text).TrimEnd() + "\n";
+    }
+}

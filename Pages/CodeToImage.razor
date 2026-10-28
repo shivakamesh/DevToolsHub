@@ -1,0 +1,149 @@
+@page "/code-to-image"
+@inject IJSRuntime JS
+
+<ToolPage Title="Code to Image" Description="Turn code snippets into beautiful, shareable images.">
+    <textarea class="io" rows="10" spellcheck="false" placeholder="Paste code here..." @bind="code" @bind:event="oninput" @bind:after="RenderAsync"></textarea>
+
+    <div class="toolbar">
+        <label>Language
+            <select @bind="language" @bind:after="RenderAsync">
+                @foreach (var l in Languages) { <option value="@l">@l</option> }
+            </select>
+        </label>
+        <label>Theme
+            <select @bind="theme">
+                @foreach (var t in Themes.Keys) { <option value="@t">@t</option> }
+            </select>
+        </label>
+        <label>Background
+            <select @bind="background">
+                @foreach (var b in Backgrounds.Keys) { <option value="@b">@b</option> }
+            </select>
+        </label>
+        <label>Padding <input type="number" min="0" max="128" step="8" @bind="padding" /></label>
+        <label>Font size <input type="number" min="10" max="28" @bind="fontSize" /></label>
+        <label><input type="checkbox" @bind="lineNumbers" @bind:after="RenderAsync" /> Line numbers</label>
+        <label>Title <input class="small-input" style="width:10rem" @bind="title" @bind:event="oninput" /></label>
+    </div>
+
+    <div class="code-img-stage">
+        <div class="code-img-frame" @ref="frame" style="background:@Backgrounds[background];padding:@(padding)px">
+            <div class="code-img-window @theme" style="--ci-bg:@Themes[theme].Bg;--ci-fg:@Themes[theme].Fg">
+                <div class="code-img-bar">
+                    <span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+                    <span class="code-img-title">@title</span>
+                </div>
+                <div class="code-img-body" style="font-size:@(fontSize)px">
+                    @if (lineNumbers)
+                    {
+                        <pre class="code-img-lines" aria-hidden="true">@LineNumbers</pre>
+                    }
+                    <pre><code @ref="codeEl"></code></pre>
+                </div>
+                <div class="code-img-watermark">itsalldevtools.com</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <label>Scale
+            <select @bind="scale">
+                <option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option>
+            </select>
+        </label>
+        <button class="btn" @onclick="DownloadAsync">⬇ Download PNG</button>
+        <button class="btn secondary" @onclick="CopyAsync">@copyLabel</button>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+</ToolPage>
+
+@code {
+    private static readonly string[] Languages =
+        ["auto", "csharp", "javascript", "typescript", "python", "java", "go", "rust", "cpp", "c", "php", "ruby", "kotlin", "swift", "sql", "bash", "powershell", "json", "yaml", "xml", "css", "scss", "markdown", "dockerfile"];
+
+    private static readonly Dictionary<string, (string Bg, string Fg)> Themes = new()
+    {
+        ["dark"] = ("#0d1117", "#e6edf3"),
+        ["dracula"] = ("#282a36", "#f8f8f2"),
+        ["nord"] = ("#2e3440", "#d8dee9"),
+        ["light"] = ("#ffffff", "#24292f"),
+    };
+
+    private static readonly Dictionary<string, string> Backgrounds = new()
+    {
+        ["Candy"] = "linear-gradient(135deg,#ff6cab,#7366ff)",
+        ["Sunset"] = "linear-gradient(135deg,#f97316,#db2777)",
+        ["Ocean"] = "linear-gradient(135deg,#06b6d4,#3b82f6)",
+        ["Forest"] = "linear-gradient(135deg,#10b981,#065f46)",
+        ["Midnight"] = "linear-gradient(135deg,#1e293b,#0f172a)",
+        ["Peach"] = "linear-gradient(135deg,#fde68a,#fca5a5)",
+        ["None"] = "transparent",
+    };
+
+    private string code = "public record User(string Name, int Age);\n\nvar users = new List<User> { new(\"Ada\", 36), new(\"Linus\", 28) };\nvar adults = users.Where(u => u.Age >= 18).Select(u => u.Name);\nConsole.WriteLine(string.Join(\", \", adults));";
+    private string language = "csharp";
+    private string theme = "dark";
+    private string background = "Candy";
+    private int padding = 48;
+    private int fontSize = 15;
+    private bool lineNumbers;
+    private string title = "Program.cs";
+    private int scale = 2;
+    private string copyLabel = "Copy image";
+    private string? error;
+
+    private ElementReference frame;
+    private ElementReference codeEl;
+
+    private string LineNumbers => string.Join("\n", Enumerable.Range(1, Math.Max(1, code.Split('\n').Length)));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await RenderAsync();
+    }
+
+    private async Task RenderAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("devExtra.highlight", codeEl, code, language);
+            error = null;
+        }
+        catch (JSException ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private async Task DownloadAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("devExtra.exportPng", frame, "code.png", scale);
+        }
+        catch (JSException ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private async Task CopyAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("devExtra.copyPng", frame, scale);
+            copyLabel = "Copied!";
+            StateHasChanged();
+            await Task.Delay(1500);
+            copyLabel = "Copy image";
+        }
+        catch (JSException ex)
+        {
+            error = "Copying images is not supported in this browser: " + ex.Message;
+        }
+    }
+}

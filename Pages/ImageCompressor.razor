@@ -1,0 +1,182 @@
+@page "/image-compressor"
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<ToolPage Title="Image Compressor and Resizer" Description="Compress and resize JPG, PNG and WebP images in your browser.">
+    <label class="dropzone glass">
+        <input type="file" accept="image/*" multiple @ref="fileInput" @onchange="AddFilesAsync" hidden />
+        <span>📁 Click to choose images (JPG, PNG, WebP, GIF, BMP)</span>
+    </label>
+
+    <div class="toolbar">
+        <label>Format
+            <select @bind="format">
+                <option value="image/webp">WebP</option>
+                <option value="image/jpeg">JPEG</option>
+                <option value="image/png">PNG (lossless)</option>
+            </select>
+        </label>
+        <label>Quality <input type="range" min="10" max="100" @bind="quality" @bind:event="oninput" /> @quality%</label>
+        <label>Max width <input type="number" min="0" placeholder="any" @bind="maxWidth" /></label>
+        <label>Max height <input type="number" min="0" placeholder="any" @bind="maxHeight" /></label>
+        <button class="btn" disabled="@(items.Count == 0 || busy)" @onclick="CompressAllAsync">@(busy ? "Working..." : "Compress")</button>
+        @if (items.Any(i => i.OutUrl is not null))
+        {
+            <button class="btn secondary" @onclick="DownloadAllAsync">⬇ Download all (.zip)</button>
+        }
+        @if (items.Count > 0)
+        {
+            <button class="btn secondary" @onclick="ClearAsync">Clear</button>
+        }
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+
+    @if (items.Count > 0)
+    {
+        <table class="table">
+            <thead><tr><th></th><th>File</th><th>Original</th><th>Result</th><th>Saved</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var i in items)
+                {
+                    <tr>
+                        <td><img src="@(i.OutUrl ?? i.Url)" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px" /></td>
+                        <td class="break">@i.Name</td>
+                        <td>@FormatSize(i.Size)@(i.OrigDims is null ? "" : " · " + i.OrigDims)</td>
+                        <td>@(i.OutUrl is null ? "–" : $"{FormatSize(i.OutSize)} · {i.OutDims}")</td>
+                        <td>
+                            @if (i.OutUrl is not null)
+                            {
+                                var pct = i.Size == 0 ? 0 : 100.0 * (i.Size - i.OutSize) / i.Size;
+                                <span class="@(pct >= 0 ? "" : "warn")">@pct.ToString("0")%</span>
+                            }
+                        </td>
+                        <td>
+                            @if (i.OutUrl is not null)
+                            {
+                                <button class="btn secondary" @onclick="() => DownloadAsync(i)">⬇</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</ToolPage>
+
+@code {
+    private sealed class Picked
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "";
+        public long Size { get; set; }
+        public string Url { get; set; } = "";
+    }
+
+    private sealed class Compressed
+    {
+        public string Url { get; set; } = "";
+        public long Size { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public int OriginalWidth { get; set; }
+        public int OriginalHeight { get; set; }
+    }
+
+    private sealed class Item
+    {
+        public required Picked File { get; init; }
+        public string Name => File.Name;
+        public long Size => File.Size;
+        public string Url => File.Url;
+        public string? OutUrl { get; set; }
+        public long OutSize { get; set; }
+        public string? OutDims { get; set; }
+        public string? OrigDims { get; set; }
+    }
+
+    private ElementReference fileInput;
+    private readonly List<Item> items = [];
+    private string format = "image/webp";
+    private int quality = 75;
+    private int? maxWidth;
+    private int? maxHeight;
+    private bool busy;
+    private string? error;
+
+    private string Extension => format switch { "image/jpeg" => "jpg", "image/png" => "png", _ => "webp" };
+
+    private async Task AddFilesAsync()
+    {
+        error = null;
+        var picked = await JS.InvokeAsync<Picked[]>("devExtra.pickFiles", fileInput);
+        foreach (var p in picked)
+        {
+            if (!p.Type.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"{p.Name} is not an image and was skipped.";
+                await JS.InvokeVoidAsync("devExtra.releaseFile", p.Id);
+                continue;
+            }
+            items.Add(new Item { File = p });
+        }
+    }
+
+    private async Task CompressAllAsync()
+    {
+        busy = true;
+        error = null;
+        foreach (var i in items)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("devExtra.revoke", i.OutUrl);
+                var r = await JS.InvokeAsync<Compressed>("devExtra.compressImage", i.File.Id, format, quality / 100.0, maxWidth ?? 0, maxHeight ?? 0);
+                i.OutUrl = r.Url;
+                i.OutSize = r.Size;
+                i.OutDims = $"{r.Width}×{r.Height}";
+                i.OrigDims = $"{r.OriginalWidth}×{r.OriginalHeight}";
+            }
+            catch (JSException ex)
+            {
+                error = $"{i.Name}: {ex.Message}";
+            }
+            StateHasChanged();
+        }
+        busy = false;
+    }
+
+    private string OutName(Item i) => Path.GetFileNameWithoutExtension(i.Name) + "-min." + Extension;
+
+    private async Task DownloadAsync(Item i) => await JS.InvokeVoidAsync("devExtra.download", i.OutUrl, OutName(i));
+
+    private async Task DownloadAllAsync()
+    {
+        var entries = items.Where(i => i.OutUrl is not null).Select(i => new { name = OutName(i), url = i.OutUrl }).ToArray();
+        await JS.InvokeVoidAsync("devExtra.downloadZip", entries, "compressed-images.zip");
+    }
+
+    private async Task ClearAsync()
+    {
+        foreach (var i in items)
+        {
+            await JS.InvokeVoidAsync("devExtra.revoke", i.OutUrl);
+            await JS.InvokeVoidAsync("devExtra.revoke", i.Url);
+            await JS.InvokeVoidAsync("devExtra.releaseFile", i.File.Id);
+        }
+        items.Clear();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await ClearAsync(); } catch (JSDisconnectedException) { } catch (InvalidOperationException) { }
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024:0.##} MB" :
+        bytes >= 1024 ? $"{bytes / 1024d:0.#} KB" : $"{bytes} B";
+}

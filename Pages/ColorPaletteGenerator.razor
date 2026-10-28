@@ -1,0 +1,212 @@
+@page "/color-palette-generator"
+@using System.Globalization
+
+<ToolPage Title="Color Palette Generator" Description="Generate color palettes, harmonies and Tailwind-style shade scales." ShareValue="@ShareText">
+    <div class="toolbar">
+        <label>Base color <input type="color" @bind="baseColor" @bind:after="Generate" /></label>
+        <input class="small-input" @bind="baseColor" @bind:event="onchange" @bind:after="Generate" />
+        <label>Harmony
+            <select @bind="harmony" @bind:after="Generate">
+                <option value="analogous">Analogous</option>
+                <option value="complementary">Complementary</option>
+                <option value="split">Split complementary</option>
+                <option value="triadic">Triadic</option>
+                <option value="tetradic">Tetradic</option>
+                <option value="monochromatic">Monochromatic</option>
+            </select>
+        </label>
+        <button class="btn" @onclick="Randomize">🎲 Random</button>
+    </div>
+
+    <div class="palette-strip">
+        @for (var n = 0; n < palette.Count; n++)
+        {
+            var i = n;
+            var c = palette[i];
+            <div class="palette-swatch" style="background:@c.Hex;color:@TextOn(c.Hex)">
+                <button class="palette-lock" title="@(c.Locked ? "Unlock" : "Lock")" @onclick="() => palette[i] = c with { Locked = !c.Locked }">@(c.Locked ? "🔒" : "🔓")</button>
+                <strong>@c.Hex.ToUpperInvariant()</strong>
+                <CopyButton Text="@c.Hex" />
+            </div>
+        }
+    </div>
+
+    <h2>Shade scale</h2>
+    <div class="palette-scale">
+        @foreach (var s in Scale)
+        {
+            <div class="palette-swatch small" style="background:@s.Hex;color:@TextOn(s.Hex)">
+                <span>@s.Step</span>
+                <span>@s.Hex</span>
+            </div>
+        }
+    </div>
+
+    <div class="toolbar">
+        <label>Export
+            <select @bind="exportFormat">
+                <option value="css">CSS variables</option>
+                <option value="scss">SCSS</option>
+                <option value="tailwind">Tailwind config</option>
+                <option value="json">JSON</option>
+            </select>
+        </label>
+        <label>Name <input class="small-input" @bind="name" @bind:event="oninput" /></label>
+        <CopyButton Text="@Export" />
+    </div>
+    <textarea class="io" rows="12" readonly spellcheck="false">@Export</textarea>
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    private sealed record Swatch(string Hex, bool Locked);
+
+    private string baseColor = "#7c5cff";
+    private string harmony = "analogous";
+    private string exportFormat = "css";
+    private string name = "primary";
+    private List<Swatch> palette = [];
+    private readonly Random random = new();
+
+    private string ShareText => string.Join(",", palette.Select(p => p.Hex.TrimStart('#')));
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(Q))
+        {
+            var colors = Q.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(h => "#" + h.TrimStart('#'))
+                .Where(h => TryParseHex(h, out _, out _, out _))
+                .Take(8).ToList();
+            if (colors.Count > 0)
+            {
+                baseColor = colors[0];
+                palette = colors.Select(c => new Swatch(c.ToLowerInvariant(), false)).ToList();
+                return;
+            }
+        }
+        Generate();
+    }
+
+    private void Generate()
+    {
+        if (!TryParseHex(baseColor, out var r, out var g, out var b)) return;
+        var (h, s, l) = ToHsl(r, g, b);
+        double[][] offsets = harmony switch
+        {
+            "complementary" => [[0, 0, 0], [0, -0.1, 0.15], [180, 0, 0], [180, -0.1, 0.15], [0, -0.2, -0.2]],
+            "split" => [[0, 0, 0], [150, 0, 0], [210, 0, 0], [0, -0.15, 0.2], [0, 0, -0.2]],
+            "triadic" => [[0, 0, 0], [120, 0, 0], [240, 0, 0], [0, -0.1, 0.2], [0, 0, -0.2]],
+            "tetradic" => [[0, 0, 0], [90, 0, 0], [180, 0, 0], [270, 0, 0], [0, -0.1, 0.25]],
+            "monochromatic" => [[0, 0, -0.3], [0, 0, -0.15], [0, 0, 0], [0, -0.1, 0.15], [0, -0.2, 0.3]],
+            _ => [[-40, 0, 0], [-20, 0, 0], [0, 0, 0], [20, 0, 0], [40, 0, 0]],
+        };
+        var next = offsets.Select(o => ToHex((h + o[0] + 360) % 360, Clamp(s + o[1]), Clamp(l + o[2]))).ToList();
+        palette = next.Select((hex, i) => i < palette.Count && palette[i].Locked ? palette[i] : new Swatch(hex, false)).ToList();
+    }
+
+    private void Randomize()
+    {
+        baseColor = ToHex(random.Next(360), 0.55 + random.NextDouble() * 0.35, 0.45 + random.NextDouble() * 0.15);
+        var harmonies = new[] { "analogous", "complementary", "split", "triadic", "tetradic", "monochromatic" };
+        harmony = harmonies[random.Next(harmonies.Length)];
+        Generate();
+    }
+
+    private IEnumerable<(int Step, string Hex)> Scale
+    {
+        get
+        {
+            if (!TryParseHex(baseColor, out var r, out var g, out var b)) yield break;
+            var (h, s, _) = ToHsl(r, g, b);
+            var steps = new[] { 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950 };
+            var lightness = new[] { 0.97, 0.93, 0.86, 0.76, 0.64, 0.52, 0.43, 0.35, 0.27, 0.20, 0.13 };
+            for (var i = 0; i < steps.Length; i++)
+                yield return (steps[i], ToHex(h, Clamp(s * (i is 0 or 10 ? 0.9 : 1)), lightness[i]));
+        }
+    }
+
+    private string Export
+    {
+        get
+        {
+            var key = string.IsNullOrWhiteSpace(name) ? "color" : name.Trim().Replace(' ', '-').ToLowerInvariant();
+            var scale = Scale.ToList();
+            return exportFormat switch
+            {
+                "scss" => string.Join("\n", palette.Select((p, i) => $"${key}-palette-{i + 1}: {p.Hex};")
+                    .Concat([""]).Concat(scale.Select(s => $"${key}-{s.Step}: {s.Hex};"))),
+                "tailwind" => "// tailwind.config.js\nmodule.exports = {\n  theme: {\n    extend: {\n      colors: {\n" +
+                    $"        '{key}': {{\n" + string.Join("\n", scale.Select(s => $"          {s.Step}: '{s.Hex}',")) + "\n        },\n" +
+                    "        palette: {\n" + string.Join("\n", palette.Select((p, i) => $"          {i + 1}: '{p.Hex}',")) + "\n        },\n      },\n    },\n  },\n};",
+                "json" => System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    palette = palette.Select(p => p.Hex),
+                    scale = scale.ToDictionary(s => s.Step.ToString(CultureInfo.InvariantCulture), s => s.Hex),
+                }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }),
+                _ => ":root {\n" + string.Join("\n", palette.Select((p, i) => $"  --{key}-palette-{i + 1}: {p.Hex};")) + "\n\n" +
+                    string.Join("\n", scale.Select(s => $"  --{key}-{s.Step}: {s.Hex};")) + "\n}",
+            };
+        }
+    }
+
+    // ---------- color math ----------
+
+    private static double Clamp(double v) => Math.Clamp(v, 0, 1);
+
+    private static bool TryParseHex(string hex, out int r, out int g, out int b)
+    {
+        r = g = b = 0;
+        var h = hex.Trim().TrimStart('#');
+        if (h.Length == 3) h = string.Concat(h.Select(c => $"{c}{c}"));
+        if (h.Length != 6 || !int.TryParse(h, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var v)) return false;
+        r = (v >> 16) & 255; g = (v >> 8) & 255; b = v & 255;
+        return true;
+    }
+
+    private static (double H, double S, double L) ToHsl(int r, int g, int b)
+    {
+        double rd = r / 255.0, gd = g / 255.0, bd = b / 255.0;
+        var max = Math.Max(rd, Math.Max(gd, bd));
+        var min = Math.Min(rd, Math.Min(gd, bd));
+        var l = (max + min) / 2;
+        if (max == min) return (0, 0, l);
+        var d = max - min;
+        var s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        double h = max == rd ? (gd - bd) / d + (gd < bd ? 6 : 0) : max == gd ? (bd - rd) / d + 2 : (rd - gd) / d + 4;
+        return (h * 60, s, l);
+    }
+
+    private static string ToHex(double h, double s, double l)
+    {
+        double Hue(double p, double q, double t)
+        {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1.0 / 6) return p + (q - p) * 6 * t;
+            if (t < 0.5) return q;
+            if (t < 2.0 / 3) return p + (q - p) * (2.0 / 3 - t) * 6;
+            return p;
+        }
+        double r, g, b;
+        if (s == 0) r = g = b = l;
+        else
+        {
+            var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            var p = 2 * l - q;
+            var hk = h / 360;
+            r = Hue(p, q, hk + 1.0 / 3);
+            g = Hue(p, q, hk);
+            b = Hue(p, q, hk - 1.0 / 3);
+        }
+        return $"#{(int)Math.Round(r * 255):x2}{(int)Math.Round(g * 255):x2}{(int)Math.Round(b * 255):x2}";
+    }
+
+    private static string TextOn(string hex)
+    {
+        if (!TryParseHex(hex, out var r, out var g, out var b)) return "#000";
+        var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance > 0.6 ? "#111" : "#fff";
+    }
+}

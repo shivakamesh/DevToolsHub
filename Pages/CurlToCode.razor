@@ -1,0 +1,604 @@
+@page "/curl-to-code"
+@using System.Text
+
+<ToolPage Title="cURL to Code Converter" Description="Convert cURL commands to C#, JavaScript, Python, Go and more." ShareValue="@input">
+    <textarea class="io" rows="8" spellcheck="false" placeholder="curl https://api.example.com -H 'Accept: application/json'" @bind="input" @bind:event="oninput" @bind:after="Convert"></textarea>
+
+    <div class="chips">
+        @foreach (var l in Targets)
+        {
+            <button class="chip @(target == l.Key ? "on" : "")" @onclick="() => { target = l.Key; Convert(); }">@l.Value</button>
+        }
+        <CopyButton Text="@output" />
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    <textarea class="io" rows="20" readonly spellcheck="false">@output</textarea>
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    private static readonly Dictionary<string, string> Targets = new()
+    {
+        ["csharp"] = "C# HttpClient",
+        ["fetch"] = "JavaScript fetch",
+        ["axios"] = "Node.js axios",
+        ["python"] = "Python requests",
+        ["go"] = "Go net/http",
+        ["php"] = "PHP cURL",
+    };
+
+    private string input = "curl -X POST https://api.example.com/v1/users \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer YOUR_TOKEN' \\\n  -d '{\"name\":\"Ada\",\"role\":\"admin\"}'";
+    private string target = "csharp";
+    private string output = "";
+    private string? error;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(Q)) input = Q;
+        Convert();
+    }
+
+    private sealed class Request
+    {
+        public string Method = "";
+        public string Url = "";
+        public List<KeyValuePair<string, string>> Headers = [];
+        public string? Body;
+        public List<KeyValuePair<string, string>> Form = [];
+        public string? User;
+        public bool Insecure;
+        public bool FollowRedirects;
+        public string? ContentType => Headers.FirstOrDefault(h => h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)).Value;
+        public bool IsJson => ContentType?.Contains("json", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private void Convert()
+    {
+        error = null;
+        output = "";
+        if (string.IsNullOrWhiteSpace(input)) return;
+        try
+        {
+            var r = Parse(input);
+            output = target switch
+            {
+                "fetch" => ToFetch(r),
+                "axios" => ToAxios(r),
+                "python" => ToPython(r),
+                "go" => ToGo(r),
+                "php" => ToPhp(r),
+                _ => ToCSharp(r),
+            };
+        }
+        catch (FormatException ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    // ---------- parsing ----------
+
+    private static List<string> Tokenize(string s)
+    {
+        s = s.Replace("\\\r\n", " ").Replace("\\\n", " ").Replace("^\r\n", " ").Replace("^\n", " ").Replace("`\r\n", " ").Replace("`\n", " ");
+        var tokens = new List<string>();
+        var sb = new StringBuilder();
+        var inToken = false;
+        for (var i = 0; i < s.Length; i++)
+        {
+            var c = s[i];
+            if (char.IsWhiteSpace(c))
+            {
+                if (inToken) { tokens.Add(sb.ToString()); sb.Clear(); inToken = false; }
+                continue;
+            }
+            inToken = true;
+            if (c == '\'')
+            {
+                var end = s.IndexOf('\'', i + 1);
+                if (end < 0) throw new FormatException("Unterminated single quote.");
+                sb.Append(s, i + 1, end - i - 1);
+                i = end;
+            }
+            else if (c == '$' && i + 1 < s.Length && s[i + 1] == '\'')
+            {
+                var end = i + 2;
+                while (end < s.Length && s[end] != '\'') { if (s[end] == '\\') end++; end++; }
+                if (end >= s.Length) throw new FormatException("Unterminated $'...' string.");
+                sb.Append(System.Text.RegularExpressions.Regex.Unescape(s.Substring(i + 2, end - i - 2)));
+                i = end;
+            }
+            else if (c == '"')
+            {
+                i++;
+                while (i < s.Length && s[i] != '"')
+                {
+                    if (s[i] == '\\' && i + 1 < s.Length && "\"\\$`".Contains(s[i + 1])) i++;
+                    sb.Append(s[i]);
+                    i++;
+                }
+                if (i >= s.Length) throw new FormatException("Unterminated double quote.");
+            }
+            else if (c == '\\' && i + 1 < s.Length)
+            {
+                sb.Append(s[++i]);
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+        if (inToken) tokens.Add(sb.ToString());
+        return tokens;
+    }
+
+    private static Request Parse(string text)
+    {
+        var t = Tokenize(text.Trim());
+        if (t.Count == 0 || !t[0].Equals("curl", StringComparison.OrdinalIgnoreCase) && !t[0].EndsWith("curl.exe", StringComparison.OrdinalIgnoreCase))
+            throw new FormatException("The command must start with curl.");
+
+        var r = new Request();
+        var data = new List<string>();
+        var get = false;
+        string? method = null;
+
+        for (var i = 1; i < t.Count; i++)
+        {
+            var a = t[i];
+            string Next() => i + 1 < t.Count ? t[++i] : throw new FormatException($"Option {a} needs a value.");
+
+            // Support --opt=value and short options glued to their value (-XPOST, -HAccept:...).
+            string? inline = null;
+            if (a.StartsWith("--") && a.Contains('='))
+            {
+                inline = a[(a.IndexOf('=') + 1)..];
+                a = a[..a.IndexOf('=')];
+            }
+            else if (a.Length > 2 && a[0] == '-' && a[1] != '-' && "XHdubeAF".Contains(a[1]))
+            {
+                inline = a[2..];
+                a = a[..2];
+            }
+            string Value() => inline ?? Next();
+
+            switch (a)
+            {
+                case "-X": case "--request": method = Value().ToUpperInvariant(); break;
+                case "-H": case "--header":
+                    var h = Value();
+                    var colon = h.IndexOf(':');
+                    if (colon > 0) r.Headers.Add(new(h[..colon].Trim(), h[(colon + 1)..].Trim()));
+                    break;
+                case "-d": case "--data": case "--data-raw": case "--data-binary": case "--data-ascii":
+                    data.Add(Value()); break;
+                case "--data-urlencode":
+                    var v = Value();
+                    var eq = v.IndexOf('=');
+                    data.Add(eq < 0 ? Uri.EscapeDataString(v) : v[..(eq + 1)] + Uri.EscapeDataString(v[(eq + 1)..]));
+                    break;
+                case "--json":
+                    data.Add(Value());
+                    if (!r.Headers.Any(x => x.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))) r.Headers.Add(new("Content-Type", "application/json"));
+                    if (!r.Headers.Any(x => x.Key.Equals("Accept", StringComparison.OrdinalIgnoreCase))) r.Headers.Add(new("Accept", "application/json"));
+                    break;
+                case "-F": case "--form":
+                    var f = Value();
+                    var fe = f.IndexOf('=');
+                    if (fe > 0) r.Form.Add(new(f[..fe], f[(fe + 1)..]));
+                    break;
+                case "-u": case "--user": r.User = Value(); break;
+                case "-A": case "--user-agent": r.Headers.Add(new("User-Agent", Value())); break;
+                case "-e": case "--referer": r.Headers.Add(new("Referer", Value())); break;
+                case "-b": case "--cookie": r.Headers.Add(new("Cookie", Value())); break;
+                case "-G": case "--get": get = true; break;
+                case "-k": case "--insecure": r.Insecure = true; break;
+                case "-L": case "--location": r.FollowRedirects = true; break;
+                case "-I": case "--head": method = "HEAD"; break;
+                case "--url": r.Url = Value(); break;
+                case "-o": case "--output": case "-w": case "--write-out": case "-m": case "--max-time":
+                case "--connect-timeout": case "-x": case "--proxy": case "--retry": case "-c": case "--cookie-jar":
+                    Value(); break;
+                default:
+                    if (!a.StartsWith('-') && r.Url.Length == 0) r.Url = a;
+                    break;
+            }
+        }
+
+        if (r.Url.Length == 0) throw new FormatException("No URL found in the command.");
+        if (!r.Url.Contains("://")) r.Url = "http://" + r.Url;
+
+        if (data.Count > 0)
+        {
+            var joined = string.Join("&", data);
+            if (get)
+            {
+                r.Url += (r.Url.Contains('?') ? "&" : "?") + joined;
+            }
+            else
+            {
+                r.Body = joined;
+                if (r.ContentType is null) r.Headers.Add(new("Content-Type", "application/x-www-form-urlencoded"));
+            }
+        }
+
+        r.Method = method ?? (r.Body is not null || r.Form.Count > 0 ? "POST" : "GET");
+        return r;
+    }
+
+    // ---------- generators ----------
+
+    private static string Cs(string s) => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r") + "\"";
+    private static string Js(string s) => "'" + s.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r") + "'";
+    private static string Py(string s) => Js(s);
+    private static string Php(string s) => "'" + s.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
+    private static string Go(string s) => s.Contains('`') ? Cs(s) : "`" + s + "`";
+
+    private static string Pascal(string method) => method[0] + method[1..].ToLowerInvariant();
+
+    private static string ToCSharp(Request r)
+    {
+        var sb = new StringBuilder();
+        if (r.Insecure || !r.FollowRedirects)
+        {
+            sb.AppendLine("using var handler = new HttpClientHandler");
+            sb.AppendLine("{");
+            sb.AppendLine($"    AllowAutoRedirect = {(r.FollowRedirects ? "true" : "false")},");
+            if (r.Insecure) sb.AppendLine("    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,");
+            sb.AppendLine("};");
+            sb.AppendLine("using var client = new HttpClient(handler);");
+        }
+        else
+        {
+            sb.AppendLine("using var client = new HttpClient();");
+        }
+        var known = new[] { "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS" };
+        var method = known.Contains(r.Method) ? $"HttpMethod.{Pascal(r.Method)}" : $"new HttpMethod({Cs(r.Method)})";
+        sb.AppendLine($"using var request = new HttpRequestMessage({method}, {Cs(r.Url)});");
+
+        foreach (var h in r.Headers.Where(h => !h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)))
+            sb.AppendLine($"request.Headers.TryAddWithoutValidation({Cs(h.Key)}, {Cs(h.Value)});");
+        if (r.User is not null)
+            sb.AppendLine($"request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(\"Basic\", Convert.ToBase64String(Encoding.UTF8.GetBytes({Cs(r.User)})));");
+
+        if (r.Form.Count > 0)
+        {
+            sb.AppendLine("var form = new MultipartFormDataContent();");
+            foreach (var f in r.Form)
+            {
+                if (f.Value.StartsWith('@'))
+                    sb.AppendLine($"form.Add(new StreamContent(File.OpenRead({Cs(f.Value[1..])})), {Cs(f.Key)}, {Cs(Path.GetFileName(f.Value[1..]))});");
+                else
+                    sb.AppendLine($"form.Add(new StringContent({Cs(f.Value)}), {Cs(f.Key)});");
+            }
+            sb.AppendLine("request.Content = form;");
+        }
+        else if (r.Body is not null)
+        {
+            var ct = r.ContentType ?? "text/plain";
+            var mediaType = ct.Split(';')[0].Trim();
+            sb.AppendLine($"request.Content = new StringContent({Cs(r.Body)}, Encoding.UTF8, {Cs(mediaType)});");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("using var response = await client.SendAsync(request);");
+        sb.AppendLine("response.EnsureSuccessStatusCode();");
+        sb.AppendLine("var body = await response.Content.ReadAsStringAsync();");
+        sb.AppendLine("Console.WriteLine(body);");
+        return sb.ToString();
+    }
+
+    private static string JsHeaders(Request r, string indent)
+    {
+        var lines = r.Headers
+            .Where(h => r.Form.Count == 0 || !h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
+            .Select(h => $"{Js(h.Key)}: {Js(h.Value)}")
+            .ToList();
+        if (r.User is not null) lines.Add($"'Authorization': 'Basic ' + btoa({Js(r.User)})");
+        if (lines.Count == 0) return "";
+        var sb = new StringBuilder();
+        sb.AppendLine($"{indent}headers: {{");
+        foreach (var l in lines) sb.AppendLine($"{indent}  {l},");
+        sb.AppendLine($"{indent}}},");
+        return sb.ToString();
+    }
+
+    private static string FormJs(Request r)
+    {
+        var sb = new StringBuilder("const form = new FormData();\n");
+        foreach (var f in r.Form)
+        {
+            if (f.Value.StartsWith('@')) sb.AppendLine($"form.append({Js(f.Key)}, fileInput.files[0]); // {f.Value[1..]}");
+            else sb.AppendLine($"form.append({Js(f.Key)}, {Js(f.Value)});");
+        }
+        return sb.AppendLine().ToString();
+    }
+
+    private static string JsBody(Request r) =>
+        r.Form.Count > 0 ? "form" :
+        r.Body is null ? "" :
+        r.IsJson && IsValidJson(r.Body) ? $"JSON.stringify({r.Body})" : Js(r.Body);
+
+    private static bool IsValidJson(string s)
+    {
+        try { System.Text.Json.JsonDocument.Parse(s).Dispose(); return true; }
+        catch (System.Text.Json.JsonException) { return false; }
+    }
+
+    private static string ToFetch(Request r)
+    {
+        var sb = new StringBuilder();
+        if (r.Form.Count > 0) sb.Append(FormJs(r));
+        sb.AppendLine($"const response = await fetch({Js(r.Url)}, {{");
+        sb.AppendLine($"  method: {Js(r.Method)},");
+        sb.Append(JsHeaders(r, "  "));
+        var body = JsBody(r);
+        if (body.Length > 0) sb.AppendLine($"  body: {body},");
+        if (!r.FollowRedirects) sb.AppendLine("  redirect: 'manual',");
+        sb.AppendLine("});");
+        sb.AppendLine();
+        sb.AppendLine("if (!response.ok) throw new Error(`HTTP ${response.status}`);");
+        sb.AppendLine(r.Headers.Any(h => h.Value.Contains("json", StringComparison.OrdinalIgnoreCase))
+            ? "const data = await response.json();" : "const data = await response.text();");
+        sb.AppendLine("console.log(data);");
+        return sb.ToString();
+    }
+
+    private static string ToAxios(Request r)
+    {
+        var sb = new StringBuilder("import axios from 'axios';\n");
+        if (r.Insecure) sb.AppendLine("import https from 'node:https';");
+        sb.AppendLine();
+        if (r.Form.Count > 0)
+        {
+            sb.AppendLine("const form = new FormData();");
+            foreach (var f in r.Form)
+            {
+                if (f.Value.StartsWith('@')) sb.AppendLine($"form.append({Js(f.Key)}, new Blob([await fs.promises.readFile({Js(f.Value[1..])})]), {Js(Path.GetFileName(f.Value[1..]))});");
+                else sb.AppendLine($"form.append({Js(f.Key)}, {Js(f.Value)});");
+            }
+            sb.AppendLine();
+        }
+        sb.AppendLine("const response = await axios({");
+        sb.AppendLine($"  method: {Js(r.Method.ToLowerInvariant())},");
+        sb.AppendLine($"  url: {Js(r.Url)},");
+        var headers = r.Headers.Where(h => r.Form.Count == 0 || !h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (headers.Count > 0)
+        {
+            sb.AppendLine("  headers: {");
+            foreach (var h in headers) sb.AppendLine($"    {Js(h.Key)}: {Js(h.Value)},");
+            sb.AppendLine("  },");
+        }
+        if (r.User is not null)
+        {
+            var parts = r.User.Split(':', 2);
+            sb.AppendLine($"  auth: {{ username: {Js(parts[0])}, password: {Js(parts.Length > 1 ? parts[1] : "")} }},");
+        }
+        if (r.Form.Count > 0) sb.AppendLine("  data: form,");
+        else if (r.Body is not null) sb.AppendLine($"  data: {(r.IsJson && IsValidJson(r.Body) ? r.Body : Js(r.Body))},");
+        if (!r.FollowRedirects) sb.AppendLine("  maxRedirects: 0,");
+        if (r.Insecure) sb.AppendLine("  httpsAgent: new https.Agent({ rejectUnauthorized: false }),");
+        sb.AppendLine("});");
+        sb.AppendLine();
+        sb.AppendLine("console.log(response.data);");
+        return sb.ToString();
+    }
+
+    private static string ToPython(Request r)
+    {
+        var sb = new StringBuilder("import requests\n\n");
+        sb.AppendLine($"url = {Py(r.Url)}");
+        var headers = r.Headers.Where(h => r.Form.Count == 0 || !h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (headers.Count > 0)
+        {
+            sb.AppendLine("headers = {");
+            foreach (var h in headers) sb.AppendLine($"    {Py(h.Key)}: {Py(h.Value)},");
+            sb.AppendLine("}");
+        }
+        var args = new List<string> { Py(r.Method), "url" };
+        if (headers.Count > 0) args.Add("headers=headers");
+        if (r.Form.Count > 0)
+        {
+            var files = r.Form.Where(f => f.Value.StartsWith('@')).ToList();
+            var fields = r.Form.Where(f => !f.Value.StartsWith('@')).ToList();
+            if (fields.Count > 0)
+            {
+                sb.AppendLine("data = {");
+                foreach (var f in fields) sb.AppendLine($"    {Py(f.Key)}: {Py(f.Value)},");
+                sb.AppendLine("}");
+                args.Add("data=data");
+            }
+            if (files.Count > 0)
+            {
+                sb.AppendLine("files = {");
+                foreach (var f in files) sb.AppendLine($"    {Py(f.Key)}: open({Py(f.Value[1..])}, 'rb'),");
+                sb.AppendLine("}");
+                args.Add("files=files");
+            }
+        }
+        else if (r.Body is not null)
+        {
+            if (r.IsJson && IsValidJson(r.Body))
+            {
+                sb.AppendLine($"payload = {ToPythonLiteral(r.Body)}");
+                args.Add("json=payload");
+            }
+            else
+            {
+                sb.AppendLine($"data = {Py(r.Body)}");
+                args.Add("data=data");
+            }
+        }
+        if (r.User is not null)
+        {
+            var parts = r.User.Split(':', 2);
+            args.Add($"auth=({Py(parts[0])}, {Py(parts.Length > 1 ? parts[1] : "")})");
+        }
+        if (r.Insecure) args.Add("verify=False");
+        if (!r.FollowRedirects) args.Add("allow_redirects=False");
+        sb.AppendLine();
+        sb.AppendLine($"response = requests.request({string.Join(", ", args)})");
+        sb.AppendLine("response.raise_for_status()");
+        sb.AppendLine("print(response.text)");
+        return sb.ToString();
+    }
+
+    private static string ToPythonLiteral(string json)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        var sb = new StringBuilder();
+        Write(doc.RootElement, 0);
+        return sb.ToString();
+
+        void Write(System.Text.Json.JsonElement e, int depth)
+        {
+            var pad = new string(' ', (depth + 1) * 4);
+            var end = new string(' ', depth * 4);
+            switch (e.ValueKind)
+            {
+                case System.Text.Json.JsonValueKind.Object:
+                    if (!e.EnumerateObject().Any()) { sb.Append("{}"); break; }
+                    sb.Append("{\n");
+                    foreach (var p in e.EnumerateObject())
+                    {
+                        sb.Append(pad).Append(Py(p.Name)).Append(": ");
+                        Write(p.Value, depth + 1);
+                        sb.Append(",\n");
+                    }
+                    sb.Append(end).Append('}');
+                    break;
+                case System.Text.Json.JsonValueKind.Array:
+                    if (e.GetArrayLength() == 0) { sb.Append("[]"); break; }
+                    sb.Append("[\n");
+                    foreach (var item in e.EnumerateArray())
+                    {
+                        sb.Append(pad);
+                        Write(item, depth + 1);
+                        sb.Append(",\n");
+                    }
+                    sb.Append(end).Append(']');
+                    break;
+                case System.Text.Json.JsonValueKind.String: sb.Append(Py(e.GetString()!)); break;
+                case System.Text.Json.JsonValueKind.True: sb.Append("True"); break;
+                case System.Text.Json.JsonValueKind.False: sb.Append("False"); break;
+                case System.Text.Json.JsonValueKind.Null: sb.Append("None"); break;
+                default: sb.Append(e.GetRawText()); break;
+            }
+        }
+    }
+
+    private static string ToGo(Request r)
+    {
+        var sb = new StringBuilder();
+        var imports = new SortedSet<string> { "fmt", "io", "net/http" };
+        if (r.Body is not null && r.Form.Count == 0) imports.Add("strings");
+        if (r.Form.Count > 0) { imports.Add("bytes"); imports.Add("mime/multipart"); }
+        if (r.Insecure) imports.Add("crypto/tls");
+        if (r.Form.Any(f => f.Value.StartsWith('@'))) imports.Add("os");
+
+        sb.AppendLine("package main");
+        sb.AppendLine();
+        sb.AppendLine("import (");
+        foreach (var i in imports) sb.AppendLine($"\t\"{i}\"");
+        sb.AppendLine(")");
+        sb.AppendLine();
+        sb.AppendLine("func main() {");
+
+        string bodyVar = "nil";
+        if (r.Form.Count > 0)
+        {
+            sb.AppendLine("\tbody := &bytes.Buffer{}");
+            sb.AppendLine("\twriter := multipart.NewWriter(body)");
+            foreach (var f in r.Form)
+            {
+                if (f.Value.StartsWith('@'))
+                {
+                    sb.AppendLine($"\tfileData, _ := os.ReadFile({Cs(f.Value[1..])})");
+                    sb.AppendLine($"\tpart, _ := writer.CreateFormFile({Cs(f.Key)}, {Cs(Path.GetFileName(f.Value[1..]))})");
+                    sb.AppendLine("\tpart.Write(fileData)");
+                }
+                else
+                {
+                    sb.AppendLine($"\twriter.WriteField({Cs(f.Key)}, {Cs(f.Value)})");
+                }
+            }
+            sb.AppendLine("\twriter.Close()");
+            bodyVar = "body";
+        }
+        else if (r.Body is not null)
+        {
+            sb.AppendLine($"\tbody := strings.NewReader({Go(r.Body)})");
+            bodyVar = "body";
+        }
+
+        sb.AppendLine($"\treq, err := http.NewRequest({Cs(r.Method)}, {Cs(r.Url)}, {bodyVar})");
+        sb.AppendLine("\tif err != nil {\n\t\tpanic(err)\n\t}");
+        foreach (var h in r.Headers.Where(h => r.Form.Count == 0 || !h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)))
+            sb.AppendLine($"\treq.Header.Set({Cs(h.Key)}, {Cs(h.Value)})");
+        if (r.Form.Count > 0) sb.AppendLine("\treq.Header.Set(\"Content-Type\", writer.FormDataContentType())");
+        if (r.User is not null)
+        {
+            var parts = r.User.Split(':', 2);
+            sb.AppendLine($"\treq.SetBasicAuth({Cs(parts[0])}, {Cs(parts.Length > 1 ? parts[1] : "")})");
+        }
+        sb.AppendLine();
+        sb.AppendLine("\tclient := &http.Client{");
+        if (r.Insecure) sb.AppendLine("\t\tTransport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},");
+        if (!r.FollowRedirects) sb.AppendLine("\t\tCheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse },");
+        sb.AppendLine("\t}");
+        sb.AppendLine("\tresp, err := client.Do(req)");
+        sb.AppendLine("\tif err != nil {\n\t\tpanic(err)\n\t}");
+        sb.AppendLine("\tdefer resp.Body.Close()");
+        sb.AppendLine();
+        sb.AppendLine("\tdata, _ := io.ReadAll(resp.Body)");
+        sb.AppendLine("\tfmt.Println(resp.Status)");
+        sb.AppendLine("\tfmt.Println(string(data))");
+        sb.AppendLine("}");
+        return sb.ToString();
+    }
+
+    private static string ToPhp(Request r)
+    {
+        var sb = new StringBuilder("<?php\n\n$ch = curl_init();\n\n");
+        sb.AppendLine("curl_setopt_array($ch, [");
+        sb.AppendLine($"    CURLOPT_URL => {Php(r.Url)},");
+        sb.AppendLine("    CURLOPT_RETURNTRANSFER => true,");
+        sb.AppendLine($"    CURLOPT_CUSTOMREQUEST => {Php(r.Method)},");
+        if (r.FollowRedirects) sb.AppendLine("    CURLOPT_FOLLOWLOCATION => true,");
+        if (r.Insecure) sb.AppendLine("    CURLOPT_SSL_VERIFYPEER => false,\n    CURLOPT_SSL_VERIFYHOST => 0,");
+        if (r.User is not null) sb.AppendLine($"    CURLOPT_USERPWD => {Php(r.User)},");
+        var headers = r.Headers.Where(h => r.Form.Count == 0 || !h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (headers.Count > 0)
+        {
+            sb.AppendLine("    CURLOPT_HTTPHEADER => [");
+            foreach (var h in headers) sb.AppendLine($"        {Php(h.Key + ": " + h.Value)},");
+            sb.AppendLine("    ],");
+        }
+        if (r.Form.Count > 0)
+        {
+            sb.AppendLine("    CURLOPT_POSTFIELDS => [");
+            foreach (var f in r.Form)
+                sb.AppendLine(f.Value.StartsWith('@')
+                    ? $"        {Php(f.Key)} => new CURLFile({Php(f.Value[1..])}),"
+                    : $"        {Php(f.Key)} => {Php(f.Value)},");
+            sb.AppendLine("    ],");
+        }
+        else if (r.Body is not null)
+        {
+            sb.AppendLine($"    CURLOPT_POSTFIELDS => {Php(r.Body)},");
+        }
+        sb.AppendLine("]);");
+        sb.AppendLine();
+        sb.AppendLine("$response = curl_exec($ch);");
+        sb.AppendLine("if ($response === false) {\n    throw new Exception(curl_error($ch));\n}");
+        sb.AppendLine("curl_close($ch);");
+        sb.AppendLine();
+        sb.AppendLine("echo $response;");
+        return sb.ToString();
+    }
+}

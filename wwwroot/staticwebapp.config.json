@@ -1,4 +1,4 @@
-﻿{
+{
     "routes":  [
                    {
                        "headers":  {
@@ -327,6 +327,62 @@
                    {
                        "route":  "/smd-resistor-code",
                        "rewrite":  "/smd-resistor-code/index.html"
+                   },
+                   {
+                       "route":  "/code-to-image",
+                       "rewrite":  "/code-to-image/index.html"
+                   },
+                   {
+                       "route":  "/image-compressor",
+                       "rewrite":  "/image-compressor/index.html"
+                   },
+                   {
+                       "route":  "/pdf-tools",
+                       "rewrite":  "/pdf-tools/index.html"
+                   },
+                   {
+                       "route":  "/curl-to-code",
+                       "rewrite":  "/curl-to-code/index.html"
+                   },
+                   {
+                       "route":  "/json-to-typescript",
+                       "rewrite":  "/json-to-typescript/index.html"
+                   },
+                   {
+                       "route":  "/meta-tag-generator",
+                       "rewrite":  "/meta-tag-generator/index.html"
+                   },
+                   {
+                       "route":  "/favicon-generator",
+                       "rewrite":  "/favicon-generator/index.html"
+                   },
+                   {
+                       "route":  "/mermaid-editor",
+                       "rewrite":  "/mermaid-editor/index.html"
+                   },
+                   {
+                       "route":  "/code-minifier",
+                       "rewrite":  "/code-minifier/index.html"
+                   },
+                   {
+                       "route":  "/what-is-my-ip",
+                       "rewrite":  "/what-is-my-ip/index.html"
+                   },
+                   {
+                       "route":  "/dns-lookup",
+                       "rewrite":  "/dns-lookup/index.html"
+                   },
+                   {
+                       "route":  "/color-palette-generator",
+                       "rewrite":  "/color-palette-generator/index.html"
+                   },
+                   {
+                       "route":  "/markdown-table-generator",
+                       "rewrite":  "/markdown-table-generator/index.html"
+                   },
+                   {
+                       "route":  "/readme-generator",
+                       "rewrite":  "/readme-generator/index.html"
                    }
                ],
     "responseOverrides":  {

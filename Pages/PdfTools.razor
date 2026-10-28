@@ -1,0 +1,311 @@
+@page "/pdf-tools"
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<ToolPage Title="PDF Tools" Description="Merge, split, extract pages and convert images to PDF in your browser.">
+    <div class="chips">
+        @foreach (var m in Modes)
+        {
+            <button class="chip @(mode == m.Key ? "on" : "")" @onclick="() => SwitchAsync(m.Key)">@m.Value</button>
+        }
+    </div>
+
+    <label class="dropzone glass">
+        <input type="file" accept="@(mode == "images" ? "image/*" : "application/pdf,.pdf")" multiple="@(mode is "merge" or "images")" @ref="fileInput" @onchange="AddFilesAsync" hidden />
+        <span>📁 @(mode == "images" ? "Click to choose images" : mode == "merge" ? "Click to choose PDF files to merge" : "Click to choose a PDF file")</span>
+    </label>
+
+    @if (files.Count > 0)
+    {
+        <table class="table">
+            <thead><tr><th>#</th><th>File</th><th>Size</th>@if (mode != "images") { <th>Pages</th> }<th></th></tr></thead>
+            <tbody>
+                @for (var n = 0; n < files.Count; n++)
+                {
+                    var i = n;
+                    var f = files[i];
+                    <tr>
+                        <td>@(i + 1)</td>
+                        <td class="break">@f.Name</td>
+                        <td>@FormatSize(f.Size)</td>
+                        @if (mode != "images") { <td>@(f.Pages?.ToString() ?? "…")</td> }
+                        <td style="white-space:nowrap">
+                            <button class="btn secondary" disabled="@(i == 0)" @onclick="() => Move(i, -1)">↑</button>
+                            <button class="btn secondary" disabled="@(i == files.Count - 1)" @onclick="() => Move(i, 1)">↓</button>
+                            <button class="btn secondary" @onclick="() => RemoveAsync(i)">✕</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <div class="toolbar">
+        @if (mode == "split")
+        {
+            <label>Pages <input style="width:16rem" placeholder="e.g. 1-3, 5, 8-10" @bind="ranges" @bind:event="oninput" /></label>
+            <label>
+                <select @bind="splitMode">
+                    <option value="one">Extract into one PDF</option>
+                    <option value="each">One PDF per range</option>
+                    <option value="every">Split every page</option>
+                </select>
+            </label>
+        }
+        else if (mode == "images")
+        {
+            <label>Page size
+                <select @bind="pageSize">
+                    <option value="a4">A4</option>
+                    <option value="letter">Letter</option>
+                    <option value="fit">Fit to image</option>
+                </select>
+            </label>
+            <label>Margin (pt) <input type="number" min="0" max="144" @bind="margin" /></label>
+        }
+        else if (mode == "optimize")
+        {
+            <label><input type="checkbox" @bind="stripMetadata" /> Remove metadata (title, author, producer)</label>
+        }
+        <button class="btn" disabled="@(!CanRun || busy)" @onclick="RunAsync">@(busy ? "Working..." : RunLabel)</button>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    @if (message is not null)
+    {
+        <div class="alert ok">@message</div>
+    }
+    @if (mode == "optimize")
+    {
+        <p class="muted">Optimize rewrites the PDF with compressed object streams and removes unused objects. Files that are mostly scanned images will shrink only slightly.</p>
+    }
+</ToolPage>
+
+@code {
+    private static readonly Dictionary<string, string> Modes = new()
+    {
+        ["merge"] = "Merge PDFs",
+        ["split"] = "Split / extract pages",
+        ["images"] = "Images to PDF",
+        ["optimize"] = "Optimize PDF",
+    };
+
+    private sealed class Picked
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "";
+        public long Size { get; set; }
+        public string Url { get; set; } = "";
+        public int? Pages { get; set; }
+    }
+
+    private sealed class Output
+    {
+        public string Url { get; set; } = "";
+        public long Size { get; set; }
+    }
+
+    private ElementReference fileInput;
+    private readonly List<Picked> files = [];
+    private string mode = "merge";
+    private string ranges = "";
+    private string splitMode = "one";
+    private string pageSize = "a4";
+    private int margin = 24;
+    private bool stripMetadata = true;
+    private bool busy;
+    private string? error;
+    private string? message;
+
+    private bool CanRun => mode switch
+    {
+        "merge" => files.Count >= 2,
+        "split" => files.Count == 1 && files[0].Pages > 0,
+        _ => files.Count > 0,
+    };
+
+    private string RunLabel => mode switch
+    {
+        "merge" => "Merge & download",
+        "split" => "Split & download",
+        "images" => "Create PDF",
+        _ => "Optimize & download",
+    };
+
+    private async Task SwitchAsync(string m)
+    {
+        if (m == mode) return;
+        await ClearAsync();
+        mode = m;
+        error = message = null;
+    }
+
+    private async Task AddFilesAsync()
+    {
+        error = message = null;
+        var picked = await JS.InvokeAsync<Picked[]>("devExtra.pickFiles", fileInput);
+        if (mode is "split" or "optimize") await ClearAsync();
+        foreach (var p in picked)
+        {
+            var isPdf = p.Type == "application/pdf" || p.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+            if (mode == "images" ? !p.Type.StartsWith("image/") : !isPdf)
+            {
+                error = $"{p.Name} was skipped because it is not {(mode == "images" ? "an image" : "a PDF")}.";
+                await ReleaseAsync(p);
+                continue;
+            }
+            files.Add(p);
+            if (mode == "images") continue;
+            try
+            {
+                p.Pages = await JS.InvokeAsync<int>("devExtra.pdfPageCount", p.Id);
+            }
+            catch (JSException ex)
+            {
+                files.Remove(p);
+                await ReleaseAsync(p);
+                error = $"{p.Name} could not be read: {ex.Message}";
+            }
+            StateHasChanged();
+        }
+    }
+
+    private void Move(int i, int delta) => (files[i], files[i + delta]) = (files[i + delta], files[i]);
+
+    private async Task RemoveAsync(int i)
+    {
+        var f = files[i];
+        files.RemoveAt(i);
+        await ReleaseAsync(f);
+    }
+
+    private async Task RunAsync()
+    {
+        busy = true;
+        error = message = null;
+        try
+        {
+            switch (mode)
+            {
+                case "merge":
+                    var merged = await JS.InvokeAsync<Output>("devExtra.pdfMerge", files.Select(f => f.Id).ToArray());
+                    await SaveAsync(merged, "merged.pdf");
+                    message = $"Merged {files.Count} files ({files.Sum(f => f.Pages ?? 0)} pages) into {FormatSize(merged.Size)}.";
+                    break;
+                case "split":
+                    await SplitAsync();
+                    break;
+                case "images":
+                    var pdf = await JS.InvokeAsync<Output>("devExtra.imagesToPdf", files.Select(f => f.Id).ToArray(), pageSize, margin);
+                    await SaveAsync(pdf, "images.pdf");
+                    message = $"Created a {files.Count}-page PDF ({FormatSize(pdf.Size)}).";
+                    break;
+                case "optimize":
+                    var f = files[0];
+                    var opt = await JS.InvokeAsync<Output>("devExtra.pdfOptimize", f.Id, stripMetadata);
+                    await SaveAsync(opt, Path.GetFileNameWithoutExtension(f.Name) + "-optimized.pdf");
+                    var saved = f.Size == 0 ? 0 : 100.0 * (f.Size - opt.Size) / f.Size;
+                    message = $"{FormatSize(f.Size)} → {FormatSize(opt.Size)} ({saved:0}% smaller).";
+                    break;
+            }
+        }
+        catch (JSException ex)
+        {
+            error = ex.Message;
+        }
+        catch (FormatException ex)
+        {
+            error = ex.Message;
+        }
+        busy = false;
+    }
+
+    private async Task SplitAsync()
+    {
+        var f = files[0];
+        var count = f.Pages ?? 0;
+        List<int[]> groups;
+        if (splitMode == "every")
+        {
+            groups = Enumerable.Range(0, count).Select(p => new[] { p }).ToList();
+        }
+        else
+        {
+            var parsed = ParseRanges(ranges, count);
+            groups = splitMode == "one" ? [parsed.SelectMany(g => g).ToArray()] : parsed;
+        }
+
+        var outputs = await JS.InvokeAsync<Output[]>("devExtra.pdfExtract", f.Id, groups);
+        var baseName = Path.GetFileNameWithoutExtension(f.Name);
+        if (outputs.Length == 1)
+        {
+            await SaveAsync(outputs[0], $"{baseName}-pages.pdf");
+        }
+        else
+        {
+            var entries = outputs.Select((o, n) => new { name = $"{baseName}-{Label(groups[n])}.pdf", url = o.Url }).ToArray();
+            await JS.InvokeVoidAsync("devExtra.downloadZip", entries, $"{baseName}-split.zip");
+            foreach (var o in outputs) await JS.InvokeVoidAsync("devExtra.revoke", o.Url);
+        }
+        message = $"Created {outputs.Length} PDF file(s).";
+    }
+
+    private static string Label(int[] pages) =>
+        pages.Length == 1 ? $"p{pages[0] + 1}" : $"p{pages[0] + 1}-{pages[^1] + 1}";
+
+    /// <summary>Parses "1-3, 5, 8-" into zero-based page index groups.</summary>
+    private static List<int[]> ParseRanges(string text, int count)
+    {
+        var result = new List<int[]>();
+        foreach (var part in text.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var bits = part.Split('-', StringSplitOptions.TrimEntries);
+            if (bits.Length > 2) throw new FormatException($"Invalid range \"{part}\".");
+            int from = bits[0].Length == 0 ? 1 : ParsePage(bits[0], count);
+            int to = bits.Length == 1 ? from : bits[1].Length == 0 ? count : ParsePage(bits[1], count);
+            if (from > to) throw new FormatException($"Range \"{part}\" is reversed.");
+            result.Add(Enumerable.Range(from - 1, to - from + 1).ToArray());
+        }
+        if (result.Count == 0) throw new FormatException("Enter the pages to extract, for example 1-3, 5.");
+        return result;
+    }
+
+    private static int ParsePage(string s, int count)
+    {
+        if (!int.TryParse(s, out var p) || p < 1 || p > count)
+            throw new FormatException($"Page \"{s}\" is outside 1–{count}.");
+        return p;
+    }
+
+    private async Task SaveAsync(Output o, string name)
+    {
+        await JS.InvokeVoidAsync("devExtra.download", o.Url, name);
+        await Task.Delay(1000);
+        await JS.InvokeVoidAsync("devExtra.revoke", o.Url);
+    }
+
+    private async Task ReleaseAsync(Picked p)
+    {
+        await JS.InvokeVoidAsync("devExtra.revoke", p.Url);
+        await JS.InvokeVoidAsync("devExtra.releaseFile", p.Id);
+    }
+
+    private async Task ClearAsync()
+    {
+        foreach (var f in files) await ReleaseAsync(f);
+        files.Clear();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await ClearAsync(); } catch (JSDisconnectedException) { } catch (InvalidOperationException) { }
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024:0.##} MB" :
+        bytes >= 1024 ? $"{bytes / 1024d:0.#} KB" : $"{bytes} B";
+}

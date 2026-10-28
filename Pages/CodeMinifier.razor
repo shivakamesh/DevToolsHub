@@ -1,0 +1,177 @@
+@page "/code-minifier"
+@using System.Text
+@using System.Text.RegularExpressions
+@inject IJSRuntime JS
+
+<ToolPage Title="JS, CSS and HTML Minifier and Beautifier" Description="Minify or beautify JavaScript, CSS and HTML code." ShareValue="@input">
+    <div class="chips">
+        @foreach (var l in Languages)
+        {
+            <button class="chip @(language == l.Key ? "on" : "")" @onclick="() => { language = l.Key; output = string.Empty; error = null; }">@l.Value</button>
+        }
+    </div>
+    <div class="split">
+        <textarea class="io" rows="20" spellcheck="false" placeholder="Paste code here..." @bind="input" @bind:event="oninput"></textarea>
+        <textarea class="io" rows="20" readonly spellcheck="false">@output</textarea>
+    </div>
+    <div class="toolbar">
+        <button class="btn" disabled="@busy" @onclick="MinifyAsync">Minify</button>
+        <button class="btn secondary" disabled="@busy" @onclick="BeautifyAsync">Beautify</button>
+        <label>Indent
+            <select @bind="indent">
+                <option value="2">2 spaces</option>
+                <option value="4">4 spaces</option>
+            </select>
+        </label>
+        <CopyButton Text="@output" />
+        @if (output.Length > 0)
+        {
+            var before = Encoding.UTF8.GetByteCount(input);
+            var after = Encoding.UTF8.GetByteCount(output);
+            <span class="muted">@before → @after bytes (@(before == 0 ? 0 : Math.Round(100.0 * (before - after) / before))% smaller)</span>
+        }
+    </div>
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+    [SupplyParameterFromQuery(Name = "lang")] public string? Lang { get; set; }
+
+    private static readonly Dictionary<string, string> Languages = new()
+    {
+        ["js"] = "JavaScript",
+        ["css"] = "CSS",
+        ["html"] = "HTML",
+    };
+
+    private string language = "js";
+    private string input = "// Greets a list of users\nfunction greet(users) {\n    const names = users.map(function (user) {\n        return user.firstName + ' ' + user.lastName;\n    });\n    console.log('Hello, ' + names.join(', ') + '!');\n}\n\ngreet([{ firstName: 'Ada', lastName: 'Lovelace' }]);\n";
+    private string output = "";
+    private int indent = 2;
+    private bool busy;
+    private string? error;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(Q)) input = Q;
+        if (Lang is not null && Languages.ContainsKey(Lang)) language = Lang;
+    }
+
+    private async Task MinifyAsync()
+    {
+        error = null;
+        busy = true;
+        try
+        {
+            output = language switch
+            {
+                "css" => MinifyCss(input),
+                "html" => MinifyHtml(input),
+                _ => await JS.InvokeAsync<string>("devExtra.minifyJs", input),
+            };
+        }
+        catch (JSException ex)
+        {
+            error = ex.Message;
+        }
+        busy = false;
+    }
+
+    private async Task BeautifyAsync()
+    {
+        error = null;
+        busy = true;
+        try
+        {
+            output = await JS.InvokeAsync<string>("devExtra.beautify", language, input, indent);
+        }
+        catch (JSException ex)
+        {
+            error = ex.Message;
+        }
+        busy = false;
+    }
+
+    // Keeps strings intact while removing comments and unnecessary whitespace.
+    private static string MinifyCss(string css)
+    {
+        var sb = new StringBuilder(css.Length);
+        var i = 0;
+        var pendingSpace = false;
+        while (i < css.Length)
+        {
+            var c = css[i];
+            if (c == '/' && i + 1 < css.Length && css[i + 1] == '*')
+            {
+                var end = css.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                var keep = i + 2 < css.Length && css[i + 2] == '!';
+                if (keep) sb.Append(css, i, (end < 0 ? css.Length : end + 2) - i);
+                i = end < 0 ? css.Length : end + 2;
+                continue;
+            }
+            if (c is '"' or '\'')
+            {
+                if (pendingSpace) { sb.Append(' '); pendingSpace = false; }
+                var j = i + 1;
+                while (j < css.Length && css[j] != c) { if (css[j] == '\\') j++; j++; }
+                j = Math.Min(j, css.Length - 1);
+                sb.Append(css, i, j - i + 1);
+                i = j + 1;
+                continue;
+            }
+            if (char.IsWhiteSpace(c))
+            {
+                pendingSpace = sb.Length > 0;
+                i++;
+                continue;
+            }
+            if ("{};,>~".Contains(c))
+            {
+                pendingSpace = false;
+                if (c == '}' && sb.Length > 0 && sb[^1] == ';') sb.Length--;
+                sb.Append(c);
+                i++;
+                while (i < css.Length && char.IsWhiteSpace(css[i])) i++;
+                continue;
+            }
+            if (pendingSpace && sb.Length > 0 && !"{}:;,>~".Contains(sb[^1])) sb.Append(' ');
+            pendingSpace = false;
+            sb.Append(c);
+            i++;
+        }
+        return sb.ToString().Trim();
+    }
+
+    private static readonly Regex HtmlComment = new(@"<!--(?!\[if|<!|>)[\s\S]*?-->", RegexOptions.Compiled);
+    private static readonly Regex Preserved = new(@"<(pre|textarea|script|style)\b[\s\S]*?</\1>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex Whitespace = new(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex BetweenTags = new(@">\s+<", RegexOptions.Compiled);
+
+    private static string MinifyHtml(string html)
+    {
+        html = HtmlComment.Replace(html, "");
+        var blocks = new List<string>();
+        html = Preserved.Replace(html, m =>
+        {
+            var tag = m.Groups[1].Value.ToLowerInvariant();
+            var value = m.Value;
+            if (tag == "style")
+            {
+                var open = value.IndexOf('>') + 1;
+                var close = value.LastIndexOf("</", StringComparison.Ordinal);
+                value = value[..open] + MinifyCss(value[open..close]) + value[close..];
+            }
+            blocks.Add(value);
+            return $"\u0000{blocks.Count - 1}\u0000";
+        });
+        html = Whitespace.Replace(html, " ");
+        html = BetweenTags.Replace(html, "> <");
+        html = html.Replace("> <", "><");
+        html = Regex.Replace(html, "\u0000(\\d+)\u0000", m => blocks[int.Parse(m.Groups[1].Value)]);
+        return html.Trim();
+    }
+}

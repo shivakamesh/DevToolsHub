@@ -1,0 +1,113 @@
+@page "/mermaid-editor"
+@inject IJSRuntime JS
+
+<ToolPage Title="Mermaid Diagram Editor" Description="Write Mermaid diagrams with a live preview and export them to SVG or PNG." ShareValue="@source">
+    <div class="chips">
+        @foreach (var s in Samples)
+        {
+            <button class="chip" @onclick="() => LoadSampleAsync(s.Value)">@s.Key</button>
+        }
+    </div>
+    <div class="split">
+        <textarea class="io" rows="22" spellcheck="false" @bind="source" @bind:event="oninput" @bind:after="ScheduleRender"></textarea>
+        <div class="mermaid-preview glass" style="background:@(theme == "dark" ? "#1e1e2e" : "#ffffff")" @ref="preview"></div>
+    </div>
+
+    <div class="toolbar">
+        <label>Theme
+            <select @bind="theme" @bind:after="RenderAsync">
+                <option value="default">Default</option>
+                <option value="neutral">Neutral</option>
+                <option value="forest">Forest</option>
+                <option value="dark">Dark</option>
+            </select>
+        </label>
+        <button class="btn" @onclick="ExportSvgAsync">⬇ SVG</button>
+        <button class="btn secondary" @onclick="ExportPngAsync">⬇ PNG</button>
+        <CopyButton Text="@source" />
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error pre">@error</div>
+    }
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    private static readonly Dictionary<string, string> Samples = new()
+    {
+        ["Flowchart"] = "flowchart TD\n    A[Start] --> B{Is it working?}\n    B -- Yes --> C[Ship it 🚀]\n    B -- No --> D[Debug]\n    D --> B",
+        ["Sequence"] = "sequenceDiagram\n    participant U as User\n    participant A as API\n    participant D as Database\n    U->>A: POST /login\n    A->>D: Find user\n    D-->>A: User record\n    A-->>U: 200 OK + JWT",
+        ["Class"] = "classDiagram\n    class Animal {\n        +string Name\n        +Speak() string\n    }\n    class Dog\n    class Cat\n    Animal <|-- Dog\n    Animal <|-- Cat",
+        ["ER"] = "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    ORDER ||--|{ LINE_ITEM : contains\n    PRODUCT ||--o{ LINE_ITEM : \"ordered in\"",
+        ["State"] = "stateDiagram-v2\n    [*] --> Draft\n    Draft --> Review\n    Review --> Published\n    Review --> Draft\n    Published --> [*]",
+        ["Gantt"] = "gantt\n    title Release plan\n    dateFormat YYYY-MM-DD\n    section Build\n    Design      :a1, 2025-01-01, 7d\n    Develop     :a2, after a1, 14d\n    section Ship\n    Test        :after a2, 5d\n    Launch      :milestone, 2025-01-28, 0d",
+        ["Pie"] = "pie title Languages\n    \"C#\" : 45\n    \"TypeScript\" : 30\n    \"Python\" : 25",
+        ["Git"] = "gitGraph\n    commit\n    branch feature\n    checkout feature\n    commit\n    commit\n    checkout main\n    merge feature\n    commit",
+    };
+
+    private ElementReference preview;
+    private string source = Samples["Flowchart"];
+    private string theme = "default";
+    private string? error;
+    private CancellationTokenSource? debounce;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(Q)) source = Q;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await RenderAsync();
+    }
+
+    private async Task LoadSampleAsync(string sample)
+    {
+        source = sample;
+        await RenderAsync();
+    }
+
+    private async Task ScheduleRender()
+    {
+        debounce?.Cancel();
+        debounce = new CancellationTokenSource();
+        var token = debounce.Token;
+        try
+        {
+            await Task.Delay(350, token);
+            await RenderAsync();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task RenderAsync()
+    {
+        if (string.IsNullOrWhiteSpace(source)) { error = null; return; }
+        try
+        {
+            error = await JS.InvokeAsync<string?>("devExtra.renderMermaid", preview, source, theme);
+        }
+        catch (JSException ex)
+        {
+            error = ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    private async Task ExportSvgAsync() => await JS.InvokeVoidAsync("devExtra.exportSvg", preview, "diagram.svg");
+
+    private async Task ExportPngAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("devExtra.exportSvgPng", preview, "diagram.png", 2, theme == "dark" ? "#1e1e2e" : "#ffffff");
+        }
+        catch (JSException ex)
+        {
+            error = ex.Message;
+        }
+    }
+}

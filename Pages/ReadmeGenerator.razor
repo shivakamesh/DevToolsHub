@@ -1,0 +1,143 @@
+@page "/readme-generator"
+@using System.Text
+@using Markdig
+
+<ToolPage Title="README Generator" Description="Create a professional GitHub README.md with badges, sections and a live preview.">
+    <div class="split">
+        <div class="sliders">
+            <label>Project name</label>
+            <input class="io" @bind="name" @bind:event="oninput" />
+            <label>Short description</label>
+            <textarea class="io" rows="2" @bind="description" @bind:event="oninput"></textarea>
+            <label>GitHub repository <span class="muted">(owner/repo, used for badges)</span></label>
+            <input class="io" placeholder="octocat/hello-world" @bind="repo" @bind:event="oninput" />
+            <label>Features <span class="muted">(one per line)</span></label>
+            <textarea class="io" rows="4" @bind="features" @bind:event="oninput"></textarea>
+            <label>Installation</label>
+            <textarea class="io" rows="3" spellcheck="false" @bind="install" @bind:event="oninput"></textarea>
+            <label>Usage</label>
+            <textarea class="io" rows="3" spellcheck="false" @bind="usage" @bind:event="oninput"></textarea>
+            <label>Tech stack <span class="muted">(comma separated)</span></label>
+            <input class="io" @bind="stack" @bind:event="oninput" />
+            <div class="toolbar">
+                <label>License
+                    <select @bind="license">
+                        <option>MIT</option><option>Apache-2.0</option><option>GPL-3.0</option><option>BSD-3-Clause</option><option>Unlicense</option><option value="">None</option>
+                    </select>
+                </label>
+                <label>Author <input @bind="author" @bind:event="oninput" /></label>
+            </div>
+            <div class="toolbar">
+                <label><input type="checkbox" @bind="badges" /> Badges</label>
+                <label><input type="checkbox" @bind="toc" /> Table of contents</label>
+                <label><input type="checkbox" @bind="contributing" /> Contributing</label>
+                <label><input type="checkbox" @bind="screenshot" /> Screenshot</label>
+            </div>
+        </div>
+        <div>
+            <div class="chips">
+                <button class="chip @(!preview ? "on" : "")" @onclick="() => preview = false">Markdown</button>
+                <button class="chip @(preview ? "on" : "")" @onclick="() => preview = true">Preview</button>
+                <CopyButton Text="@Markdown" />
+                <button class="btn secondary" @onclick="DownloadAsync">⬇ README.md</button>
+            </div>
+            @if (preview)
+            {
+                <div class="markdown-body glass">@((MarkupString)Html)</div>
+            }
+            else
+            {
+                <textarea class="io" rows="34" readonly spellcheck="false">@Markdown</textarea>
+            }
+        </div>
+    </div>
+</ToolPage>
+
+@code {
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().DisableHtml().Build();
+
+    private string name = "Awesome Project";
+    private string description = "A short, catchy description of what this project does and who it is for.";
+    private string repo = "";
+    private string features = "Fast and lightweight\nWorks offline\nZero configuration";
+    private string install = "npm install awesome-project";
+    private string usage = "npx awesome-project --help";
+    private string stack = "TypeScript, Node.js";
+    private string license = "MIT";
+    private string author = "";
+    private bool badges = true;
+    private bool toc = true;
+    private bool contributing = true;
+    private bool screenshot;
+    private bool preview = true;
+
+    private string Html => Markdig.Markdown.ToHtml(Markdown, Pipeline);
+
+    private static string Anchor(string heading) => heading.ToLowerInvariant().Replace(' ', '-');
+
+    private string Markdown
+    {
+        get
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"# {name}");
+            sb.AppendLine();
+            var hasRepo = repo.Contains('/');
+            if (badges)
+            {
+                var b = new List<string>();
+                if (!string.IsNullOrEmpty(license)) b.Add($"![License](https://img.shields.io/badge/license-{license.Replace("-", "--")}-blue.svg)");
+                if (hasRepo)
+                {
+                    b.Add($"![Stars](https://img.shields.io/github/stars/{repo}?style=social)");
+                    b.Add($"![Issues](https://img.shields.io/github/issues/{repo})");
+                    b.Add($"![Last commit](https://img.shields.io/github/last-commit/{repo})");
+                }
+                if (b.Count > 0) { sb.AppendLine(string.Join(" ", b)); sb.AppendLine(); }
+            }
+            if (!string.IsNullOrWhiteSpace(description)) { sb.AppendLine(description.Trim()); sb.AppendLine(); }
+            if (screenshot) { sb.AppendLine("![Screenshot](docs/screenshot.png)"); sb.AppendLine(); }
+
+            var sections = new List<(string Title, string Body)>();
+            var featureLines = features.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (featureLines.Length > 0) sections.Add(("Features", string.Join("\n", featureLines.Select(f => "- " + f))));
+            var tech = stack.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (tech.Length > 0) sections.Add(("Tech stack", string.Join("\n", tech.Select(t => "- " + t))));
+            if (!string.IsNullOrWhiteSpace(install))
+            {
+                var clone = hasRepo ? $"git clone https://github.com/{repo}.git\ncd {repo.Split('/')[1]}\n" : "";
+                sections.Add(("Installation", $"```bash\n{clone}{install.Trim()}\n```"));
+            }
+            if (!string.IsNullOrWhiteSpace(usage)) sections.Add(("Usage", $"```bash\n{usage.Trim()}\n```"));
+            if (contributing)
+            {
+                sections.Add(("Contributing",
+                    "Contributions are welcome!\n\n1. Fork the repository\n2. Create a feature branch (`git checkout -b feature/amazing-feature`)\n3. Commit your changes (`git commit -m 'Add amazing feature'`)\n4. Push the branch (`git push origin feature/amazing-feature`)\n5. Open a pull request"));
+            }
+            if (!string.IsNullOrEmpty(license))
+                sections.Add(("License", $"Distributed under the {license} License. See `LICENSE` for more information."));
+            if (!string.IsNullOrWhiteSpace(author))
+                sections.Add(("Author", hasRepo ? $"**{author}** – [GitHub](https://github.com/{repo.Split('/')[0]})" : $"**{author}**"));
+
+            if (toc && sections.Count > 2)
+            {
+                sb.AppendLine("## Table of contents");
+                sb.AppendLine();
+                foreach (var s in sections) sb.AppendLine($"- [{s.Title}](#{Anchor(s.Title)})");
+                sb.AppendLine();
+            }
+            foreach (var s in sections)
+            {
+                sb.AppendLine($"## {s.Title}");
+                sb.AppendLine();
+                sb.AppendLine(s.Body);
+                sb.AppendLine();
+            }
+            return sb.ToString().TrimEnd() + "\n";
+        }
+    }
+
+    private async Task DownloadAsync() => await JS.InvokeVoidAsync("devTools.downloadText", "README.md", "text/markdown", Markdown);
+}

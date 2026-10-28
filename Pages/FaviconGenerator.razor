@@ -1,0 +1,197 @@
+@page "/favicon-generator"
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<ToolPage Title="Favicon Generator" Description="Create favicon.ico, PNG icons, Apple touch icon and web manifest from an image, text or emoji.">
+    <div class="chips">
+        <button class="chip @(source == "text" ? "on" : "")" @onclick='() => SetSourceAsync("text")'>Text / emoji</button>
+        <button class="chip @(source == "image" ? "on" : "")" @onclick='() => SetSourceAsync("image")'>Image</button>
+    </div>
+
+    @if (source == "image")
+    {
+        <label class="dropzone glass">
+            <input type="file" accept="image/*" @ref="fileInput" @onchange="PickAsync" hidden />
+            <span>📁 @(image is null ? "Click to choose a square image (PNG or SVG works best)" : image.Name)</span>
+        </label>
+    }
+
+    <div class="toolbar">
+        @if (source == "text")
+        {
+            <label>Text <input class="small-input" maxlength="4" @bind="text" @bind:event="oninput" @bind:after="RenderAsync" /></label>
+            <label>Text color <input type="color" @bind="foreground" @bind:after="RenderAsync" /></label>
+        }
+        <label><input type="checkbox" @bind="useBackground" @bind:after="RenderAsync" /> Background</label>
+        @if (useBackground)
+        {
+            <label><input type="color" @bind="background" @bind:after="RenderAsync" /></label>
+            <label>Rounded <input type="range" min="0" max="50" @bind="radius" @bind:event="oninput" @bind:after="RenderAsync" /></label>
+        }
+        <label>Padding <input type="range" min="0" max="30" @bind="padding" @bind:event="oninput" @bind:after="RenderAsync" /></label>
+    </div>
+
+    <div class="toolbar">
+        <label>App name <input @bind="appName" @bind:event="oninput" /></label>
+        <label>Theme color <input type="color" @bind="themeColor" /></label>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+
+    @if (icons.Length > 0)
+    {
+        <div class="favicon-grid">
+            @foreach (var i in icons)
+            {
+                <figure class="glass">
+                    <img src="@i.Url" alt="" style="width:@(Math.Min(i.Size, 96))px;height:@(Math.Min(i.Size, 96))px;image-rendering:@(i.Size < 48 ? "pixelated" : "auto")" />
+                    <figcaption class="muted">@FileName(i.Size)</figcaption>
+                </figure>
+            }
+        </div>
+        <div class="toolbar">
+            <button class="btn" @onclick="DownloadZipAsync">⬇ Download favicon package (.zip)</button>
+        </div>
+
+        <h3>HTML <CopyButton Text="@HtmlSnippet" /></h3>
+        <textarea class="io" rows="6" readonly>@HtmlSnippet</textarea>
+        <h3>site.webmanifest <CopyButton Text="@Manifest" /></h3>
+        <textarea class="io" rows="10" readonly>@Manifest</textarea>
+    }
+</ToolPage>
+
+@code {
+    private static readonly int[] Sizes = [16, 32, 48, 180, 192, 512];
+
+    private sealed class Picked
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string Url { get; set; } = "";
+    }
+
+    private sealed class Icon
+    {
+        public int Size { get; set; }
+        public string Url { get; set; } = "";
+    }
+
+    private ElementReference fileInput;
+    private string source = "text";
+    private Picked? image;
+    private string text = "D";
+    private string foreground = "#ffffff";
+    private string background = "#7c5cff";
+    private bool useBackground = true;
+    private int radius = 22;
+    private int padding = 12;
+    private string appName = "My App";
+    private string themeColor = "#7c5cff";
+    private Icon[] icons = [];
+    private string? error;
+
+    private static string FileName(int size) => size switch
+    {
+        180 => "apple-touch-icon.png",
+        192 => "android-chrome-192x192.png",
+        512 => "android-chrome-512x512.png",
+        _ => $"favicon-{size}x{size}.png",
+    };
+
+    private string HtmlSnippet => string.Join("\n",
+        "<link rel=\"icon\" href=\"/favicon.ico\" sizes=\"48x48\" />",
+        "<link rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/favicon-32x32.png\" />",
+        "<link rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/favicon-16x16.png\" />",
+        "<link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"/apple-touch-icon.png\" />",
+        "<link rel=\"manifest\" href=\"/site.webmanifest\" />",
+        $"<meta name=\"theme-color\" content=\"{themeColor}\" />");
+
+    private string Manifest => System.Text.Json.JsonSerializer.Serialize(new
+    {
+        name = appName,
+        short_name = appName.Length > 12 ? appName[..12] : appName,
+        icons = new[]
+        {
+            new { src = "/android-chrome-192x192.png", sizes = "192x192", type = "image/png" },
+            new { src = "/android-chrome-512x512.png", sizes = "512x512", type = "image/png" },
+        },
+        theme_color = themeColor,
+        background_color = useBackground ? background : "#ffffff",
+        display = "standalone",
+    }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await RenderAsync();
+    }
+
+    private async Task SetSourceAsync(string s)
+    {
+        source = s;
+        await RenderAsync();
+    }
+
+    private async Task PickAsync()
+    {
+        var picked = await JS.InvokeAsync<Picked[]>("devExtra.pickFiles", fileInput);
+        if (picked.Length == 0) return;
+        if (!picked[0].Type.StartsWith("image/"))
+        {
+            error = "Please choose an image file.";
+            await JS.InvokeVoidAsync("devExtra.releaseFile", picked[0].Id);
+            return;
+        }
+        if (image is not null) await JS.InvokeVoidAsync("devExtra.releaseFile", image.Id);
+        image = picked[0];
+        await RenderAsync();
+    }
+
+    private async Task RenderAsync()
+    {
+        error = null;
+        try
+        {
+            await RevokeIconsAsync();
+            if (source == "image" && image is null) return;
+            icons = await JS.InvokeAsync<Icon[]>("devExtra.renderFavicons",
+                source == "image" ? image!.Id : null, text, useBackground ? background : null, foreground, radius, padding, Sizes);
+        }
+        catch (JSException ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private async Task DownloadZipAsync()
+    {
+        var icoSizes = new[] { 16, 32, 48 };
+        var icoUrl = await JS.InvokeAsync<string>("devExtra.buildIco", icons.Where(i => icoSizes.Contains(i.Size)).Select(i => i.Url).ToArray(), icoSizes);
+        var entries = new List<object> { new { name = "favicon.ico", url = icoUrl } };
+        entries.AddRange(icons.Where(i => i.Size != 48).Select(i => new { name = FileName(i.Size), url = i.Url }));
+        entries.Add(new { name = "site.webmanifest", text = Manifest });
+        entries.Add(new { name = "favicon-snippet.html", text = HtmlSnippet });
+        await JS.InvokeVoidAsync("devExtra.downloadZip", entries, "favicon.zip");
+        await JS.InvokeVoidAsync("devExtra.revoke", icoUrl);
+    }
+
+    private async Task RevokeIconsAsync()
+    {
+        foreach (var i in icons) await JS.InvokeVoidAsync("devExtra.revoke", i.Url);
+        icons = [];
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await RevokeIconsAsync();
+            if (image is not null) await JS.InvokeVoidAsync("devExtra.releaseFile", image.Id);
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+}

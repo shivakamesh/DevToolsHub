@@ -1,0 +1,173 @@
+@page "/markdown-table-generator"
+@using System.Text
+
+<ToolPage Title="Markdown Table Generator" Description="Build Markdown tables visually or convert CSV, TSV and Excel data to Markdown.">
+    <div class="toolbar">
+        <button class="btn secondary" @onclick="AddRow">+ Row</button>
+        <button class="btn secondary" @onclick="AddColumn">+ Column</button>
+        <button class="btn secondary" disabled="@(rows.Count <= 1)" @onclick="() => { rows.RemoveAt(rows.Count - 1); }">− Row</button>
+        <button class="btn secondary" disabled="@(columns <= 1)" @onclick="RemoveColumn">− Column</button>
+        <label><input type="checkbox" @bind="compact" /> Compact (no padding)</label>
+        <button class="btn secondary" @onclick="() => showImport = !showImport">📋 Import CSV / Excel</button>
+    </div>
+
+    @if (showImport)
+    {
+        <textarea class="io" rows="6" placeholder="Paste CSV, TSV or cells copied from Excel / Google Sheets. The first row becomes the header." @bind="importText"></textarea>
+        <div class="toolbar">
+            <button class="btn" @onclick="Import">Import</button>
+        </div>
+    }
+
+    <div style="overflow:auto">
+        <table class="table md-grid">
+            <thead>
+                <tr>
+                    @for (var c = 0; c < columns; c++)
+                    {
+                        var col = c;
+                        <th>
+                            <select @bind="align[col]" title="Alignment">
+                                <option value="">—</option>
+                                <option value="left">Left</option>
+                                <option value="center">Center</option>
+                                <option value="right">Right</option>
+                            </select>
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @for (var r = 0; r < rows.Count; r++)
+                {
+                    var row = rows[r];
+                    <tr class="@(r == 0 ? "md-header" : "")">
+                        @for (var c = 0; c < columns; c++)
+                        {
+                            var col = c;
+                            <td><input @bind="row[col]" @bind:event="oninput" placeholder="@(r == 0 ? $"Header {col + 1}" : "")" /></td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Markdown <CopyButton Text="@Markdown" /></h3>
+    <textarea class="io" rows="10" readonly spellcheck="false">@Markdown</textarea>
+</ToolPage>
+
+@code {
+    private int columns = 3;
+    private List<string[]> rows =
+    [
+        ["Tool", "Category", "Free"],
+        ["JSON Formatter", "Format", "Yes"],
+        ["cURL to Code", "Convert", "Yes"],
+    ];
+    private string[] align = ["", "", "center"];
+    private bool compact;
+    private bool showImport;
+    private string importText = "";
+
+    private void AddRow() => rows.Add(new string[columns]);
+
+    private void AddColumn()
+    {
+        columns++;
+        rows = rows.Select(r => { var n = r; Array.Resize(ref n, columns); return n; }).ToList();
+        Array.Resize(ref align, columns);
+    }
+
+    private void RemoveColumn()
+    {
+        columns--;
+        rows = rows.Select(r => r[..columns]).ToList();
+        align = align[..columns];
+    }
+
+    private void Import()
+    {
+        var lines = importText.Replace("\r\n", "\n").Split('\n').Where(l => l.Trim().Length > 0).ToList();
+        if (lines.Count == 0) return;
+        var separator = lines[0].Contains('\t') ? '\t' : lines[0].Count(c => c == ';') > lines[0].Count(c => c == ',') ? ';' : ',';
+        var parsed = lines.Select(l => ParseLine(l, separator)).ToList();
+        columns = parsed.Max(p => p.Length);
+        rows = parsed.Select(p => { var n = p; Array.Resize(ref n, columns); return n; }).ToList();
+        align = new string[columns];
+        showImport = false;
+    }
+
+    private static string[] ParseLine(string line, char sep)
+    {
+        var cells = new List<string>();
+        var sb = new StringBuilder();
+        var quoted = false;
+        for (var i = 0; i < line.Length; i++)
+        {
+            var c = line[i];
+            if (quoted)
+            {
+                if (c == '"' && i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i++; }
+                else if (c == '"') quoted = false;
+                else sb.Append(c);
+            }
+            else if (c == '"' && sb.Length == 0) quoted = true;
+            else if (c == sep) { cells.Add(sb.ToString().Trim()); sb.Clear(); }
+            else sb.Append(c);
+        }
+        cells.Add(sb.ToString().Trim());
+        return cells.ToArray();
+    }
+
+    private static string Escape(string? s) => (s ?? "").Replace("|", "\\|").Replace("\n", " ");
+
+    private string Markdown
+    {
+        get
+        {
+            var data = rows.Select(r => Enumerable.Range(0, columns).Select(c => Escape(c < r.Length ? r[c] : "")).ToArray()).ToList();
+            var widths = Enumerable.Range(0, columns).Select(c => compact ? 0 : Math.Max(3, data.Max(r => r[c].Length))).ToArray();
+            var sb = new StringBuilder();
+            for (var r = 0; r < data.Count; r++)
+            {
+                sb.Append('|');
+                for (var c = 0; c < columns; c++)
+                {
+                    var cell = data[r][c];
+                    var a = align.ElementAtOrDefault(c);
+                    var padded = compact ? cell : a == "right" ? cell.PadLeft(widths[c]) : a == "center" ? Center(cell, widths[c]) : cell.PadRight(widths[c]);
+                    sb.Append(compact ? padded : $" {padded} ").Append('|');
+                }
+                sb.AppendLine();
+                if (r == 0)
+                {
+                    sb.Append('|');
+                    for (var c = 0; c < columns; c++)
+                    {
+                        var w = Math.Max(3, widths[c]);
+                        var a = align.ElementAtOrDefault(c);
+                        var dash = a switch
+                        {
+                            "left" => ":" + new string('-', w - 1),
+                            "center" => ":" + new string('-', w - 2) + ":",
+                            "right" => new string('-', w - 1) + ":",
+                            _ => new string('-', w),
+                        };
+                        sb.Append(compact ? dash : $" {dash} ").Append('|');
+                    }
+                    sb.AppendLine();
+                }
+            }
+            return sb.ToString();
+        }
+    }
+
+    private static string Center(string s, int width)
+    {
+        var total = width - s.Length;
+        if (total <= 0) return s;
+        var left = total / 2;
+        return new string(' ', left) + s + new string(' ', total - left);
+    }
+}

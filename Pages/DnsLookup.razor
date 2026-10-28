@@ -1,0 +1,169 @@
+@page "/dns-lookup"
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@inject HttpClient Http
+
+<ToolPage Title="DNS Lookup" Description="Look up A, AAAA, CNAME, MX, TXT, NS, SOA and CAA records for any domain." ShareValue="@domain">
+    <div class="toolbar">
+        <input class="io" style="flex:1;min-width:14rem" placeholder="example.com" @bind="domain" @bind:event="oninput" @onkeydown="OnKeyAsync" />
+        <select @bind="type">
+            <option value="ALL">All common</option>
+            @foreach (var t in Types) { <option value="@t">@t</option> }
+            <option value="PTR">PTR (reverse)</option>
+        </select>
+        <button class="btn" disabled="@(loading || string.IsNullOrWhiteSpace(domain))" @onclick="LookupAsync">@(loading ? "Looking up…" : "Look up")</button>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+
+    @if (results.Count > 0)
+    {
+        <table class="table">
+            <thead><tr><th>Type</th><th>Name</th><th>Value</th><th>TTL</th></tr></thead>
+            <tbody>
+                @foreach (var r in results)
+                {
+                    <tr>
+                        <td><span class="badge">@r.Type</span></td>
+                        <td class="break">@r.Name</td>
+                        <td class="break">@r.Data</td>
+                        <td>@r.Ttl</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else if (searched && !loading && error is null)
+    {
+        <p class="empty">No records found.</p>
+    }
+    <p class="muted">Queries are resolved with Google Public DNS over HTTPS directly from your browser.</p>
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    private static readonly string[] Types = ["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SOA", "CAA", "SRV"];
+    private static readonly Dictionary<int, string> TypeNames = new()
+    {
+        [1] = "A", [2] = "NS", [5] = "CNAME", [6] = "SOA", [12] = "PTR", [15] = "MX", [16] = "TXT", [28] = "AAAA", [33] = "SRV", [257] = "CAA", [65] = "HTTPS",
+    };
+    private static readonly Dictionary<int, string> RCodes = new()
+    {
+        [1] = "Format error", [2] = "Server failure", [3] = "Domain does not exist (NXDOMAIN)", [4] = "Not implemented", [5] = "Query refused",
+    };
+
+    private sealed class DohResponse
+    {
+        [JsonPropertyName("Status")] public int Status { get; set; }
+        [JsonPropertyName("Answer")] public List<DohAnswer>? Answer { get; set; }
+    }
+
+    private sealed class DohAnswer
+    {
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+        [JsonPropertyName("type")] public int Type { get; set; }
+        [JsonPropertyName("TTL")] public int Ttl { get; set; }
+        [JsonPropertyName("data")] public string Data { get; set; } = "";
+    }
+
+    private sealed record Row(string Type, string Name, string Data, int Ttl);
+
+    private string domain = "";
+    private string type = "ALL";
+    private readonly List<Row> results = [];
+    private bool loading;
+    private bool searched;
+    private string? error;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !string.IsNullOrWhiteSpace(Q))
+        {
+            domain = Q;
+            await LookupAsync();
+        }
+    }
+
+    private async Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LookupAsync();
+    }
+
+    private async Task LookupAsync()
+    {
+        var name = Normalize(domain);
+        if (name.Length == 0) return;
+        loading = true;
+        searched = true;
+        error = null;
+        results.Clear();
+        StateHasChanged();
+
+        var queryType = type;
+        if (System.Net.IPAddress.TryParse(name, out var ip))
+        {
+            name = ReverseName(ip);
+            queryType = "PTR";
+        }
+
+        var types = queryType == "ALL" ? new[] { "A", "AAAA", "CNAME", "MX", "TXT", "NS", "SOA", "CAA" } : [queryType];
+        var tasks = types.Select(t => QueryAsync(name, t)).ToList();
+        var seen = new HashSet<(int, string)>();
+        foreach (var task in tasks)
+        {
+            var (response, failure) = await task;
+            if (failure is not null) { error = failure; continue; }
+            if (response is null) continue;
+            if (response.Status != 0 && response.Status != 3)
+            {
+                error = RCodes.GetValueOrDefault(response.Status, $"DNS error {response.Status}");
+                continue;
+            }
+            if (response.Status == 3)
+            {
+                error = RCodes[3];
+                break;
+            }
+            foreach (var a in response.Answer ?? [])
+            {
+                if (seen.Add((a.Type, a.Data)))
+                    results.Add(new Row(TypeNames.GetValueOrDefault(a.Type, a.Type.ToString()), a.Name.TrimEnd('.'), a.Data, a.Ttl));
+            }
+        }
+
+        loading = false;
+        StateHasChanged();
+    }
+
+    private async Task<(DohResponse? Response, string? Error)> QueryAsync(string name, string t)
+    {
+        try
+        {
+            var url = $"https://dns.google/resolve?name={Uri.EscapeDataString(name)}&type={t}";
+            return (await Http.GetFromJsonAsync<DohResponse>(url), null);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException)
+        {
+            return (null, "The DNS service could not be reached. Check your connection or try again.");
+        }
+    }
+
+    private static string Normalize(string input)
+    {
+        var s = input.Trim();
+        if (Uri.TryCreate(s, UriKind.Absolute, out var u) && u.Host.Length > 0 && s.Contains("://")) s = u.Host;
+        return s.Trim('/').TrimEnd('.').ToLowerInvariant();
+    }
+
+    private static string ReverseName(System.Net.IPAddress ip)
+    {
+        var bytes = ip.GetAddressBytes();
+        if (bytes.Length == 4) return string.Join(".", bytes.Reverse()) + ".in-addr.arpa";
+        var hex = Convert.ToHexString(bytes).ToLowerInvariant();
+        return string.Join(".", hex.Reverse()) + ".ip6.arpa";
+    }
+}

@@ -1,0 +1,148 @@
+@page "/meta-tag-generator"
+@using System.Net
+
+<ToolPage Title="Meta Tag and Open Graph Generator" Description="Generate SEO, Open Graph and Twitter Card meta tags with live social previews.">
+    <div class="split">
+        <div class="sliders">
+            <label>Title <span class="muted">(@title.Length/60)</span></label>
+            <input class="io" @bind="title" @bind:event="oninput" />
+            <label>Description <span class="muted">(@description.Length/160)</span></label>
+            <textarea class="io" rows="3" @bind="description" @bind:event="oninput"></textarea>
+            <label>Page URL</label>
+            <input class="io" @bind="url" @bind:event="oninput" />
+            <label>Image URL <span class="muted">(1200×630 recommended)</span></label>
+            <input class="io" @bind="image" @bind:event="oninput" />
+            <label>Site name</label>
+            <input class="io" @bind="siteName" @bind:event="oninput" />
+            <label>Twitter / X handle</label>
+            <input class="io" placeholder="@@yourhandle" @bind="twitter" @bind:event="oninput" />
+            <div class="toolbar">
+                <label>Type
+                    <select @bind="type">
+                        <option>website</option><option>article</option><option>product</option><option>profile</option>
+                    </select>
+                </label>
+                <label>Card
+                    <select @bind="card">
+                        <option value="summary_large_image">Large image</option>
+                        <option value="summary">Summary</option>
+                    </select>
+                </label>
+                <label>Theme color <input type="color" @bind="themeColor" /></label>
+            </div>
+        </div>
+        <div>
+            <h3>HTML <CopyButton Text="@Html" /></h3>
+            <textarea class="io" rows="22" readonly spellcheck="false">@Html</textarea>
+        </div>
+    </div>
+
+    @if (title.Length > 60) { <div class="alert error">Titles longer than 60 characters are usually truncated in search results.</div> }
+    @if (description.Length > 160) { <div class="alert error">Descriptions longer than 160 characters are usually truncated.</div> }
+
+    <h2>Previews</h2>
+    <div class="meta-previews">
+        <div>
+            <h3>Google</h3>
+            <div class="mp-google glass">
+                <div class="mp-g-url">@Host</div>
+                <div class="mp-g-title">@Truncate(title, 60)</div>
+                <div class="mp-g-desc">@Truncate(description, 160)</div>
+            </div>
+        </div>
+        <div>
+            <h3>X (Twitter)</h3>
+            <div class="mp-card @(card == "summary" ? "mp-small" : "")">
+                @if (!string.IsNullOrWhiteSpace(image)) { <img src="@image" alt="" /> }
+                <div class="mp-body">
+                    <div class="mp-host">@Host</div>
+                    <div class="mp-title">@title</div>
+                    @if (card == "summary") { <div class="mp-desc">@Truncate(description, 100)</div> }
+                </div>
+            </div>
+        </div>
+        <div>
+            <h3>Facebook / LinkedIn</h3>
+            <div class="mp-card">
+                @if (!string.IsNullOrWhiteSpace(image)) { <img src="@image" alt="" /> }
+                <div class="mp-body">
+                    <div class="mp-host">@Host.ToUpperInvariant()</div>
+                    <div class="mp-title">@title</div>
+                    <div class="mp-desc">@Truncate(description, 110)</div>
+                </div>
+            </div>
+        </div>
+        <div>
+            <h3>Slack / Discord</h3>
+            <div class="mp-slack" style="border-color:@themeColor">
+                <div class="mp-host">@(string.IsNullOrWhiteSpace(siteName) ? Host : siteName)</div>
+                <div class="mp-title mp-link">@title</div>
+                <div class="mp-desc">@description</div>
+                @if (!string.IsNullOrWhiteSpace(image)) { <img src="@image" alt="" /> }
+            </div>
+        </div>
+    </div>
+</ToolPage>
+
+@code {
+    private string title = "It's All Dev Tools – Free Online Developer Tools";
+    private string description = "Format JSON, decode JWTs, test regex, convert cURL to code and 80+ more free tools that run 100% in your browser.";
+    private string url = "https://www.itsalldevtools.com/";
+    private string image = "https://www.itsalldevtools.com/og-image.png";
+    private string siteName = "It's All Dev Tools";
+    private string twitter = "";
+    private string type = "website";
+    private string card = "summary_large_image";
+    private string themeColor = "#7c5cff";
+
+    private string Host => Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.Host : url;
+
+    private static string Truncate(string s, int n) => s.Length <= n ? s : s[..(n - 1)].TrimEnd() + "…";
+
+    private static string E(string s) => WebUtility.HtmlEncode(s);
+
+    private string Html
+    {
+        get
+        {
+            var lines = new List<string>
+            {
+                "<!-- Primary meta tags -->",
+                $"<title>{E(title)}</title>",
+                $"<meta name=\"title\" content=\"{E(title)}\" />",
+                $"<meta name=\"description\" content=\"{E(description)}\" />",
+            };
+            if (!string.IsNullOrWhiteSpace(url)) lines.Add($"<link rel=\"canonical\" href=\"{E(url)}\" />");
+            lines.Add($"<meta name=\"theme-color\" content=\"{themeColor}\" />");
+            lines.Add("");
+            lines.Add("<!-- Open Graph / Facebook / LinkedIn -->");
+            lines.Add($"<meta property=\"og:type\" content=\"{type}\" />");
+            if (!string.IsNullOrWhiteSpace(url)) lines.Add($"<meta property=\"og:url\" content=\"{E(url)}\" />");
+            lines.Add($"<meta property=\"og:title\" content=\"{E(title)}\" />");
+            lines.Add($"<meta property=\"og:description\" content=\"{E(description)}\" />");
+            if (!string.IsNullOrWhiteSpace(siteName)) lines.Add($"<meta property=\"og:site_name\" content=\"{E(siteName)}\" />");
+            if (!string.IsNullOrWhiteSpace(image))
+            {
+                lines.Add($"<meta property=\"og:image\" content=\"{E(image)}\" />");
+                if (card == "summary_large_image")
+                {
+                    lines.Add("<meta property=\"og:image:width\" content=\"1200\" />");
+                    lines.Add("<meta property=\"og:image:height\" content=\"630\" />");
+                }
+            }
+            lines.Add("");
+            lines.Add("<!-- Twitter / X -->");
+            lines.Add($"<meta name=\"twitter:card\" content=\"{card}\" />");
+            if (!string.IsNullOrWhiteSpace(twitter))
+            {
+                var handle = twitter.StartsWith('@') ? twitter : "@" + twitter;
+                lines.Add($"<meta name=\"twitter:site\" content=\"{E(handle)}\" />");
+                lines.Add($"<meta name=\"twitter:creator\" content=\"{E(handle)}\" />");
+            }
+            lines.Add($"<meta name=\"twitter:title\" content=\"{E(title)}\" />");
+            lines.Add($"<meta name=\"twitter:description\" content=\"{E(description)}\" />");
+            if (!string.IsNullOrWhiteSpace(image)) lines.Add($"<meta name=\"twitter:image\" content=\"{E(image)}\" />");
+            return string.Join("\n", lines);
+        }
+    }
+}
