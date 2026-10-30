@@ -12,6 +12,7 @@
     var q = Questions[index];
     <div class="game-stage glass">
         <p class="quiz-prompt">@q.Prompt</p>
+        @if (q.Code is not null) { <pre class="io mono quiz-code">@q.Code</pre> }
         <div class="choice-grid">
             @for (var i = 0; i < q.Options.Length; i++)
             {
@@ -33,16 +34,38 @@ else
 {
     <div class="game-stage glass">
         <p class="quiz-prompt">You scored @score / @Questions.Count (@(Questions.Count == 0 ? 0 : score * 100 / Questions.Count)%).</p>
-        <button class="btn" @onclick="Restart">Play again</button>
+        @if (best is not null) { <p class="muted">Your best: @best / @Questions.Count</p> }
+        <p class="mono">@Grid</p>
+        <div class="toolbar">
+            @if (AllowRestart) { <button class="btn" @onclick="Restart">Play again</button> }
+            <ShareResultButton Text="@ShareText" />
+        </div>
     </div>
 }
 
 @code {
+    [Inject] private GameProgress Progress { get; set; } = default!;
+
     [Parameter, EditorRequired] public List<QuizQuestion> Questions { get; set; } = [];
     [Parameter] public EventCallback OnRestart { get; set; }
 
+    /// <summary>When set, the best score is saved in localStorage under this key.</summary>
+    [Parameter] public string? GameKey { get; set; }
+
+    /// <summary>Heading used for the shared result, e.g. "Big-O Quiz".</summary>
+    [Parameter] public string ShareTitle { get; set; } = "Dev quiz";
+
+    [Parameter] public bool AllowRestart { get; set; } = true;
+
+    /// <summary>Raised when the last question is answered, with per-question results.</summary>
+    [Parameter] public EventCallback<bool[]> OnFinished { get; set; }
+
     private int index, score, streak, bestStreak;
-    private int? selected;
+    private int? selected, best;
+    private readonly List<bool> results = [];
+
+    private string Grid => string.Concat(results.Select(r => r ? "🟩" : "🟥"));
+    private string ShareText => $"{ShareTitle}: {score}/{Questions.Count} {Grid}";
 
     private string ChoiceClass(QuizQuestion q, int i) =>
         selected is null ? "" : i == q.Answer ? "correct" : i == selected ? "wrong" : "";
@@ -50,6 +73,7 @@ else
     private void Choose(int i)
     {
         selected = i;
+        results.Add(i == Questions[index].Answer);
         if (i == Questions[index].Answer)
         {
             score++;
@@ -59,16 +83,20 @@ else
         else streak = 0;
     }
 
-    private void Next()
+    private async Task Next()
     {
         selected = null;
         index++;
+        if (index < Questions.Count) return;
+        if (GameKey is not null) best = await Progress.SaveBestAsync(GameKey, score);
+        await OnFinished.InvokeAsync(results.ToArray());
     }
 
     private async Task Restart()
     {
         index = score = streak = 0;
         selected = null;
+        results.Clear();
         await OnRestart.InvokeAsync();
     }
 }

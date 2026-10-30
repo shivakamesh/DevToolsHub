@@ -12,11 +12,11 @@ public static class ToolCatalog
         "json-formatter", "diff-checker", "base64", "image-compressor", "pdf-tools", "regex-tester", "jwt-decoder", "url-encoder",
         "what-is-my-ip", "curl-to-code", "code-to-image", "json-to-typescript",
         "timestamp-converter", "guid-generator", "password-generator", "hash-generator", "qr-code",
-        "color-converter", "color-palette-generator", "lorem-ipsum", "favicon-generator", "cron-explainer", "format-converter", "xml-formatter",
+        "color-converter", "color-contrast-checker", "crypto-tools", "dockerfile-generator", "connection-string-builder", "color-palette-generator",
         "code-minifier", "mermaid-editor", "meta-tag-generator", "dns-lookup", "domain-availability-checker", "markdown-table-generator", "readme-generator",
         "sql-formatter", "markdown-preview", "case-converter", "json-to-csharp", "text-statistics",
         "http-status-codes", "number-base", "image-to-base64", "html-entities", "user-agent-parser",
-        "css-generator", "time-zone-converter", "chmod-calculator", "yaml-validator", "json-path",
+        "css-generator", "flexbox-grid-playground", "time-zone-converter",
         "cron-builder", "fake-data", "gitignore-generator", "byte-size", "hmac-generator",
         "ohms-law-calculator", "power-factor-correction",
                 "transformer-calculator", "led-resistor-calculator",
@@ -86,6 +86,8 @@ public static class ToolCatalog
             "Choose an image (up to 5 MB) to get a data URI, an HTML <img> tag and a CSS background snippet. The file never leaves your browser."),
         new("Certificate Decoder", "certificate-decoder", "📜", "Encode", "Decode PEM X.509 certificates.",
             "Paste a PEM certificate to see its subject, issuer, validity, serial number, key algorithm, subject alternative names and fingerprints."),
+        new("Bcrypt, AES & RSA Tools", "crypto-tools", "🔐", "Encode", "Bcrypt hashing, AES encryption and RSA keys.",
+            "Hash and verify passwords with bcrypt, encrypt and decrypt text with AES-256-GCM using a password (PBKDF2), or generate an RSA key pair and encrypt with RSA-OAEP. Everything runs locally in your browser."),
 
         // Generate
         new("Hash Generator", "hash-generator", "#", "Generate", "SHA-1, SHA-256, SHA-384, SHA-512.",
@@ -110,6 +112,10 @@ public static class ToolCatalog
             "Choose a schedule type and time to build a cron expression, then preview its next run times or open it in the Cron Explainer."),
         new(".gitignore Generator", "gitignore-generator", "⊘", "Generate", "Combine .gitignore templates.",
             "Select languages, frameworks, editors and operating systems to combine into a single .gitignore file."),
+        new("Connection String Builder", "connection-string-builder", "🔌", "Generate", "SQL Server, PostgreSQL, MySQL, MongoDB and Redis.",
+            "Pick a database, fill in host, port, database and credentials to build a connection string, plus an appsettings.json snippet and an environment variable."),
+        new("Dockerfile & GitHub Actions Generator", "dockerfile-generator", "🐳", "Generate", "Dockerfile, .dockerignore and CI workflow.",
+            "Choose .NET, Node.js or Python to generate a multi-stage Dockerfile running as a non-root user, a .dockerignore and a GitHub Actions workflow that builds, tests and optionally pushes an image to GHCR."),
 
         // Convert
         new("Timestamp Converter", "timestamp-converter", "📅", "Convert", "Unix epoch to date and back.",
@@ -134,6 +140,10 @@ public static class ToolCatalog
             "Fill in your business and client details, add line items, tax and discount, pick a currency, then click Download PDF and choose Save as PDF in the print dialog. Details are saved in your browser only."),
 
         // Inspect
+        new("Color Contrast Checker", "color-contrast-checker", "◐", "Inspect", "WCAG AA/AAA contrast ratio checker.",
+            "Pick text and background colors to see the WCAG 2.x contrast ratio, pass/fail for AA and AAA, a live preview and a suggested accessible text color."),
+        new("Flexbox & Grid Playground", "flexbox-grid-playground", "▦", "Inspect", "Build CSS layouts visually.",
+            "Switch between Flexbox and Grid, tweak direction, wrapping, alignment, template columns and gap, watch the preview update and copy the CSS."),
         new("Text Statistics", "text-statistics", "¶", "Inspect", "Count words, characters, lines and bytes.",
             "Shows character, word, line, sentence and paragraph counts, UTF-8 byte size, estimated reading time and the most frequent words."),
         new("HTTP Status Codes", "http-status-codes", "200", "Inspect", "Searchable HTTP status code reference.",
@@ -244,6 +254,14 @@ public static class ToolCatalog
             "Type a CSS selector that matches exactly the highlighted elements. Matches update live and wrong matches are flagged. Use Hint if you need a nudge."),
         new("Git Command Quiz", "git-command-quiz", "git", "Games", "Pick the right Git command for each scenario.",
             "Read the scenario and choose the Git command that solves it. An explanation is shown after each answer."),
+        new("SQL Murder Mystery", "sql-murder-mystery", "🕵", "Games", "Solve a crime by writing SQL queries.",
+            "Query a small SQLite database of crime reports, people, interviews and gym check-ins to find the killer. Queries run locally in your browser."),
+        new("Big-O Complexity Quiz", "big-o-quiz", "O(n)", "Games", "Guess the time complexity of code snippets.",
+            "Read each snippet and pick its time complexity. An explanation is shown after each answer."),
+        new("Vim Trainer", "vim-trainer", "vi", "Games", "Learn Vim motions with keyboard-only puzzles.",
+            "Edit the text to match the target using Vim normal and insert mode commands. Try to beat par for each level."),
+        new("Guess the Language", "guess-the-language", "</>?", "Games", "Identify the language from a code snippet.",
+            "Look at the code snippet and choose which programming language it is written in."),
     ];
 
     public static IEnumerable<IGrouping<string, ToolInfo>> ByCategory =>

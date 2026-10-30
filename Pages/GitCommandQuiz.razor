@@ -5,7 +5,7 @@
     <div class="toolbar">
         <button class="btn secondary" @onclick="NewGame">Shuffle questions</button>
     </div>
-    <QuizGame @key="gameId" Questions="questions" OnRestart="NewGame" />
+    <QuizGame @key="gameId" Questions="questions" OnRestart="NewGame" GameKey="git-command-quiz" ShareTitle="Git Command Quiz" />
 </ToolPage>
 
 @code {

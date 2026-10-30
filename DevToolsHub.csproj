@@ -27,9 +27,11 @@
     <BlazorWebAssemblyLazyLoad Include="Markdig.wasm" />
     <BlazorWebAssemblyLazyLoad Include="YamlDotNet.wasm" />
     <BlazorWebAssemblyLazyLoad Include="QRCoder.wasm" />
+    <BlazorWebAssemblyLazyLoad Include="BCrypt.Net-Next.wasm" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="BlazorWasmPreRendering.Build" Version="10.0.0" />
     <PackageReference Include="Bogus" Version="35.6.5" />
     <PackageReference Include="Cronos" Version="0.13.0" />

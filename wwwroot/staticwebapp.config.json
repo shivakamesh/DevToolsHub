@@ -423,7 +423,16 @@
                    {
                        "route":  "/git-command-quiz",
                        "rewrite":  "/git-command-quiz/index.html"
-                   }
+                   },
+                   { "route": "/sql-murder-mystery", "rewrite": "/sql-murder-mystery/index.html" },
+                   { "route": "/big-o-quiz", "rewrite": "/big-o-quiz/index.html" },
+                   { "route": "/vim-trainer", "rewrite": "/vim-trainer/index.html" },
+                   { "route": "/guess-the-language", "rewrite": "/guess-the-language/index.html" },
+                   { "route": "/color-contrast-checker", "rewrite": "/color-contrast-checker/index.html" },
+                   { "route": "/crypto-tools", "rewrite": "/crypto-tools/index.html" },
+                   { "route": "/connection-string-builder", "rewrite": "/connection-string-builder/index.html" },
+                   { "route": "/flexbox-grid-playground", "rewrite": "/flexbox-grid-playground/index.html" },
+                   { "route": "/dockerfile-generator", "rewrite": "/dockerfile-generator/index.html" }
                ],
     "responseOverrides":  {
                               "404":  {

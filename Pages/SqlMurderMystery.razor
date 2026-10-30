@@ -1,0 +1,106 @@
+@page "/sql-murder-mystery"
+@using DevToolsHub.Services
+@inject IJSRuntime JS
+
+<ToolPage Title="SQL Murder Mystery" Description="A murder happened in Codeburg on January 15, 2024. Query the city's database with real SQL to find the killer.">
+    <div class="game-stage glass">
+        <p class="quiz-prompt">🕵️ A murder took place in <b>Codeburg</b> on <b>2024-01-15</b>.</p>
+        <p class="muted">
+            Start with the <code>crime_scene_report</code> table. Tables: crime_scene_report, person, drivers_license, interview, gym_member, gym_checkin.
+            Dates are stored as integers like 20240115. The database runs SQLite in your browser.
+        </p>
+    </div>
+    <div class="toolbar">
+        <button class="btn" @onclick="Run" disabled="@(!ready)">Run query (Ctrl+Enter)</button>
+        <button class="btn secondary" @onclick='() => SetQuery("SELECT name, sql FROM sqlite_master WHERE type = \u0027table\u0027;")'>Show schema</button>
+        <button class="btn secondary" @onclick="Reset" disabled="@(!ready)">Reset database</button>
+        @if (!ready && loadError is null) { <span class="muted">Loading SQLite…</span> }
+    </div>
+    @if (loadError is not null) { <div class="alert error">@loadError</div> }
+    <textarea class="io mono" rows="6" spellcheck="false" @bind="query" @bind:event="oninput" @onkeydown="OnKey"></textarea>
+    @if (result is not null)
+    {
+        @if (result.Error is not null)
+        {
+            <div class="alert error">@result.Error</div>
+        }
+        else if (result.Columns.Length == 0)
+        {
+            <p class="muted">Query executed. No rows returned.</p>
+        }
+        else
+        {
+            <div class="sql-results">
+                <table class="table">
+                    <thead><tr>@foreach (var c in result.Columns) { <th>@c</th> }</tr></thead>
+                    <tbody>
+                        @foreach (var row in result.Rows)
+                        {
+                            <tr>@foreach (var v in row) { <td>@v</td> }</tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="muted">@result.Rows.Length row(s)@(result.Rows.Length == 200 ? " (limited to 200)" : "")</p>
+        }
+    }
+    <div class="game-stage glass">
+        <p class="quiz-prompt">Solved it? Name the killer.</p>
+        <div class="answer-row">
+            <input class="io" style="max-width:320px" placeholder="Full name" @bind="suspect" @bind:event="oninput" />
+            <button class="btn" @onclick="Check">Accuse</button>
+        </div>
+        @if (verdict is not null) { <p class="@(correct ? "game-ok" : "game-bad")">@verdict</p> }
+    </div>
+</ToolPage>
+
+@code {
+    private string query = "SELECT * FROM crime_scene_report\nWHERE city = 'Codeburg' AND date = 20240115;";
+    private bool ready, correct;
+    private string? loadError, suspect, verdict;
+    private SqlResult? result;
+
+    private sealed record SqlResult(string? Error, string[] Columns, string[][] Rows);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await Reset();
+        StateHasChanged();
+    }
+
+    private async Task Reset()
+    {
+        try
+        {
+            await JS.InvokeAsync<bool>("devMore.sqlInit", MoreGames.SqlMysterySchema);
+            ready = true;
+            loadError = null;
+        }
+        catch (JSException e)
+        {
+            loadError = "Could not load SQLite: " + e.Message;
+        }
+    }
+
+    private void SetQuery(string q) => query = q;
+
+    private async Task Run()
+    {
+        if (!ready) return;
+        result = await JS.InvokeAsync<SqlResult>("devMore.sqlExec", query);
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && (e.CtrlKey || e.MetaKey)) await Run();
+    }
+
+    private void Check()
+    {
+        correct = MoreGames.CheckSuspect(suspect);
+        verdict = correct
+            ? $"🎉 Correct! {MoreGames.SqlMysteryKiller} is the killer. Gold gym member 48Z…, plate containing H42, at the gym on January 9."
+            : "❌ Not quite. Follow the witnesses' interviews and keep digging.";
+    }
+}

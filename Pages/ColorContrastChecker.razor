@@ -1,0 +1,77 @@
+@page "/color-contrast-checker"
+@using DevToolsHub.Services
+
+<ToolPage Title="Color Contrast Checker (WCAG)" Description="Check the contrast ratio between text and background colors against WCAG 2.x AA and AAA, and get an accessible color suggestion.">
+    <div class="toolbar">
+        <label>Text <input type="color" value="@fgHex" @onchange="e => SetFg(e.Value?.ToString())" /></label>
+        <input class="io mono" style="max-width:120px" value="@fgText" @oninput="e => SetFg(e.Value?.ToString())" />
+        <label>Background <input type="color" value="@bgHex" @onchange="e => SetBg(e.Value?.ToString())" /></label>
+        <input class="io mono" style="max-width:120px" value="@bgText" @oninput="e => SetBg(e.Value?.ToString())" />
+        <button class="btn secondary" @onclick="Swap">Swap</button>
+    </div>
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <div class="contrast-sample" style="color:@fgHex;background:@bgHex">
+            <p style="font-size:1.5rem;font-weight:700;margin:0 0 .4rem">Large text sample (18pt / 14pt bold)</p>
+            <p style="margin:0">Normal body text sample. The quick brown fox jumps over the lazy dog.</p>
+        </div>
+        <div class="game-stats">
+            <div><span>Contrast ratio</span><b>@ratio.ToString("0.00"):1</b></div>
+            <div><span>AA normal (4.5)</span><b class="@Cls(4.5)">@Pass(4.5)</b></div>
+            <div><span>AA large (3)</span><b class="@Cls(3)">@Pass(3)</b></div>
+            <div><span>AAA normal (7)</span><b class="@Cls(7)">@Pass(7)</b></div>
+            <div><span>AAA large (4.5)</span><b class="@Cls(4.5)">@Pass(4.5)</b></div>
+            <div><span>UI components (3)</span><b class="@Cls(3)">@Pass(3)</b></div>
+        </div>
+        @if (ratio < 4.5 && suggestAA is not null)
+        {
+            <p>Suggested text color for AA: <code>@suggestAA</code>
+                <button class="btn secondary" @onclick="() => SetFg(suggestAA)">Use it</button></p>
+        }
+        @if (ratio < 7 && suggestAAA is not null)
+        {
+            <p>Suggested text color for AAA: <code>@suggestAAA</code>
+                <button class="btn secondary" @onclick="() => SetFg(suggestAAA)">Use it</button></p>
+        }
+    }
+</ToolPage>
+
+@code {
+    private string fgText = "#767676", bgText = "#FFFFFF";
+    private string fgHex = "#767676", bgHex = "#FFFFFF";
+    private double ratio;
+    private string? error, suggestAA, suggestAAA;
+
+    protected override void OnInitialized() => Compute();
+
+    private void SetFg(string? v) { fgText = v ?? ""; Compute(); }
+    private void SetBg(string? v) { bgText = v ?? ""; Compute(); }
+
+    private void Swap()
+    {
+        (fgText, bgText) = (bgText, fgText);
+        Compute();
+    }
+
+    private void Compute()
+    {
+        if (!ContrastChecker.TryParseHex(fgText, out var fg) || !ContrastChecker.TryParseHex(bgText, out var bg))
+        {
+            error = "Enter colors as HEX, e.g. #336699 or #369.";
+            return;
+        }
+        error = null;
+        fgHex = ContrastChecker.ToHex(fg);
+        bgHex = ContrastChecker.ToHex(bg);
+        ratio = ContrastChecker.Ratio(fg, bg);
+        suggestAA = ContrastChecker.Suggest(fg, bg, 4.5) is { } a ? ContrastChecker.ToHex(a) : null;
+        suggestAAA = ContrastChecker.Suggest(fg, bg, 7) is { } b ? ContrastChecker.ToHex(b) : null;
+    }
+
+    private string Pass(double min) => ratio >= min ? "✓ Pass" : "✗ Fail";
+    private string Cls(double min) => ratio >= min ? "game-ok" : "game-bad";
+}

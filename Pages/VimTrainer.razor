@@ -1,0 +1,106 @@
+@page "/vim-trainer"
+@using DevToolsHub.Services
+
+<ToolPage Title="Vim Trainer" Description="Learn Vim motions and editing commands by solving small puzzles. Edit the text to match the target using only the keyboard.">
+    <div class="toolbar">
+        <label>Level
+            <select @bind="levelIndex" @bind:after="Reset">
+                @for (var i = 0; i < VimEngine.Levels.Length; i++)
+                {
+                    <option value="@i">@(i + 1). @VimEngine.Levels[i].Title @(solved.Contains(i) ? "✓" : "")</option>
+                }
+            </select>
+        </label>
+        <button class="btn secondary" @onclick="Reset">Restart level</button>
+        <button class="btn secondary" @onclick="() => showHint = true">Hint</button>
+    </div>
+    <div class="game-stats">
+        <div><span>Keystrokes</span><b>@vim.Keystrokes</b></div>
+        <div><span>Par</span><b>@Level.Par.Length</b></div>
+        <div><span>Solved</span><b>@solved.Count / @VimEngine.Levels.Length</b></div>
+    </div>
+    <div class="game-stage glass">
+        <p class="quiz-prompt">@Level.Instruction</p>
+        <p class="muted">Click the editor and type Vim commands. Supported: h j k l w b e 0 ^ $ gg G, i a A I o O, x r dd dw cw cc D C yy p P J u, counts (3w) and Esc.</p>
+        <div class="vim-board" tabindex="0" @ref="board" @onkeydown="OnKey" @onkeydown:preventDefault="true" @onkeydown:stopPropagation="true">
+            @for (var r = 0; r < vim.Lines.Count; r++)
+            {
+                var line = vim.Lines[r];
+                if (r == vim.Row)
+                {
+                    var c = Math.Min(vim.Col, line.Length);
+                    <div>@(line[..c])<span class="vim-cursor @(vim.Mode == VimMode.Insert ? "insert" : "")">@(c < line.Length ? line[c].ToString() : " ")</span>@(c < line.Length ? line[(c + 1)..] : "")</div>
+                }
+                else
+                {
+                    <div>@(line.Length == 0 ? " " : line)</div>
+                }
+            }
+        </div>
+        <div class="vim-status"><span>@(vim.Mode == VimMode.Insert ? "-- INSERT --" : "NORMAL")</span><span>@vim.Pending</span><span>@(vim.Row + 1):@(vim.Col + 1)</span></div>
+        <p class="muted" style="margin-top:.8rem">Target:</p>
+        <pre class="io mono">@Level.Target</pre>
+        @if (showHint) { <p class="muted">💡 @Level.Hint</p> }
+        @if (done)
+        {
+            <p class="game-ok">Solved in @vim.Keystrokes keystrokes @(vim.Keystrokes <= Level.Par.Length ? "— par or better! 🎉" : $"(par {Level.Par.Length})").</p>
+            @if (levelIndex + 1 < VimEngine.Levels.Length)
+            {
+                <button class="btn" @onclick="NextLevel">Next level</button>
+            }
+        }
+    </div>
+</ToolPage>
+
+@code {
+    [Inject] private GameProgress Progress { get; set; } = default!;
+
+    private int levelIndex;
+    private VimEngine vim = new(VimEngine.Levels[0].Start);
+    private readonly HashSet<int> solved = [];
+    private bool done, showHint, focusPending = true;
+    private ElementReference board;
+
+    private VimLevel Level => VimEngine.Levels[levelIndex];
+
+    private void Reset()
+    {
+        vim = new VimEngine(Level.Start);
+        done = showHint = false;
+        focusPending = true;
+    }
+
+    private void NextLevel()
+    {
+        levelIndex++;
+        Reset();
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (done || e.CtrlKey || e.MetaKey) return;
+        vim.Key(e.Key);
+        if (vim.Mode == VimMode.Normal && vim.Text == Level.Target)
+        {
+            done = true;
+            solved.Add(levelIndex);
+            await Progress.SetAsync("vim-trainer:solved", solved.Select(i => VimEngine.Levels[i].Title).ToList());
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var titles = await Progress.GetAsync<List<string>>("vim-trainer:solved", []);
+            for (var i = 0; i < VimEngine.Levels.Length; i++)
+                if (titles.Contains(VimEngine.Levels[i].Title)) solved.Add(i);
+            if (solved.Count > 0) StateHasChanged();
+        }
+        if (focusPending)
+        {
+            focusPending = false;
+            try { await board.FocusAsync(); } catch (InvalidOperationException) { }
+        }
+    }
+}

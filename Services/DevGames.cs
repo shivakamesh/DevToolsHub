@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace DevToolsHub.Services;
 
-public record QuizQuestion(string Prompt, string[] Options, int Answer, string? Explanation = null);
+public record QuizQuestion(string Prompt, string[] Options, int Answer, string? Explanation = null, string? Code = null);
 
 public record RegexPuzzle(string Title, string[] Match, string[] Avoid, string Par);
 

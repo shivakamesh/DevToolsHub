@@ -20,7 +20,7 @@
     </div>
     @if (questions.Count > 0)
     {
-        <QuizGame @key="gameId" Questions="questions" OnRestart="NewGame" />
+        <QuizGame @key="gameId" Questions="questions" OnRestart="NewGame" GameKey="@($"http-status-quiz:{count}:{reverse}")" ShareTitle="HTTP Status Quiz" />
     }
 </ToolPage>
 

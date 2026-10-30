@@ -1,0 +1,64 @@
+@page "/flexbox-grid-playground"
+
+<ToolPage Title="Flexbox & Grid Playground" Description="Experiment with CSS Flexbox and Grid properties visually, see the layout update live and copy the generated CSS.">
+    <div class="toolbar">
+        <label>Display
+            <select @bind="display">
+                <option value="flex">flex</option>
+                <option value="grid">grid</option>
+            </select>
+        </label>
+        <label>Items <input type="number" min="1" max="24" style="max-width:80px" @bind="items" @bind:event="oninput" /></label>
+        <label>Gap <input type="number" min="0" max="64" style="max-width:80px" @bind="gap" @bind:event="oninput" />px</label>
+        <CopyButton Text="@Css" />
+    </div>
+    <div class="toolbar">
+        @if (display == "flex")
+        {
+            @Select("flex-direction", direction, v => direction = v, "row", "row-reverse", "column", "column-reverse")
+            @Select("flex-wrap", wrap, v => wrap = v, "nowrap", "wrap", "wrap-reverse")
+            @Select("justify-content", justify, v => justify = v, "flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly")
+            @Select("align-items", align, v => align = v, "stretch", "flex-start", "center", "flex-end", "baseline")
+            @Select("align-content", alignContent, v => alignContent = v, "normal", "flex-start", "center", "flex-end", "space-between", "space-around", "stretch")
+        }
+        else
+        {
+            <label>grid-template-columns <input class="io mono" style="max-width:240px" @bind="columns" @bind:event="oninput" /></label>
+            <label>grid-template-rows <input class="io mono" style="max-width:200px" @bind="rows" @bind:event="oninput" /></label>
+            @Select("justify-items", justifyItems, v => justifyItems = v, "stretch", "start", "center", "end")
+            @Select("align-items", align, v => align = v, "stretch", "start", "center", "end")
+            @Select("grid-auto-flow", autoFlow, v => autoFlow = v, "row", "column", "row dense", "column dense")
+        }
+    </div>
+    <div class="layout-preview" style="@ContainerStyle">
+        @for (var i = 1; i <= Math.Clamp(items ?? 0, 0, 24); i++)
+        {
+            var n = i;
+            <div class="layout-item" style="@(n % 3 == 0 ? "padding:1.4rem .8rem" : "")">@n</div>
+        }
+    </div>
+    <pre class="io mono">@Css</pre>
+</ToolPage>
+
+@code {
+    private string display = "flex", direction = "row", wrap = "wrap", justify = "flex-start", align = "stretch", alignContent = "normal";
+    private string columns = "repeat(3, 1fr)", rows = "auto", justifyItems = "stretch", autoFlow = "row";
+    private int? items = 6, gap = 12;
+
+    private RenderFragment Select(string label, string value, Action<string> set, params string[] options) => __builder =>
+    {
+        <label>@label
+            <select value="@value" @onchange="e => set(e.Value?.ToString() ?? value)">
+                @foreach (var o in options) { <option value="@o">@o</option> }
+            </select>
+        </label>
+    };
+
+    private string Declarations => display == "flex"
+        ? $"display: flex;\n  flex-direction: {direction};\n  flex-wrap: {wrap};\n  justify-content: {justify};\n  align-items: {align};\n  align-content: {alignContent};\n  gap: {gap ?? 0}px;"
+        : $"display: grid;\n  grid-template-columns: {columns};\n  grid-template-rows: {rows};\n  grid-auto-flow: {autoFlow};\n  justify-items: {justifyItems};\n  align-items: {align};\n  gap: {gap ?? 0}px;";
+
+    private string Css => $".container {{\n  {Declarations}\n}}";
+
+    private string ContainerStyle => Declarations.Replace("\n  ", " ").Replace("{", "").Replace("}", "");
+}

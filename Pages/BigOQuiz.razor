@@ -1,0 +1,22 @@
+@page "/big-o-quiz"
+@using DevToolsHub.Services
+
+<ToolPage Title="Big-O Complexity Quiz" Description="Read the code and pick its time complexity: O(1), O(log n), O(n), O(n log n), O(n²) or O(2ⁿ). Great practice for coding interviews.">
+    <div class="toolbar">
+        <button class="btn secondary" @onclick="NewGame">Shuffle questions</button>
+    </div>
+    <QuizGame @key="gameId" Questions="questions" OnRestart="NewGame" GameKey="big-o-quiz" ShareTitle="Big-O Quiz" />
+</ToolPage>
+
+@code {
+    private int gameId;
+    private List<QuizQuestion> questions = [];
+
+    protected override void OnInitialized() => NewGame();
+
+    private void NewGame()
+    {
+        questions = DevGames.Shuffle(MoreGames.BigOQuestions, Random.Shared);
+        gameId++;
+    }
+}

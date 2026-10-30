@@ -1,0 +1,74 @@
+@page "/connection-string-builder"
+@using DevToolsHub.Services
+
+<ToolPage Title="Connection String Builder" Description="Build connection strings for SQL Server, PostgreSQL, MySQL, SQLite, MongoDB and Redis, with appsettings.json and environment variable snippets.">
+    <div class="toolbar">
+        <label>Database
+            <select @bind="kind" @bind:after="OnKindChanged">
+                @foreach (var k in Enum.GetValues<DbKind>()) { <option value="@k">@k</option> }
+            </select>
+        </label>
+        @if (kind != DbKind.Sqlite)
+        {
+            <label>Host <input class="io" style="max-width:200px" @bind="host" @bind:event="oninput" /></label>
+            <label>Port <input type="number" style="max-width:100px" @bind="port" @bind:event="oninput" /></label>
+        }
+        <label>@(kind switch { DbKind.Sqlite => "File", DbKind.Redis => "DB index", _ => "Database" }) <input class="io" style="max-width:200px" @bind="database" @bind:event="oninput" /></label>
+    </div>
+    @if (kind != DbKind.Sqlite)
+    {
+        <div class="toolbar">
+            @if (kind is DbKind.SqlServer or DbKind.PostgreSql)
+            {
+                <label><input type="checkbox" @bind="integrated" /> Integrated security</label>
+            }
+            @if (!integrated || kind is not (DbKind.SqlServer or DbKind.PostgreSql))
+            {
+                <label>User <input class="io" style="max-width:160px" @bind="user" @bind:event="oninput" /></label>
+                <label>Password <input class="io" style="max-width:160px" @bind="password" @bind:event="oninput" /></label>
+            }
+            <label><input type="checkbox" @bind="ssl" /> SSL/TLS</label>
+            @if (kind is not (DbKind.MySql or DbKind.Redis))
+            {
+                <label><input type="checkbox" @bind="trust" /> Trust server certificate</label>
+            }
+            <label>Timeout (s) <input type="number" min="0" style="max-width:90px" @bind="timeout" /></label>
+        </div>
+    }
+    <div class="toolbar"><b>Connection string</b><CopyButton Text="@Result" /></div>
+    <pre class="io mono">@Result</pre>
+    <div class="toolbar">
+        <b>appsettings.json</b>
+        <label>Name <input class="io" style="max-width:160px" @bind="name" @bind:event="oninput" /></label>
+        <CopyButton Text="@ConnectionStrings.AppSettings(name, Result)" />
+    </div>
+    <pre class="io mono">@ConnectionStrings.AppSettings(name, Result)</pre>
+    <div class="toolbar"><b>Environment variable</b><CopyButton Text="@ConnectionStrings.EnvVar(name, Result)" /></div>
+    <pre class="io mono">@ConnectionStrings.EnvVar(name, Result)</pre>
+    <p class="muted">Nothing is sent anywhere. Avoid committing real passwords; prefer user secrets, environment variables or a key vault.</p>
+</ToolPage>
+
+@code {
+    private DbKind kind = DbKind.SqlServer;
+    private string host = "localhost", database = "MyDb", user = "sa", password = "", name = "DefaultConnection";
+    private int? port = 1433;
+    private int? timeout;
+    private bool integrated, ssl, trust = true;
+
+    private string Result => ConnectionStrings.Build(new(kind, host, port, database, user, password, integrated, ssl, trust, timeout is > 0 ? timeout : null));
+
+    private void OnKindChanged()
+    {
+        port = ConnectionStrings.DefaultPort(kind);
+        (user, database) = kind switch
+        {
+            DbKind.SqlServer => ("sa", "MyDb"),
+            DbKind.PostgreSql => ("postgres", "mydb"),
+            DbKind.MySql => ("root", "mydb"),
+            DbKind.Sqlite => ("", "app.db"),
+            DbKind.MongoDb => ("", "mydb"),
+            _ => ("", "0"),
+        };
+        integrated = false;
+    }
+}

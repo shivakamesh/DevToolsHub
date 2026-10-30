@@ -1,0 +1,66 @@
+@page "/dockerfile-generator"
+@using DevToolsHub.Services
+
+<ToolPage Title="Dockerfile & GitHub Actions Generator" Description="Generate a production-ready multi-stage Dockerfile, .dockerignore and GitHub Actions CI workflow for .NET, Node.js and Python apps.">
+    <div class="toolbar">
+        <label>Stack
+            <select @bind="stack" @bind:after="OnStackChanged">
+                <option value="@AppStack.DotNet">.NET</option>
+                <option value="@AppStack.Node">Node.js</option>
+                <option value="@AppStack.Python">Python</option>
+            </select>
+        </label>
+        <label>Version <input class="io" style="max-width:90px" @bind="version" @bind:event="oninput" /></label>
+        <label>Port <input type="number" style="max-width:90px" @bind="port" @bind:event="oninput" /></label>
+        @if (stack == AppStack.DotNet)
+        {
+            <label>Project name <input class="io" style="max-width:180px" @bind="project" @bind:event="oninput" /></label>
+        }
+        @if (stack == AppStack.Node)
+        {
+            <label>Build command <input class="io mono" style="max-width:180px" @bind="build" @bind:event="oninput" /></label>
+        }
+        @if (stack != AppStack.DotNet)
+        {
+            <label>Start command <input class="io mono" style="max-width:260px" @bind="start" @bind:event="oninput" /></label>
+        }
+    </div>
+    <div class="toolbar"><b>Dockerfile</b><CopyButton Text="@DockerfileText" /></div>
+    <pre class="io mono">@DockerfileText</pre>
+    <div class="toolbar"><b>.dockerignore</b><CopyButton Text="@DevOpsGenerator.DockerIgnore(stack)" /></div>
+    <pre class="io mono">@DevOpsGenerator.DockerIgnore(stack)</pre>
+
+    <h3>GitHub Actions workflow</h3>
+    <div class="toolbar">
+        <label>Branch <input class="io" style="max-width:120px" @bind="branch" @bind:event="oninput" /></label>
+        <label><input type="checkbox" @bind="tests" /> Run tests</label>
+        <label><input type="checkbox" @bind="push" /> Build &amp; push image to GHCR</label>
+        @if (push)
+        {
+            <label>Image <input class="io mono" style="max-width:220px" placeholder="owner/app (default: repo)" @bind="image" @bind:event="oninput" /></label>
+        }
+        <CopyButton Text="@WorkflowText" />
+    </div>
+    <p class="muted">Save as <code>.github/workflows/ci.yml</code>.</p>
+    <pre class="io mono">@WorkflowText</pre>
+</ToolPage>
+
+@code {
+    private AppStack stack = AppStack.DotNet;
+    private string version = "8.0", project = "MyApp", build = "npm run build", start = "", branch = "main", image = "";
+    private int port = 8080;
+    private bool tests = true, push;
+
+    private string DockerfileText => DevOpsGenerator.Dockerfile(new(stack, version, project, port, build, start));
+    private string WorkflowText => DevOpsGenerator.GitHubWorkflow(new(stack, version, branch, tests, push, image));
+
+    private void OnStackChanged()
+    {
+        (version, port, start) = stack switch
+        {
+            AppStack.DotNet => ("8.0", 8080, ""),
+            AppStack.Node => ("20", 3000, "node dist/index.js"),
+            _ => ("3.12", 8000, ""),
+        };
+    }
+}

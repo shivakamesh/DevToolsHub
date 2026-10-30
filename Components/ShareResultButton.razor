@@ -1,0 +1,28 @@
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<button class="btn secondary" @onclick="ShareAsync">@label</button>
+
+@code {
+    /// <summary>Result text to share; the current page URL is appended.</summary>
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+
+    private string label = "📣 Share result";
+
+    private async Task ShareAsync()
+    {
+        var url = Nav.Uri.Split('?', '#')[0];
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", $"{Text}\n{url}");
+            label = "Copied to clipboard!";
+        }
+        catch (JSException)
+        {
+            label = "Copy failed";
+        }
+        StateHasChanged();
+        await Task.Delay(1800);
+        label = "📣 Share result";
+    }
+}

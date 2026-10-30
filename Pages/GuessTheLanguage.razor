@@ -1,0 +1,22 @@
+@page "/guess-the-language"
+@using DevToolsHub.Services
+
+<ToolPage Title="Guess the Programming Language" Description="Look at a short code snippet and guess the programming language: Rust, Go, Kotlin, Elixir, Haskell and more.">
+    <div class="toolbar">
+        <button class="btn secondary" @onclick="NewGame">Shuffle questions</button>
+    </div>
+    <QuizGame @key="gameId" Questions="questions" OnRestart="NewGame" GameKey="guess-the-language" ShareTitle="Guess the Language" />
+</ToolPage>
+
+@code {
+    private int gameId;
+    private List<QuizQuestion> questions = [];
+
+    protected override void OnInitialized() => NewGame();
+
+    private void NewGame()
+    {
+        questions = DevGames.Shuffle(MoreGames.LanguageQuestions, Random.Shared);
+        gameId++;
+    }
+}

@@ -67,6 +67,16 @@ kbd { display: inline-block; padding: .2rem .55rem; border: 1px solid var(--bord
 .sel-target { background: color-mix(in srgb, var(--accent) 25%, transparent); border-radius: 4px; padding: 0 .2rem; }
 .sel-hit { background: color-mix(in srgb, var(--ok) 30%, transparent); border-radius: 4px; padding: 0 .2rem; }
 .sel-wrong { background: color-mix(in srgb, var(--error) 30%, transparent); border-radius: 4px; padding: 0 .2rem; }
+.quiz-code { white-space: pre; overflow-x: auto; margin: 0 0 .9rem; }
+.vim-board { font-family: 'JetBrains Mono', ui-monospace, monospace; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); line-height: 1.6; min-height: 120px; white-space: pre; overflow-x: auto; cursor: text; outline: none; }
+.vim-board:focus { border-color: var(--accent); }
+.vim-cursor { background: var(--accent); color: #fff; border-radius: 2px; }
+.vim-cursor.insert { background: transparent; box-shadow: inset 2px 0 0 var(--accent); color: inherit; }
+.vim-status { display: flex; justify-content: space-between; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .85rem; color: var(--muted); margin-top: .4rem; }
+.sql-results { overflow-x: auto; max-height: 360px; }
+.layout-preview { min-height: 260px; padding: .75rem; border: 1px dashed var(--border); border-radius: 10px; background: var(--surface); }
+.layout-item { background: color-mix(in srgb, var(--accent) 30%, transparent); border: 1px solid var(--accent); border-radius: 8px; padding: .8rem; min-width: 48px; text-align: center; font-weight: 700; }
+.contrast-sample { padding: 1.2rem; border-radius: 12px; border: 1px solid var(--border); margin: .75rem 0; }
 
 @media (max-width: 600px) {
     .golf-cols { grid-template-columns: 1fr; }
