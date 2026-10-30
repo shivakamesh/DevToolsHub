@@ -1,0 +1,183 @@
+@page "/domain-availability-checker"
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@inject HttpClient Http
+
+<ToolPage Title="Domain Name Availability Checker" Description="Check if a domain name is available across popular TLDs using DNS and RDAP." ShareValue="@input">
+    <div class="toolbar">
+        <input class="io" style="flex:1;min-width:14rem" placeholder="mybrand or mybrand.com" @bind="input" @bind:event="oninput" @onkeydown="OnKeyAsync" />
+        <button class="btn" disabled="@(loading || string.IsNullOrWhiteSpace(input))" @onclick="CheckAsync">@(loading ? "Checking…" : "Check")</button>
+    </div>
+    <div class="toolbar">
+        @foreach (var tld in Tlds)
+        {
+            <label><input type="checkbox" checked="@selected.Contains(tld)" @onchange="e => Toggle(tld, (bool)e.Value!)" /> .@tld</label>
+        }
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+
+    @if (results.Count > 0)
+    {
+        <table class="table">
+            <thead><tr><th>Domain</th><th>Status</th><th>Details</th></tr></thead>
+            <tbody>
+                @foreach (var r in results)
+                {
+                    <tr>
+                        <td class="break">@r.Domain</td>
+                        <td><span class="badge">@StatusText(r.Status)</span></td>
+                        <td class="break">@r.Details</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    <p class="muted">Results come from Google Public DNS over HTTPS and RDAP registry lookups made directly from your browser. Always confirm with a registrar before buying.</p>
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    private static readonly string[] Tlds = ["com", "net", "org", "io", "dev", "app", "ai", "co", "xyz", "tech", "me", "info"];
+
+    private enum Availability { Checking, Available, LikelyAvailable, Taken, Unknown }
+
+    private sealed class Row(string domain)
+    {
+        public string Domain { get; } = domain;
+        public Availability Status { get; set; } = Availability.Checking;
+        public string Details { get; set; } = "";
+    }
+
+    private sealed class DohResponse
+    {
+        [JsonPropertyName("Status")] public int Status { get; set; }
+        [JsonPropertyName("Answer")] public List<object>? Answer { get; set; }
+    }
+
+    private string input = "";
+    private readonly HashSet<string> selected = ["com", "net", "org", "io", "dev", "app"];
+    private readonly List<Row> results = [];
+    private bool loading;
+    private string? error;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !string.IsNullOrWhiteSpace(Q))
+        {
+            input = Q;
+            await CheckAsync();
+        }
+    }
+
+    private void Toggle(string tld, bool on)
+    {
+        if (on) selected.Add(tld); else selected.Remove(tld);
+    }
+
+    private async Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CheckAsync();
+    }
+
+    private async Task CheckAsync()
+    {
+        error = null;
+        results.Clear();
+        var (label, tld) = Parse(input);
+        if (label.Length == 0) return;
+        if (!IsValidLabel(label))
+        {
+            error = "Use letters, digits and hyphens only (1–63 characters, not starting or ending with a hyphen).";
+            return;
+        }
+
+        var tlds = tld is not null ? [tld, .. Tlds.Where(t => selected.Contains(t) && t != tld)] : Tlds.Where(selected.Contains).ToList();
+        if (tlds.Count == 0)
+        {
+            error = "Select at least one TLD.";
+            return;
+        }
+
+        loading = true;
+        foreach (var t in tlds) results.Add(new Row($"{label}.{t}"));
+        StateHasChanged();
+
+        await Task.WhenAll(results.Select(CheckOneAsync));
+
+        loading = false;
+        StateHasChanged();
+    }
+
+    private async Task CheckOneAsync(Row row)
+    {
+        try
+        {
+            var dns = await Http.GetFromJsonAsync<DohResponse>($"https://dns.google/resolve?name={Uri.EscapeDataString(row.Domain)}&type=NS");
+            if (dns is not null && dns.Status == 0)
+            {
+                row.Status = Availability.Taken;
+                row.Details = "Domain has DNS records.";
+                return;
+            }
+
+            using var response = await Http.GetAsync($"https://rdap.org/domain/{Uri.EscapeDataString(row.Domain)}");
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                row.Status = Availability.Available;
+                row.Details = "No registration found in the registry.";
+            }
+            else if (response.IsSuccessStatusCode)
+            {
+                row.Status = Availability.Taken;
+                row.Details = "Registered (no active DNS).";
+            }
+            else if (dns?.Status == 3)
+            {
+                row.Status = Availability.LikelyAvailable;
+                row.Details = "No DNS records (NXDOMAIN); registry check unavailable.";
+            }
+            else
+            {
+                row.Status = Availability.Unknown;
+                row.Details = $"Registry returned {(int)response.StatusCode}.";
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException)
+        {
+            row.Status = Availability.Unknown;
+            row.Details = "Lookup service could not be reached.";
+        }
+        finally
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static string StatusText(Availability s) => s switch
+    {
+        Availability.Checking => "Checking…",
+        Availability.Available => "✔ Available",
+        Availability.LikelyAvailable => "Likely available",
+        Availability.Taken => "✖ Taken",
+        _ => "Unknown",
+    };
+
+    private static (string Label, string? Tld) Parse(string value)
+    {
+        var s = value.Trim().ToLowerInvariant();
+        if (Uri.TryCreate(s, UriKind.Absolute, out var u) && s.Contains("://")) s = u.Host;
+        s = s.Trim('/').TrimEnd('.');
+        if (s.StartsWith("www.")) s = s[4..];
+        var dot = s.IndexOf('.');
+        return dot < 0 ? (s, null) : (s[..dot], s[(dot + 1)..]);
+    }
+
+    private static bool IsValidLabel(string label) =>
+        label.Length is > 0 and <= 63 && label[0] != '-' && label[^1] != '-' && label.All(c => char.IsAsciiLetterOrDigit(c) || c == '-');
+}

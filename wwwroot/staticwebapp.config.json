@@ -373,6 +373,10 @@
                        "rewrite":  "/dns-lookup/index.html"
                    },
                    {
+                       "route":  "/domain-availability-checker",
+                       "rewrite":  "/domain-availability-checker/index.html"
+                   },
+                   {
                        "route":  "/color-palette-generator",
                        "rewrite":  "/color-palette-generator/index.html"
                    },

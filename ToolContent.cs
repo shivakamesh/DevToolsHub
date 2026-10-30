@@ -521,6 +521,17 @@ public static class ToolContent
                 Free,
             ]),
 
+        ["domain-availability-checker"] = new("Domain name availability checker",
+            "Find out whether a domain name is free to register across popular TLDs such as .com, .net, .org, .io, .dev and .ai. Each domain is first checked with DNS over HTTPS; domains without DNS are then checked against the registry using RDAP, the modern replacement for WHOIS.",
+            ["Type a name like mybrand or a full domain like mybrand.io.", "Select the TLDs to check.", "Press Enter or click Check."],
+            "mybrand  →  mybrand.com ✖ Taken, mybrand.dev ✔ Available",
+            [
+                new Faq("How accurate is the result?", "Available means the registry has no record of the domain. Premium, reserved or recently expired domains may still be unavailable, so confirm with a registrar."),
+                new Faq("What does Likely available mean?", "The domain has no DNS records but the registry's RDAP service could not be queried for that TLD."),
+                new Faq("Are my searches private?", "Lookups go from your browser directly to Google Public DNS and rdap.org. This site does not log them or front-run your searches."),
+                Free,
+            ]),
+
         ["color-palette-generator"] = S("color palette generator",
             "Generate harmonious color palettes from a base color using color theory – analogous, complementary, split complementary, triadic, tetradic and monochromatic – or roll a random palette. Each palette comes with a 50–950 shade scale that matches Tailwind CSS conventions and can be exported as CSS custom properties, SCSS variables, a Tailwind config or JSON.",
             ["Pick a base color and harmony, or click Random.", "Lock the colors you like and keep generating.", "Export the palette and shades in your preferred format."],
