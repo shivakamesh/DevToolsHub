@@ -387,6 +387,42 @@
                    {
                        "route":  "/readme-generator",
                        "rewrite":  "/readme-generator/index.html"
+                   },
+                   {
+                       "route":  "/typing-speed-test",
+                       "rewrite":  "/typing-speed-test/index.html"
+                   },
+                   {
+                       "route":  "/regex-golf",
+                       "rewrite":  "/regex-golf/index.html"
+                   },
+                   {
+                       "route":  "/http-status-quiz",
+                       "rewrite":  "/http-status-quiz/index.html"
+                   },
+                   {
+                       "route":  "/binary-hex-game",
+                       "rewrite":  "/binary-hex-game/index.html"
+                   },
+                   {
+                       "route":  "/bitwise-puzzle",
+                       "rewrite":  "/bitwise-puzzle/index.html"
+                   },
+                   {
+                       "route":  "/code-wordle",
+                       "rewrite":  "/code-wordle/index.html"
+                   },
+                   {
+                       "route":  "/keyboard-shortcut-trainer",
+                       "rewrite":  "/keyboard-shortcut-trainer/index.html"
+                   },
+                   {
+                       "route":  "/css-selector-game",
+                       "rewrite":  "/css-selector-game/index.html"
+                   },
+                   {
+                       "route":  "/git-command-quiz",
+                       "rewrite":  "/git-command-quiz/index.html"
                    }
                ],
     "responseOverrides":  {
