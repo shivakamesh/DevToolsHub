@@ -1,0 +1,127 @@
+@page "/typing-speed-test"
+@using System.Diagnostics
+@using System.Net
+@using System.Text
+@using DevToolsHub.Services
+@implements IDisposable
+
+<ToolPage Title="Typing Speed Test for Developers" Description="Measure your typing speed (WPM) and accuracy on real C#, JavaScript and SQL code snippets.">
+    <div class="toolbar">
+        <label>Language
+            <select @bind="language" @bind:after="NewSnippet">
+                @foreach (var l in DevGames.TypingSnippets.Keys) { <option value="@l">@l</option> }
+            </select>
+        </label>
+        <button class="btn" @onclick="NewSnippet">New snippet</button>
+        <button class="btn secondary" @onclick="Restart">Restart</button>
+    </div>
+    <div class="game-stats">
+        <div><span>WPM</span><b>@Wpm</b></div>
+        <div><span>Accuracy</span><b>@Accuracy%</b></div>
+        <div><span>Time</span><b>@watch.Elapsed.TotalSeconds.ToString("0.0")s</b></div>
+        <div><span>Best WPM</span><b>@best</b></div>
+    </div>
+    <pre class="typing-target">@RenderTarget()</pre>
+    @if (finished)
+    {
+        <p class="game-ok">Done! @Wpm WPM at @Accuracy% accuracy. Press New snippet to go again.</p>
+    }
+    <textarea class="io" rows="7" spellcheck="false" autocomplete="off" placeholder="Start typing the snippet here. The timer starts with your first key. Indentation is skipped."
+              value="@typed" @oninput="OnInput" @onpaste:preventDefault="true" disabled="@finished"></textarea>
+</ToolPage>
+
+@code {
+    private string language = "C#";
+    private string target = "";
+    private string typed = "";
+    private int keystrokes, errors, best;
+    private bool finished;
+    private readonly Stopwatch watch = new();
+    private CancellationTokenSource? ticker;
+
+    private int Correct => typed.Where((c, i) => c == target[i]).Count();
+    private int Wpm => DevGames.CalculateWpm(Correct, watch.Elapsed);
+    private int Accuracy => keystrokes == 0 ? 100 : (int)Math.Round(100.0 * (keystrokes - errors) / keystrokes);
+
+    protected override void OnInitialized() => NewSnippet();
+
+    private void NewSnippet()
+    {
+        var list = DevGames.TypingSnippets[language];
+        string next;
+        do next = Normalize(list[Random.Shared.Next(list.Length)]);
+        while (list.Length > 1 && next == target);
+        target = next;
+        Restart();
+    }
+
+    private static string Normalize(string s) =>
+        string.Join('\n', s.Replace("\r", "").Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0));
+
+    private void Restart()
+    {
+        StopTicker();
+        typed = "";
+        keystrokes = errors = 0;
+        finished = false;
+        watch.Reset();
+    }
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        if (finished) return;
+        var value = (e.Value?.ToString() ?? "").Replace("\r", "");
+        if (value.Length > target.Length) value = value[..target.Length];
+        if (!watch.IsRunning && value.Length > 0)
+        {
+            watch.Start();
+            _ = TickAsync();
+        }
+        for (var i = typed.Length; i < value.Length; i++)
+        {
+            keystrokes++;
+            if (value[i] != target[i]) errors++;
+        }
+        typed = value;
+        if (typed == target)
+        {
+            watch.Stop();
+            StopTicker();
+            finished = true;
+            best = Math.Max(best, Wpm);
+        }
+    }
+
+    private async Task TickAsync()
+    {
+        ticker = new CancellationTokenSource();
+        var token = ticker.Token;
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(250));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token)) await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void StopTicker()
+    {
+        ticker?.Cancel();
+        ticker?.Dispose();
+        ticker = null;
+    }
+
+    private MarkupString RenderTarget()
+    {
+        var sb = new StringBuilder();
+        for (var i = 0; i < target.Length; i++)
+        {
+            var cls = i < typed.Length ? (typed[i] == target[i] ? "t-ok" : "t-bad") : i == typed.Length ? "t-cur" : "";
+            var ch = target[i] == '\n' ? "↵\n" : WebUtility.HtmlEncode(target[i].ToString());
+            sb.Append(cls.Length == 0 ? ch : $"<span class=\"{cls}\">{ch}</span>");
+        }
+        return new MarkupString(sb.ToString());
+    }
+
+    public void Dispose() => StopTicker();
+}

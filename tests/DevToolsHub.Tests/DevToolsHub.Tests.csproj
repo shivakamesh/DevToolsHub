@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\Services\JsonSchemaChecker.cs;..\..\Services\BomEngine.cs;..\..\Services\ElectronicsCalculator.cs" Link="Services\%(Filename)%(Extension)" />
+    <Compile Include="..\..\Services\JsonSchemaChecker.cs;..\..\Services\BomEngine.cs;..\..\Services\ElectronicsCalculator.cs;..\..\Services\DevGames.cs" Link="Services\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

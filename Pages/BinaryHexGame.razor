@@ -1,0 +1,156 @@
+@page "/binary-hex-game"
+@using DevToolsHub.Services
+@implements IDisposable
+
+<ToolPage Title="Binary & Hex Conversion Game" Description="Timed rounds of converting numbers between binary, decimal and hexadecimal. How many can you get in 60 seconds?">
+    <div class="toolbar">
+        <label>Range
+            <select @bind="maxValue" disabled="@running">
+                <option value="15">4-bit (0–15)</option>
+                <option value="255">8-bit (0–255)</option>
+                <option value="65535">16-bit (0–65535)</option>
+            </select>
+        </label>
+        <label>Conversions
+            <select @bind="mode" disabled="@running">
+                <option value="mixed">Mixed</option>
+                <option value="bin">Binary ↔ decimal</option>
+                <option value="hex">Hex ↔ decimal</option>
+                <option value="binhex">Binary ↔ hex</option>
+            </select>
+        </label>
+        <button class="btn" @onclick="Start">@(running ? "Restart" : "Start 60s round")</button>
+    </div>
+    <div class="game-stats">
+        <div><span>Time left</span><b>@secondsLeft s</b></div>
+        <div><span>Score</span><b>@score</b></div>
+        <div><span>Misses</span><b>@misses</b></div>
+        <div><span>Best</span><b>@best</b></div>
+    </div>
+    <div class="game-stage glass">
+        @if (running)
+        {
+            <p class="quiz-prompt">Convert <code class="big-code">@DevGames.Format(value, fromRadix)</code> <span class="muted">(@Name(fromRadix))</span> to @Name(toRadix)</p>
+            <form @onsubmit="Submit" class="answer-row">
+                <input @ref="answerBox" class="io mono" autocomplete="off" spellcheck="false" placeholder="Answer, then Enter" @bind="answer" @bind:event="oninput" />
+                <button class="btn" type="submit">Submit</button>
+                <button class="btn secondary" type="button" @onclick="Skip">Skip</button>
+            </form>
+            @if (feedback is not null) { <p class="@(lastOk ? "game-ok" : "game-bad")">@feedback</p> }
+        }
+        else if (played)
+        {
+            <p class="quiz-prompt">Time! You scored @score with @misses misses.</p>
+            @if (feedback is not null) { <p class="muted">@feedback</p> }
+        }
+        else
+        {
+            <p class="quiz-prompt">Press Start. Prefixes like 0x and 0b are optional and letter case does not matter.</p>
+        }
+    </div>
+</ToolPage>
+
+@code {
+    private int maxValue = 255;
+    private string mode = "mixed";
+    private bool running, played, lastOk;
+    private int secondsLeft = 60, score, misses, best;
+    private long value;
+    private int fromRadix = 10, toRadix = 2;
+    private string answer = "";
+    private string? feedback;
+    private ElementReference answerBox;
+    private CancellationTokenSource? cts;
+    private bool focusPending;
+
+    private static string Name(int radix) => radix switch { 2 => "binary", 16 => "hex", _ => "decimal" };
+
+    private void Start()
+    {
+        cts?.Cancel();
+        score = misses = 0;
+        secondsLeft = 60;
+        feedback = null;
+        running = played = true;
+        Next();
+        _ = CountdownAsync();
+    }
+
+    private async Task CountdownAsync()
+    {
+        cts = new CancellationTokenSource();
+        var token = cts.Token;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (secondsLeft > 0 && await timer.WaitForNextTickAsync(token))
+            {
+                secondsLeft--;
+                if (secondsLeft == 0)
+                {
+                    running = false;
+                    best = Math.Max(best, score);
+                    feedback = $"Last one was {DevGames.Format(value, toRadix)}.";
+                }
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void Next()
+    {
+        int[][] pairs = mode switch
+        {
+            "bin" => [[2, 10], [10, 2]],
+            "hex" => [[16, 10], [10, 16]],
+            "binhex" => [[2, 16], [16, 2]],
+            _ => [[2, 10], [10, 2], [16, 10], [10, 16], [2, 16], [16, 2]],
+        };
+        var pair = pairs[Random.Shared.Next(pairs.Length)];
+        (fromRadix, toRadix) = (pair[0], pair[1]);
+        long next;
+        do next = Random.Shared.Next(1, maxValue + 1);
+        while (next == value && maxValue > 1);
+        value = next;
+        answer = "";
+        focusPending = true;
+    }
+
+    private void Submit()
+    {
+        if (!running) return;
+        if (DevGames.TryParse(answer, toRadix, out var v) && v == value)
+        {
+            score++;
+            lastOk = true;
+            feedback = "Correct!";
+        }
+        else
+        {
+            misses++;
+            lastOk = false;
+            feedback = $"{DevGames.Format(value, fromRadix)} = {DevGames.Format(value, toRadix)} in {Name(toRadix)}.";
+        }
+        Next();
+    }
+
+    private void Skip()
+    {
+        misses++;
+        lastOk = false;
+        feedback = $"Skipped: answer was {DevGames.Format(value, toRadix)}.";
+        Next();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (focusPending && running)
+        {
+            focusPending = false;
+            try { await answerBox.FocusAsync(); } catch (InvalidOperationException) { }
+        }
+    }
+
+    public void Dispose() => cts?.Cancel();
+}

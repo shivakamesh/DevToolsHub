@@ -1,0 +1,40 @@
+@page "/http-status-quiz"
+@using DevToolsHub.Services
+
+<ToolPage Title="Guess the HTTP Status Code" Description="A quick quiz on HTTP status codes. Match codes like 418 or 503 to their meanings, or the other way round.">
+    <div class="toolbar">
+        <label>Mode
+            <select @bind="reverse" @bind:after="NewGame">
+                <option value="false">Code → meaning</option>
+                <option value="true">Meaning → code</option>
+            </select>
+        </label>
+        <label>Questions
+            <select @bind="count" @bind:after="NewGame">
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="32">All</option>
+            </select>
+        </label>
+        <button class="btn secondary" @onclick="NewGame">New game</button>
+    </div>
+    @if (questions.Count > 0)
+    {
+        <QuizGame @key="gameId" Questions="questions" OnRestart="NewGame" />
+    }
+</ToolPage>
+
+@code {
+    private bool reverse;
+    private int count = 10;
+    private int gameId;
+    private List<QuizQuestion> questions = [];
+
+    protected override void OnInitialized() => NewGame();
+
+    private void NewGame()
+    {
+        questions = DevGames.BuildHttpQuiz(count, reverse, Random.Shared);
+        gameId++;
+    }
+}

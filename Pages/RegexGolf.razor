@@ -1,0 +1,69 @@
+@page "/regex-golf"
+@using DevToolsHub.Services
+
+<ToolPage Title="Regex Golf" Description="Write the shortest regular expression that matches every word on the left and none on the right. Can you beat par?">
+    <div class="toolbar">
+        <label>Puzzle
+            <select @bind="index" @bind:after="Load">
+                @for (var i = 0; i < DevGames.RegexPuzzles.Length; i++)
+                {
+                    <option value="@i">@(i + 1). @DevGames.RegexPuzzles[i].Title @(bestLengths.TryGetValue(i, out var b) ? $"✓ {b}" : "")</option>
+                }
+            </select>
+        </label>
+        <button class="btn secondary" @onclick="() => showPar = !showPar">@(showPar ? "Hide" : "Show") par solution</button>
+    </div>
+    <div class="game-stats">
+        <div><span>Length</span><b>@pattern.Length</b></div>
+        <div><span>Par</span><b>@Puzzle.Par.Length</b></div>
+        <div><span>Your best</span><b>@(bestLengths.TryGetValue(index, out var best) ? best : "–")</b></div>
+        <div><span>Solved</span><b>@bestLengths.Count / @DevGames.RegexPuzzles.Length</b></div>
+    </div>
+    @if (showPar) { <p class="muted">Par: <code>@Puzzle.Par</code></p> }
+    <input class="io mono" placeholder="Type a .NET regex…" spellcheck="false" @bind="pattern" @bind:event="oninput" @bind:after="Evaluate" />
+    @if (result is null && pattern.Length > 0) { <p class="game-bad">Invalid or too slow regular expression.</p> }
+    else if (solved) { <p class="game-ok">Solved in @pattern.Length characters@(pattern.Length <= Puzzle.Par.Length ? " — at or under par! 🏆" : ".")</p> }
+    <div class="golf-cols">
+        <div class="glass golf-col">
+            <h3>Match all ✔</h3>
+            @for (var i = 0; i < Puzzle.Match.Length; i++)
+            {
+                <div class="golf-word @WordClass(result?.Match[i])">@Puzzle.Match[i]</div>
+            }
+        </div>
+        <div class="glass golf-col">
+            <h3>Match none ✘</h3>
+            @for (var i = 0; i < Puzzle.Avoid.Length; i++)
+            {
+                <div class="golf-word @WordClass(result?.Avoid[i])">@Puzzle.Avoid[i]</div>
+            }
+        </div>
+    </div>
+</ToolPage>
+
+@code {
+    private int index;
+    private string pattern = "";
+    private bool showPar, solved;
+    private (bool[] Match, bool[] Avoid)? result;
+    private readonly Dictionary<int, int> bestLengths = [];
+
+    private RegexPuzzle Puzzle => DevGames.RegexPuzzles[index];
+
+    private static string WordClass(bool? ok) => ok is null ? "" : ok.Value ? "good" : "bad";
+
+    private void Load()
+    {
+        pattern = "";
+        showPar = false;
+        Evaluate();
+    }
+
+    private void Evaluate()
+    {
+        result = pattern.Length == 0 ? null : DevGames.EvaluateRegex(Puzzle, pattern);
+        solved = result is { } r && r.Match.All(x => x) && r.Avoid.All(x => x);
+        if (solved && (!bestLengths.TryGetValue(index, out var b) || pattern.Length < b))
+            bestLengths[index] = pattern.Length;
+    }
+}

@@ -1,0 +1,124 @@
+@page "/code-wordle"
+@using DevToolsHub.Services
+
+<ToolPage Title="Code Wordle" Description="Guess the 5-letter programming keyword in six tries. Green means right spot, yellow means wrong spot.">
+    <div class="toolbar">
+        <button class="btn" @onclick="NewGame">New word</button>
+        <span class="muted">Wins: @wins · Played: @played</span>
+    </div>
+    <div class="game-stage glass wordle" tabindex="0" @onkeydown="OnKey">
+        <div class="wordle-grid">
+            @for (var row = 0; row < MaxGuesses; row++)
+            {
+                var r = row;
+                <div class="wordle-row">
+                    @for (var col = 0; col < 5; col++)
+                    {
+                        var c = col;
+                        var letter = r < guesses.Count ? guesses[r].Word[c].ToString() : r == guesses.Count && c < current.Length ? current[c].ToString() : "";
+                        var cls = r < guesses.Count ? guesses[r].Score[c].ToString().ToLowerInvariant() : letter.Length > 0 ? "filled" : "";
+                        <div class="wordle-cell @cls">@letter.ToUpperInvariant()</div>
+                    }
+                </div>
+            }
+        </div>
+        @if (message is not null) { <p class="@(won ? "game-ok" : over ? "game-bad" : "muted")">@message</p> }
+        <div class="wordle-keys">
+            @foreach (var line in KeyRows)
+            {
+                <div>
+                    @foreach (var k in line)
+                    {
+                        var key = k;
+                        <button class="wkey @KeyClass(key)" disabled="@over" @onclick="() => Press(key)">@(key == "enter" ? "Enter" : key == "back" ? "⌫" : key.ToUpperInvariant())</button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</ToolPage>
+
+@code {
+    private const int MaxGuesses = 6;
+    private static readonly string[][] KeyRows =
+    [
+        "qwertyuiop".Select(c => c.ToString()).ToArray(),
+        "asdfghjkl".Select(c => c.ToString()).ToArray(),
+        ["enter", .. "zxcvbnm".Select(c => c.ToString()), "back"],
+    ];
+
+    private string answer = "";
+    private string current = "";
+    private readonly List<(string Word, LetterState[] Score)> guesses = [];
+    private readonly Dictionary<char, LetterState> keyStates = [];
+    private bool won, over;
+    private string? message;
+    private int wins, played;
+
+    protected override void OnInitialized() => NewGame();
+
+    private void NewGame()
+    {
+        string next;
+        do next = DevGames.WordleWords[Random.Shared.Next(DevGames.WordleWords.Length)];
+        while (next == answer);
+        answer = next;
+        current = "";
+        guesses.Clear();
+        keyStates.Clear();
+        won = over = false;
+        message = "Type a guess or use the keyboard below.";
+    }
+
+    private string KeyClass(string key) =>
+        key.Length == 1 && keyStates.TryGetValue(key[0], out var s) ? s.ToString().ToLowerInvariant() : "";
+
+    private void OnKey(KeyboardEventArgs e)
+    {
+        if (e.CtrlKey || e.AltKey || e.MetaKey) return;
+        if (e.Key == "Enter") Press("enter");
+        else if (e.Key == "Backspace") Press("back");
+        else if (e.Key.Length == 1 && char.IsAsciiLetter(e.Key[0])) Press(e.Key.ToLowerInvariant());
+    }
+
+    private void Press(string key)
+    {
+        if (over) return;
+        if (key == "back")
+        {
+            if (current.Length > 0) current = current[..^1];
+        }
+        else if (key == "enter") Submit();
+        else if (current.Length < 5) current += key;
+    }
+
+    private void Submit()
+    {
+        if (current.Length < 5)
+        {
+            message = "Not enough letters.";
+            return;
+        }
+        var score = DevGames.ScoreGuess(current, answer);
+        guesses.Add((current, score));
+        for (var i = 0; i < 5; i++)
+        {
+            if (!keyStates.TryGetValue(current[i], out var old) || score[i] > old) keyStates[current[i]] = score[i];
+        }
+        if (current == answer)
+        {
+            won = over = true;
+            wins++;
+            played++;
+            message = $"You got it in {guesses.Count}! 🎉";
+        }
+        else if (guesses.Count == MaxGuesses)
+        {
+            over = true;
+            played++;
+            message = $"Out of guesses. The word was {answer.ToUpperInvariant()}.";
+        }
+        else message = null;
+        current = "";
+    }
+}

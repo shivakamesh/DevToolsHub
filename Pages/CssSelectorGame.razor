@@ -1,0 +1,96 @@
+@page "/css-selector-game"
+@using DevToolsHub.Services
+@inject IJSRuntime JS
+
+<ToolPage Title="CSS Selector Game" Description="Write a CSS selector that targets exactly the highlighted elements. Twelve levels from type selectors to :not() and attribute matching.">
+    <div class="toolbar">
+        <label>Level
+            <select @bind="level" @bind:after="LoadAsync">
+                @for (var i = 0; i < DevGames.SelectorLevels.Length; i++)
+                {
+                    <option value="@i">@(i + 1). @DevGames.SelectorLevels[i].Instruction @(solved.Contains(i) ? "✓" : "")</option>
+                }
+            </select>
+        </label>
+        <button class="btn secondary" @onclick="() => showHint = !showHint">Hint</button>
+        <button class="btn secondary" disabled="@(level + 1 >= DevGames.SelectorLevels.Length)" @onclick="NextAsync">Next level</button>
+    </div>
+    <div class="game-stats">
+        <div><span>Solved</span><b>@solved.Count / @DevGames.SelectorLevels.Length</b></div>
+    </div>
+    <div class="game-stage glass">
+        <p class="quiz-prompt">@Level.Instruction</p>
+        @if (showHint) { <p class="muted">@Level.Hint</p> }
+        <pre class="selector-board">@Board()</pre>
+        <input class="io mono" placeholder="Type a CSS selector…" spellcheck="false" @bind="selector" @bind:event="oninput" @bind:after="CheckAsync" />
+        @if (error) { <p class="game-bad">That is not a valid selector.</p> }
+        else if (win) { <p class="game-ok">Nice! Exactly the right elements. 🎯</p> }
+        else if (selector.Length > 0) { <p class="muted">Matches @matched.Count element(s); @targets.Count highlighted.</p> }
+        <p class="muted">Legend: <span class="sel-target">target</span> <span class="sel-hit">matched target</span> <span class="sel-wrong">matched but not a target</span></p>
+    </div>
+</ToolPage>
+
+@code {
+    private int level;
+    private string selector = "";
+    private bool showHint, error, win;
+    private string[] lines = [];
+    private int[] elementOfLine = [];
+    private HashSet<int> targets = [];
+    private HashSet<int> matched = [];
+    private readonly HashSet<int> solved = [];
+
+    private SelectorLevel Level => DevGames.SelectorLevels[level];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        selector = "";
+        showHint = error = win = false;
+        matched = [];
+        lines = Level.Html.Split('\n');
+        elementOfLine = new int[lines.Length];
+        var n = 0;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var t = lines[i].TrimStart();
+            elementOfLine[i] = t.StartsWith('<') && !t.StartsWith("</") ? n++ : -1;
+        }
+        targets = (await MatchAsync(Level.Solution) ?? []).ToHashSet();
+        StateHasChanged();
+    }
+
+    private async Task NextAsync()
+    {
+        level++;
+        await LoadAsync();
+    }
+
+    private async Task<int[]?> MatchAsync(string sel) =>
+        await JS.InvokeAsync<int[]?>("devGames.selectorMatches", Level.Html, sel);
+
+    private async Task CheckAsync()
+    {
+        if (string.IsNullOrWhiteSpace(selector))
+        {
+            matched = [];
+            error = win = false;
+            return;
+        }
+        var result = await MatchAsync(selector);
+        error = result is null;
+        matched = (result ?? []).ToHashSet();
+        win = !error && matched.SetEquals(targets);
+        if (win) solved.Add(level);
+    }
+
+    private MarkupString Board() => new(string.Join('\n', lines.Select((l, i) =>
+        $"<span class=\"{LineClass(elementOfLine[i])}\">{System.Net.WebUtility.HtmlEncode(l)}</span>")));
+
+    private string LineClass(int el) =>
+        el < 0 ? "" : targets.Contains(el) ? (matched.Contains(el) ? "sel-hit" : "sel-target") : matched.Contains(el) ? "sel-wrong" : "";
+}

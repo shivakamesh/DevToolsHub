@@ -1,0 +1,100 @@
+@page "/bitwise-puzzle"
+@using DevToolsHub.Services
+
+<ToolPage Title="Bitwise Puzzle" Description="Reach the target 8-bit value using AND, OR, XOR, NOT and shift operations in as few moves as possible.">
+    <div class="toolbar">
+        <label>Difficulty
+            <select @bind="depth" @bind:after="NewPuzzle">
+                <option value="3">Easy</option>
+                <option value="5">Medium</option>
+                <option value="7">Hard</option>
+            </select>
+        </label>
+        <button class="btn" @onclick="NewPuzzle">New puzzle</button>
+        <button class="btn secondary" disabled="@(history.Count == 0)" @onclick="Undo">Undo</button>
+        <button class="btn secondary" disabled="@(history.Count == 0)" @onclick="Reset">Reset</button>
+    </div>
+    <div class="game-stats">
+        <div><span>Moves</span><b>@history.Count</b></div>
+        <div><span>Par</span><b>@par</b></div>
+        <div><span>Solved</span><b>@solvedCount</b></div>
+    </div>
+    <div class="game-stage glass">
+        <div class="bit-rows">
+            <div class="bit-row"><span>Current</span>@Bits(current, target)<code>@current (0x@(current.ToString("X2")))</code></div>
+            <div class="bit-row"><span>Target</span>@Bits(target, target)<code>@target (0x@(target.ToString("X2")))</code></div>
+        </div>
+        <div class="choice-grid">
+            @foreach (var op in ops)
+            {
+                <button class="choice mono" disabled="@won" @onclick="() => Apply(op)">@op.Label</button>
+            }
+        </div>
+        @if (won)
+        {
+            <p class="game-ok">Solved in @history.Count move@(history.Count == 1 ? "" : "s")@(history.Count <= par ? " — par or better! 🏆" : $" (par is {par}).")</p>
+        }
+        @if (history.Count > 0)
+        {
+            <p class="muted mono">@start @string.Concat(history.Select(h => $" → {h.Op} → {h.Value}"))</p>
+        }
+    </div>
+</ToolPage>
+
+@code {
+    private int depth = 3;
+    private int start, current, target, par, solvedCount;
+    private BitOp[] ops = [];
+    private readonly List<(string Op, int Value)> history = [];
+    private bool won;
+
+    protected override void OnInitialized() => NewPuzzle();
+
+    private void NewPuzzle()
+    {
+        (start, target, ops, par) = DevGames.NewBitPuzzle(Random.Shared, depth);
+        Reset();
+    }
+
+    private void Reset()
+    {
+        history.Clear();
+        current = start;
+        won = false;
+    }
+
+    private void Undo()
+    {
+        history.RemoveAt(history.Count - 1);
+        current = history.Count == 0 ? start : history[^1].Value;
+        won = false;
+    }
+
+    private void Apply(BitOp op)
+    {
+        current = op.Apply(current);
+        history.Add((op.Label, current));
+        if (current == target)
+        {
+            won = true;
+            solvedCount++;
+        }
+    }
+
+    private static RenderFragment Bits(int value, int compareTo) => builder =>
+    {
+        var bits = DevGames.Bin8(value);
+        var other = DevGames.Bin8(compareTo);
+        var seq = 0;
+        builder.OpenElement(seq++, "span");
+        builder.AddAttribute(seq++, "class", "bits");
+        for (var i = 0; i < 8; i++)
+        {
+            builder.OpenElement(seq++, "i");
+            builder.AddAttribute(seq++, "class", (bits[i] == '1' ? "on" : "off") + (bits[i] == other[i] ? "" : " diff"));
+            builder.AddContent(seq++, bits[i]);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+}

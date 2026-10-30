@@ -1,0 +1,74 @@
+@using DevToolsHub.Services
+
+<div class="game-stats">
+    <div><span>Question</span><b>@(Math.Min(index + 1, Questions.Count)) / @Questions.Count</b></div>
+    <div><span>Score</span><b>@score</b></div>
+    <div><span>Streak</span><b>@streak</b></div>
+    <div><span>Best streak</span><b>@bestStreak</b></div>
+</div>
+
+@if (index < Questions.Count)
+{
+    var q = Questions[index];
+    <div class="game-stage glass">
+        <p class="quiz-prompt">@q.Prompt</p>
+        <div class="choice-grid">
+            @for (var i = 0; i < q.Options.Length; i++)
+            {
+                var opt = i;
+                <button class="choice @ChoiceClass(q, opt)" disabled="@(selected is not null)" @onclick="() => Choose(opt)">@q.Options[opt]</button>
+            }
+        </div>
+        @if (selected is not null)
+        {
+            <p class="@(selected == q.Answer ? "game-ok" : "game-bad")">
+                @(selected == q.Answer ? "Correct!" : $"Not quite. Answer: {q.Options[q.Answer]}")
+                @if (q.Explanation is not null) { <span class="muted"> — @q.Explanation</span> }
+            </p>
+            <button class="btn" @onclick="Next">@(index + 1 < Questions.Count ? "Next question" : "See results")</button>
+        }
+    </div>
+}
+else
+{
+    <div class="game-stage glass">
+        <p class="quiz-prompt">You scored @score / @Questions.Count (@(Questions.Count == 0 ? 0 : score * 100 / Questions.Count)%).</p>
+        <button class="btn" @onclick="Restart">Play again</button>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<QuizQuestion> Questions { get; set; } = [];
+    [Parameter] public EventCallback OnRestart { get; set; }
+
+    private int index, score, streak, bestStreak;
+    private int? selected;
+
+    private string ChoiceClass(QuizQuestion q, int i) =>
+        selected is null ? "" : i == q.Answer ? "correct" : i == selected ? "wrong" : "";
+
+    private void Choose(int i)
+    {
+        selected = i;
+        if (i == Questions[index].Answer)
+        {
+            score++;
+            streak++;
+            bestStreak = Math.Max(bestStreak, streak);
+        }
+        else streak = 0;
+    }
+
+    private void Next()
+    {
+        selected = null;
+        index++;
+    }
+
+    private async Task Restart()
+    {
+        index = score = streak = 0;
+        selected = null;
+        await OnRestart.InvokeAsync();
+    }
+}

@@ -1,0 +1,113 @@
+@page "/keyboard-shortcut-trainer"
+@using DevToolsHub.Services
+
+<ToolPage Title="Keyboard Shortcut Trainer" Description="Practice Visual Studio and VS Code keyboard shortcuts. Read the action and press the shortcut to score.">
+    <div class="toolbar">
+        <label>Editor
+            <select @bind="editor" @bind:after="NewRound">
+                @foreach (var e in DevGames.Shortcuts.Keys) { <option value="@e">@e</option> }
+            </select>
+        </label>
+        <button class="btn secondary" @onclick="Reveal">Show answer</button>
+        <button class="btn secondary" @onclick="Next">Skip</button>
+        <button class="btn secondary" @onclick="NewRound">Restart</button>
+    </div>
+    <div class="game-stats">
+        <div><span>Progress</span><b>@(Math.Min(index + 1, deck.Count)) / @deck.Count</b></div>
+        <div><span>Score</span><b>@score</b></div>
+        <div><span>Misses</span><b>@misses</b></div>
+    </div>
+    @if (index < deck.Count)
+    {
+        <div class="game-stage glass shortcut-pad" tabindex="0" @ref="pad" @onkeydown="OnKey" @onkeydown:preventDefault="true" @onkeydown:stopPropagation="true">
+            <p class="quiz-prompt">@deck[index].Action</p>
+            <p class="muted">Click here, then press the shortcut (Windows/Linux keys; ⌘ counts as Ctrl).</p>
+            <p class="mono">@(chord.Count > 0 ? string.Join(", ", chord) + ", …" : "")</p>
+            @if (feedback is not null) { <p class="@(lastOk ? "game-ok" : "game-bad")">@feedback</p> }
+            @if (revealed) { <p><kbd>@deck[index].Shortcut</kbd></p> }
+        </div>
+    }
+    else
+    {
+        <div class="game-stage glass">
+            <p class="quiz-prompt">Round complete: @score / @deck.Count correct with @misses misses.</p>
+            <button class="btn" @onclick="NewRound">Play again</button>
+        </div>
+    }
+</ToolPage>
+
+@code {
+    private string editor = "VS Code";
+    private List<ShortcutItem> deck = [];
+    private int index, score, misses;
+    private readonly List<string> chord = [];
+    private string? feedback;
+    private bool lastOk, revealed, missedThis;
+    private ElementReference pad;
+    private bool focusPending = true;
+
+    protected override void OnInitialized() => NewRound();
+
+    private void NewRound()
+    {
+        deck = DevGames.Shortcuts[editor].OrderBy(_ => Random.Shared.Next()).ToList();
+        index = score = misses = 0;
+        feedback = null;
+        ResetCard();
+    }
+
+    private void ResetCard()
+    {
+        chord.Clear();
+        revealed = missedThis = false;
+        focusPending = true;
+    }
+
+    private void Reveal()
+    {
+        revealed = true;
+        missedThis = true;
+        focusPending = true;
+    }
+
+    private void Next()
+    {
+        index++;
+        ResetCard();
+    }
+
+    private void OnKey(KeyboardEventArgs e)
+    {
+        if (index >= deck.Count) return;
+        var combo = DevGames.Combo(e.Code, e.CtrlKey || e.MetaKey, e.ShiftKey, e.AltKey);
+        if (combo is null) return;
+        var parts = deck[index].Shortcut.Split(", ");
+        if (string.Equals(combo, parts[chord.Count], StringComparison.OrdinalIgnoreCase))
+        {
+            chord.Add(combo);
+            if (chord.Count < parts.Length) return;
+            lastOk = true;
+            if (!missedThis) score++;
+            feedback = $"✓ {deck[index].Action}: {deck[index].Shortcut}";
+            Next();
+        }
+        else
+        {
+            var pressed = string.Join(", ", chord.Append(combo));
+            chord.Clear();
+            lastOk = false;
+            if (!missedThis) misses++;
+            missedThis = true;
+            feedback = $"You pressed {pressed}. Try again.";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (focusPending && index < deck.Count)
+        {
+            focusPending = false;
+            try { await pad.FocusAsync(); } catch (InvalidOperationException) { }
+        }
+    }
+}

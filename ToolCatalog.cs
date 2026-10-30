@@ -4,7 +4,7 @@ public record ToolInfo(string Name, string Href, string Icon, string Category, s
 
 public static class ToolCatalog
 {
-    public static readonly string[] Categories = ["Format", "Encode", "Generate", "Convert", "Inspect", "Engineering"];
+    public static readonly string[] Categories = ["Format", "Encode", "Generate", "Convert", "Inspect", "Engineering", "Games"];
 
     // Tools ordered by estimated search popularity (most searched first). Unlisted tools go last.
     private static readonly string[] Popularity =
@@ -224,6 +224,26 @@ public static class ToolCatalog
             "Edit cells in the grid, set column alignment, or paste CSV, TSV or cells copied from Excel to import them. Copy the aligned Markdown table."),
         new("README Generator", "readme-generator", "📘", "Generate", "Create a GitHub README.md with badges.",
             "Fill in your project details, choose sections and badges, preview the result and copy or download README.md."),
+
+        // Games
+        new("Typing Speed Test", "typing-speed-test", "⌨", "Games", "Test your WPM on C#, JavaScript and SQL code.",
+            "Pick a language and start typing the snippet. The timer starts on your first key; correct characters turn green and mistakes red. WPM counts five correct characters as one word. Indentation is skipped."),
+        new("Regex Golf", "regex-golf", "⛳", "Games", "Write the shortest regex that solves the puzzle.",
+            "Type a .NET regular expression that matches every word in the left column and none in the right. Shorter is better – try to reach par."),
+        new("HTTP Status Code Quiz", "http-status-quiz", "418", "Games", "Guess what HTTP status codes mean.",
+            "Choose the meaning of each status code, or switch modes to pick the code for a meaning. Your score and streak are tracked for the round."),
+        new("Binary & Hex Game", "binary-hex-game", "0x", "Games", "Timed binary, decimal and hex conversions.",
+            "Pick a range and the conversions to practise, then press Start and convert as many numbers as you can in 60 seconds. 0x and 0b prefixes are optional."),
+        new("Bitwise Puzzle", "bitwise-puzzle", "⊕", "Games", "Reach a target value with AND, OR, XOR and shifts.",
+            "Apply the available operations to turn the current 8-bit value into the target. Differing bits are highlighted. Solve it in par moves or fewer."),
+        new("Code Wordle", "code-wordle", "🟩", "Games", "Guess the 5-letter programming keyword.",
+            "Type a 5-letter guess and press Enter. Green letters are in the right spot, yellow letters are in the word but elsewhere. You have six tries."),
+        new("Keyboard Shortcut Trainer", "keyboard-shortcut-trainer", "⌘", "Games", "Practise Visual Studio and VS Code shortcuts.",
+            "Choose an editor, click the practice area and press the shortcut for the action shown. Chords like Ctrl+K, Ctrl+C are supported. Use Show answer if you are stuck."),
+        new("CSS Selector Game", "css-selector-game", "#.", "Games", "Write selectors that target highlighted elements.",
+            "Type a CSS selector that matches exactly the highlighted elements. Matches update live and wrong matches are flagged. Use Hint if you need a nudge."),
+        new("Git Command Quiz", "git-command-quiz", "git", "Games", "Pick the right Git command for each scenario.",
+            "Read the scenario and choose the Git command that solves it. An explanation is shown after each answer."),
     ];
 
     public static IEnumerable<IGrouping<string, ToolInfo>> ByCategory =>

@@ -1,0 +1,22 @@
+@page "/git-command-quiz"
+@using DevToolsHub.Services
+
+<ToolPage Title="Git Command Quiz" Description="Pick the right Git command for real-world scenarios: undoing commits, stashing, rebasing, recovering lost work and more.">
+    <div class="toolbar">
+        <button class="btn secondary" @onclick="NewGame">Shuffle questions</button>
+    </div>
+    <QuizGame @key="gameId" Questions="questions" OnRestart="NewGame" />
+</ToolPage>
+
+@code {
+    private int gameId;
+    private List<QuizQuestion> questions = [];
+
+    protected override void OnInitialized() => NewGame();
+
+    private void NewGame()
+    {
+        questions = DevGames.Shuffle(DevGames.GitQuestions, Random.Shared);
+        gameId++;
+    }
+}

@@ -1,0 +1,76 @@
+/* Shared game styles */
+.game-stats { display: flex; flex-wrap: wrap; gap: .75rem; margin: .75rem 0; }
+.game-stats > div { display: flex; flex-direction: column; min-width: 90px; padding: .5rem .8rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.game-stats span { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.game-stats b { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.game-stage { padding: 1.1rem; margin: .75rem 0; border-radius: 12px; }
+.game-stage:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.game-ok { color: var(--ok); font-weight: 600; }
+.game-bad { color: var(--error); font-weight: 600; }
+.quiz-prompt { font-size: 1.15rem; font-weight: 600; margin: 0 0 .9rem; }
+.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.big-code { font-size: 1.4rem; padding: .1rem .4rem; }
+
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .6rem; margin-bottom: .8rem; }
+.choice { padding: .7rem .9rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.choice:hover:not(:disabled) { border-color: var(--accent); }
+.choice:disabled { cursor: default; }
+.choice.correct { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 18%, transparent); }
+.choice.wrong { border-color: var(--error); background: color-mix(in srgb, var(--error) 18%, transparent); }
+
+/* Typing test */
+.typing-target { white-space: pre-wrap; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 1rem; line-height: 1.6; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--muted); }
+.typing-target .t-ok { color: var(--ok); }
+.typing-target .t-bad { color: #fff; background: var(--error); border-radius: 2px; }
+.typing-target .t-cur { color: var(--text); border-left: 2px solid var(--accent); animation: blink 1s step-end infinite; }
+@keyframes blink { 50% { border-color: transparent; } }
+
+/* Regex golf */
+.golf-cols { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .75rem; }
+.golf-col { padding: .8rem; border-radius: 12px; }
+.golf-col h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.golf-word { font-family: 'JetBrains Mono', ui-monospace, monospace; padding: .2rem .5rem; border-radius: 6px; margin: .15rem 0; }
+.golf-word.good { background: color-mix(in srgb, var(--ok) 20%, transparent); }
+.golf-word.bad { background: color-mix(in srgb, var(--error) 22%, transparent); }
+
+/* Binary/hex */
+.answer-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+.answer-row .io { flex: 1 1 200px; }
+
+/* Bitwise puzzle */
+.bit-rows { display: grid; gap: .5rem; margin-bottom: 1rem; }
+.bit-row { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
+.bit-row > span { width: 70px; color: var(--muted); }
+.bits { display: inline-flex; gap: 4px; }
+.bits i { font-style: normal; width: 28px; height: 32px; display: grid; place-items: center; border-radius: 6px; border: 1px solid var(--border); font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.bits i.on { background: var(--accent); color: #fff; }
+.bits i.diff { outline: 2px solid var(--error); }
+
+/* Code Wordle */
+.wordle { text-align: center; }
+.wordle-grid { display: inline-grid; gap: 6px; margin-bottom: 1rem; }
+.wordle-row { display: grid; grid-template-columns: repeat(5, 52px); gap: 6px; }
+.wordle-cell { height: 52px; display: grid; place-items: center; font-size: 1.5rem; font-weight: 700; border: 2px solid var(--border); border-radius: 8px; }
+.wordle-cell.filled { border-color: var(--muted); }
+.wordle-cell.correct, .wkey.correct { background: #22a35a; border-color: #22a35a; color: #fff; }
+.wordle-cell.present, .wkey.present { background: #c9a227; border-color: #c9a227; color: #fff; }
+.wordle-cell.absent, .wkey.absent { background: #4b5563; border-color: #4b5563; color: #fff; }
+.wordle-keys > div { display: flex; justify-content: center; gap: 5px; margin: 5px 0; }
+.wkey { min-width: 34px; padding: .6rem .45rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-strong); color: var(--text); cursor: pointer; font-weight: 600; }
+
+/* Shortcut trainer */
+.shortcut-pad { text-align: center; cursor: pointer; min-height: 180px; }
+kbd { display: inline-block; padding: .2rem .55rem; border: 1px solid var(--border); border-bottom-width: 3px; border-radius: 6px; font-family: 'JetBrains Mono', ui-monospace, monospace; background: var(--surface-strong); }
+
+/* CSS selector game */
+.selector-board { font-family: 'JetBrains Mono', ui-monospace, monospace; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); line-height: 1.7; overflow-x: auto; }
+.sel-target { background: color-mix(in srgb, var(--accent) 25%, transparent); border-radius: 4px; padding: 0 .2rem; }
+.sel-hit { background: color-mix(in srgb, var(--ok) 30%, transparent); border-radius: 4px; padding: 0 .2rem; }
+.sel-wrong { background: color-mix(in srgb, var(--error) 30%, transparent); border-radius: 4px; padding: 0 .2rem; }
+
+@media (max-width: 600px) {
+    .golf-cols { grid-template-columns: 1fr; }
+    .wordle-row { grid-template-columns: repeat(5, 44px); }
+    .wordle-cell { height: 44px; }
+    .wkey { min-width: 26px; padding: .55rem .3rem; }
+}
