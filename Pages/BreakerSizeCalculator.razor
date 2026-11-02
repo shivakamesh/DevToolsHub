@@ -1,0 +1,111 @@
+@page "/breaker-size-calculator"
+
+<ToolPage Title="Circuit Breaker & Fuse Size Calculator (NEC & IEC)" Description="Find the right circuit breaker or fuse rating for a load using NEC (continuous 125 %, motor 250 %) or IEC MCB ratings for single-phase, three-phase and DC circuits.">
+    <div class="toolbar">
+        <label>Standard
+            <select @bind="standard" @bind:after="Calculate">
+                <option value="nec">NEC 240.6 ratings</option>
+                <option value="iec">IEC MCB / MCCB ratings</option>
+            </select>
+        </label>
+        <label>System
+            <select @bind="system" @bind:after="Calculate">
+                <option value="1ph">Single-phase</option>
+                <option value="3ph">Three-phase</option>
+                <option value="dc">DC</option>
+            </select>
+        </label>
+        <label>Load type
+            <select @bind="loadType" @bind:after="Calculate">
+                <option value="continuous">Continuous (3 h or more)</option>
+                <option value="noncontinuous">Non-continuous</option>
+                <option value="motor">Motor (inverse-time breaker)</option>
+                <option value="motorfuse">Motor (time-delay fuse)</option>
+            </select>
+        </label>
+        <label>Enter
+            <select @bind="inputMode" @bind:after="Calculate">
+                <option value="amps">Current (A)</option>
+                <option value="kw">Power (kW)</option>
+            </select>
+        </label>
+    </div>
+    <table class="table">
+        <tbody>
+            @if (inputMode == "amps")
+            {
+                <tr><th>Load current (A)</th><td><input type="number" step="any" @bind="amps" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            }
+            else
+            {
+                <tr><th>Load power (kW)</th><td><input type="number" step="any" @bind="kw" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+                <tr><th>Voltage (V)</th><td><input type="number" step="any" @bind="voltage" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+                @if (system != "dc")
+                {
+                    <tr><th>Power factor</th><td><input type="number" step="0.01" @bind="pf" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+                }
+            }
+        </tbody>
+    </table>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Load current</th><td>@Eng.N(load, "F2") A</td></tr>
+                <tr><th>Sizing factor</th><td>@Eng.N(factor * 100) %</td></tr>
+                <tr><th>Minimum rating</th><td>@Eng.N(load * factor, "F2") A</td></tr>
+                <tr><th>Recommended breaker / fuse</th><td><strong><code>@(recommended is null ? "above largest standard size" : recommended + " A")</code></strong></td></tr>
+            </tbody>
+        </table>
+        <p class="lead">
+            @Note
+            The conductor must also be rated for the circuit; see the <a href="/ampacity-table">ampacity table</a> and <a href="/cable-size-calculator">cable size calculator</a>.
+        </p>
+    }
+</ToolPage>
+
+@code {
+    private static readonly int[] Nec = [15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100, 110, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500, 600, 700, 800, 1000, 1200, 1600, 2000, 2500, 3000, 4000, 5000, 6000];
+    private static readonly int[] Iec = [1, 2, 3, 4, 6, 10, 13, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3200, 4000, 5000, 6300];
+
+    private string standard = "nec", system = "1ph", loadType = "continuous", inputMode = "amps";
+    private double? amps = 24, kw = 5, voltage = 240, pf = 0.9;
+    private double load, factor;
+    private int? recommended;
+    private string? error;
+
+    private string Note => loadType switch
+    {
+        "continuous" => standard == "nec" ? "NEC 210.20(A): overcurrent devices for continuous loads are sized at 125 % of the load. " : "IEC: In ≥ Ib with a 125 % margin for continuous loads is common practice. ",
+        "motor" => "NEC 430.52: inverse-time breakers may be up to 250 % of motor full-load current; use the next standard size up. ",
+        "motorfuse" => "NEC 430.52: dual-element time-delay fuses up to 175 % of motor full-load current. ",
+        _ => "Non-continuous loads may be protected at 100 % of the load current. ",
+    };
+
+    protected override void OnInitialized() => Calculate();
+
+    private void Calculate()
+    {
+        error = null;
+        if (inputMode == "amps")
+        {
+            if (amps is null or <= 0) { error = "Enter a positive load current."; return; }
+            load = amps.Value;
+        }
+        else
+        {
+            if (kw is null or <= 0 || voltage is null or <= 0) { error = "Enter positive power and voltage."; return; }
+            var p = system == "dc" ? 1 : pf is > 0 and <= 1 ? pf.Value : 1;
+            load = kw.Value * 1000 / (voltage.Value * p * (system == "3ph" ? Math.Sqrt(3) : 1));
+        }
+        factor = loadType switch { "continuous" => 1.25, "motor" => 2.5, "motorfuse" => 1.75, _ => 1.0 };
+        var min = load * factor;
+        var sizes = standard == "nec" ? Nec : Iec;
+        recommended = sizes.Where(s => s >= min - 1e-9).Select(s => (int?)s).FirstOrDefault();
+    }
+}

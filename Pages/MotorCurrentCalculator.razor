@@ -1,0 +1,79 @@
+@page "/motor-current-calculator"
+
+<ToolPage Title="Motor Full-Load Current & Starter Size Calculator" Description="Calculate motor full-load current from kW or hp for single and three-phase motors, with starting current for DOL, star-delta and soft starters, overload setting, contactor and breaker size.">
+    <div class="toolbar">
+        <label>System
+            <select @bind="phase" @bind:after="Calculate">
+                <option value="3">Three-phase</option>
+                <option value="1">Single-phase</option>
+            </select>
+        </label>
+        <label>Power unit
+            <select @bind="unit" @bind:after="Calculate">
+                <option value="kw">kW</option>
+                <option value="hp">hp</option>
+            </select>
+        </label>
+    </div>
+    <table class="table">
+        <tbody>
+            <tr><th>Motor output power (@unit)</th><td><input type="number" step="any" @bind="power" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Voltage (V@(phase == "3" ? ", line-to-line" : ""))</th><td><input type="number" step="any" @bind="voltage" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Efficiency (%)</th><td><input type="number" step="any" @bind="efficiency" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Power factor</th><td><input type="number" step="0.01" @bind="pf" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Service factor</th><td><input type="number" step="0.05" @bind="sf" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Locked-rotor current (× FLC)</th><td><input type="number" step="any" @bind="lrc" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+        </tbody>
+    </table>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Full-load current (FLC)</th><td><strong><code>@Eng.N(flc, "F2") A</code></strong></td></tr>
+                <tr><th>Input power</th><td>@Eng.N(inputKw, "F2") kW / @Eng.N(inputKw / pf!.Value, "F2") kVA</td></tr>
+                <tr><th>Starting current – DOL</th><td>@Eng.N(flc * lrc!.Value, "F0") A</td></tr>
+                @if (phase == "3")
+                {
+                    <tr><th>Starting current – star-delta</th><td>@Eng.N(flc * lrc.Value / 3, "F0") A (⅓ of DOL)</td></tr>
+                }
+                <tr><th>Starting current – soft starter (≈ 3.5 × FLC)</th><td>@Eng.N(flc * 3.5, "F0") A</td></tr>
+                <tr><th>Starting current – VFD (≈ 1.5 × FLC)</th><td>@Eng.N(flc * 1.5, "F0") A</td></tr>
+                <tr><th>Overload relay setting</th><td>@Eng.N(flc * (sf >= 1.15 ? 1.25 : 1.15), "F2") A max (@(sf >= 1.15 ? "125" : "115") %, NEC 430.32)</td></tr>
+                <tr><th>Contactor (AC-3)</th><td><code>@(Contactors.Where(c => c >= flc).Select(c => c + " A").FirstOrDefault() ?? "> 800 A")</code>@(phase == "3" ? $" DOL · star-delta: 3 × {Contactors.Where(c => c >= flc * 0.58).Select(c => c + " A").FirstOrDefault()}" : "")</td></tr>
+                <tr><th>Inverse-time breaker (≤ 250 %)</th><td><code>@(Breakers.Where(b => b >= flc * 2.5).Select(b => b + " A").FirstOrDefault() ?? "> 2000 A")</code> max</td></tr>
+                <tr><th>Minimum conductor ampacity</th><td>@Eng.N(flc * 1.25, "F1") A (125 % of FLC, NEC 430.22)</td></tr>
+            </tbody>
+        </table>
+        <p class="lead">
+            FLC = P / (@(phase == "3" ? "√3 × " : "")V × η × cosφ). For NEC branch-circuit sizing, use the table FLC from NEC 430.247–430.250 rather than nameplate values.
+        </p>
+    }
+</ToolPage>
+
+@code {
+    private static readonly int[] Contactors = [9, 12, 18, 25, 32, 38, 40, 50, 65, 80, 95, 115, 150, 185, 225, 265, 300, 400, 500, 630, 800];
+    private static readonly int[] Breakers = [15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100, 110, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500, 600, 700, 800, 1000, 1200, 1600, 2000];
+
+    private string phase = "3", unit = "kw";
+    private double? power = 7.5, voltage = 400, efficiency = 90, pf = 0.85, sf = 1.15, lrc = 7;
+    private double flc, inputKw;
+    private string? error;
+
+    protected override void OnInitialized() => Calculate();
+
+    private void Calculate()
+    {
+        error = null;
+        if (power is null or <= 0 || voltage is null or <= 0) { error = "Enter positive power and voltage."; return; }
+        if (efficiency is null or <= 0 or > 100 || pf is null or <= 0 or > 1) { error = "Efficiency must be 0–100 % and power factor 0–1."; return; }
+        if (lrc is null or <= 0) lrc = 7;
+        var kwOut = unit == "hp" ? power.Value * 0.7457 : power.Value;
+        inputKw = kwOut / (efficiency.Value / 100);
+        flc = inputKw * 1000 / (voltage.Value * pf.Value * (phase == "3" ? Math.Sqrt(3) : 1));
+    }
+}

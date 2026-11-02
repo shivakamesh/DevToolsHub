@@ -67,7 +67,20 @@ else if (!string.IsNullOrEmpty(tool?.Help))
     </section>
 }
 
-@if (tool is not null)
+@if (tool is not null && ElectricalLinks.IsElectrical(tool.Href))
+{
+    <nav class="related" aria-label="Related electrical calculators">
+        <h2>Related electrical calculators</h2>
+        <div class="chips">
+            @foreach (var r in ElectricalLinks.For(tool.Href))
+            {
+                <a class="tool-chip" href="@r.Href" title="@r.Summary">@r.Icon @r.Name</a>
+            }
+            <a class="tool-chip" href="@ElectricalLinks.HubHref">⚡ All electrical calculators</a>
+        </div>
+    </nav>
+}
+else if (tool is not null)
 {
     <nav class="related" aria-label="Related tools">
         <h2>Related tools</h2>
@@ -100,11 +113,19 @@ else if (!string.IsNullOrEmpty(tool?.Help))
     private ToolSeo? seo;
     private string currentPath = "";
 
-    private string PageTitleText => $"{Title} – Free Online {(seo is null ? "Tool" : Cap(seo.Keyword))} | It's All Dev Tools";
+    private string PageTitleText => tool is not null && ElectricalLinks.IsElectrical(tool.Href)
+        ? $"{Title} – Free Online | It's All Dev Tools"
+        : $"{Title} – Free Online {(seo is null ? "Tool" : Cap(seo.Keyword))} | It's All Dev Tools";
     private string MetaDescription => $"{Description} Free, fast and private – runs 100% in your browser, nothing is uploaded.";
     private string CanonicalUrl => SiteUrl + (tool?.Href ?? currentPath);
 
     private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
+
+    private bool IsElectrical => tool is not null && ElectricalLinks.IsElectrical(tool.Href);
+    private string CrumbName => IsElectrical ? "Electrical Calculators" : tool?.Category ?? "";
+    private string CrumbUrl => IsElectrical
+        ? SiteUrl + ElectricalLinks.HubHref
+        : SiteUrl + "#" + (tool?.Category ?? "").ToLowerInvariant();
 
     private string StructuredData
     {
@@ -131,7 +152,7 @@ else if (!string.IsNullOrEmpty(tool?.Help))
                     ["itemListElement"] = new List<object>
                     {
                         new Dictionary<string, object> { ["@type"] = "ListItem", ["position"] = 1, ["name"] = "Home", ["item"] = SiteUrl },
-                        new Dictionary<string, object> { ["@type"] = "ListItem", ["position"] = 2, ["name"] = tool.Category, ["item"] = SiteUrl + "#" + tool.Category.ToLowerInvariant() },
+                        new Dictionary<string, object> { ["@type"] = "ListItem", ["position"] = 2, ["name"] = CrumbName, ["item"] = CrumbUrl },
                         new Dictionary<string, object> { ["@type"] = "ListItem", ["position"] = 3, ["name"] = Title, ["item"] = CanonicalUrl },
                     },
                 });

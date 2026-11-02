@@ -1,7 +1,78 @@
 @page "/ampacity-table"
 @using System.Globalization
 
-<ToolPage Title="Ampacity Table & Calculator" Description="NEC Table 310.16 conductor ampacity for copper and aluminum at 60/75/90 °C, with ambient temperature and conductor bundling corrections.">
+<ToolPage Title="Ampacity Table & Calculator (NEC AWG & IEC mm²)" Description="Wire ampacity tables: NEC 310.16 for AWG/kcmil copper and aluminum at 60/75/90 °C, and IEC 60364-5-52 for mm² copper cables, with temperature and grouping corrections.">
+    <div class="toolbar">
+        <label>Standard
+            <select @bind="standard">
+                <option value="nec">NEC 310.16 (AWG / kcmil)</option>
+                <option value="iec">IEC 60364-5-52 (mm²)</option>
+            </select>
+        </label>
+    </div>
+    @if (standard == "iec")
+    {
+        <div class="toolbar">
+            <label>Insulation
+                <select @bind="iecInsulation">
+                    <option value="pvc">PVC (70 °C)</option>
+                    <option value="xlpe">XLPE / EPR (90 °C)</option>
+                </select>
+            </label>
+            <label>Loaded conductors
+                <select @bind="iecLoaded">
+                    <option value="2">2 (single-phase / DC)</option>
+                    <option value="3">3 (three-phase)</option>
+                </select>
+            </label>
+            <label>Ambient °C
+                <input class="io" type="number" style="width: 6rem" step="1" @bind="ambient" @bind:event="oninput" />
+            </label>
+            <label>Grouped circuits
+                <input class="io" type="number" style="width: 6rem" min="1" step="1" @bind="circuits" @bind:event="oninput" />
+            </label>
+            <label>Load (A)
+                <input class="io" type="number" style="width: 7rem" min="0" step="any" @bind="load" @bind:event="oninput" />
+            </label>
+        </div>
+        var iecK = IecTempFactor() * IecGroupFactor(circuits);
+        var iecPick = load > 0 ? IecRows.FirstOrDefault(r => IecBase(r) * iecK >= load) : null;
+        <div class="alert">
+            Temperature factor ×@IecTempFactor().ToString("0.00"), grouping factor (@circuits circuits) ×@IecGroupFactor(circuits).ToString("0.00").
+            @if (load > 0)
+            {
+                if (iecPick is not null)
+                {
+                    <strong> Smallest cable for @load.ToString("0.##") A: @iecPick.Mm2.ToString("0.##", CultureInfo.InvariantCulture) mm² (@((IecBase(iecPick) * iecK).ToString("0.#")) A).</strong>
+                }
+                else
+                {
+                    <strong style="color: var(--error)"> No single cable in the table carries @load.ToString("0.##") A; use parallel cables.</strong>
+                }
+            }
+        </div>
+        <table class="table">
+            <thead><tr><th>mm²</th><th>≈ AWG</th><th>PVC 2</th><th>PVC 3</th><th>XLPE 2</th><th>XLPE 3</th><th>Corrected (selected)</th></tr></thead>
+            <tbody>
+                @foreach (var r in IecRows)
+                {
+                    <tr style="@(ReferenceEquals(r, iecPick) ? "background: rgba(52, 211, 153, .15)" : "")">
+                        <th>@r.Mm2.ToString("0.##", CultureInfo.InvariantCulture)</th>
+                        <td>@NearestAwg(r.Mm2)</td>
+                        <td>@r.Pvc2</td><td>@r.Pvc3</td><td>@r.Xlpe2</td><td>@r.Xlpe3</td>
+                        <td>@((IecBase(r) * iecK).ToString("0.#"))</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <p class="lead">
+            Copper conductors, reference installation method C (clipped direct to a surface), 30 °C ambient, from IEC 60364-5-52 Tables B.52.4 and B.52.5.
+            Grouping factors from Table B.52.17 (bunched circuits). Other installation methods give different ratings; check voltage drop with the
+            <a href="/voltage-drop-calculator">voltage drop calculator</a> and always verify against your national wiring rules (e.g. BS 7671, AS/NZS 3008).
+        </p>
+    }
+    else
+    {
     <div class="toolbar">
         <label>Conductor
             <select @bind="material">
@@ -27,11 +98,9 @@
         </label>
     </div>
 
-    @{
         var adj = BundleFactor(conductors);
         var rows = Rows.Where(r => (material == "cu" ? r.Cu : r.Al) is not null).ToList();
         var pick = load > 0 ? rows.FirstOrDefault(r => Adjusted(r, column, adj) >= load) : null;
-    }
 
     <div class="alert">
         Temperature correction: 60 °C ×@Factor(0).ToString("0.00"), 75 °C ×@Factor(1).ToString("0.00"), 90 °C ×@Factor(2).ToString("0.00").
@@ -77,6 +146,7 @@
         Small conductors are also limited by NEC 240.4(D) overcurrent protection (Cu: 14 AWG 15 A, 12 AWG 20 A, 10 AWG 30 A; Al: 12 AWG 15 A, 10 AWG 25 A),
         and terminations are usually rated 60 °C (≤ 100 A) or 75 °C. Always verify against the code edition adopted locally.
     </p>
+    }
 </ToolPage>
 
 @code {
@@ -110,6 +180,63 @@
     ];
 
     private string material = "cu";
+    private string standard = "nec", iecInsulation = "pvc", iecLoaded = "2";
+    private int circuits = 1;
+
+    private sealed record IecRow(double Mm2, int Pvc2, int Pvc3, int Xlpe2, int Xlpe3);
+
+    private static readonly IecRow[] IecRows =
+    [
+        new(1.5, 19, 17, 24, 22),
+        new(2.5, 27, 24, 33, 30),
+        new(4, 36, 32, 45, 40),
+        new(6, 46, 41, 58, 52),
+        new(10, 63, 57, 80, 71),
+        new(16, 85, 76, 107, 96),
+        new(25, 112, 96, 138, 119),
+        new(35, 138, 119, 171, 147),
+        new(50, 168, 144, 209, 179),
+        new(70, 213, 184, 269, 229),
+        new(95, 258, 223, 328, 278),
+        new(120, 299, 259, 382, 322),
+        new(150, 344, 299, 441, 371),
+        new(185, 392, 341, 506, 424),
+        new(240, 461, 403, 599, 500),
+        new(300, 530, 464, 693, 576),
+    ];
+
+    private int IecBase(IecRow r) => (iecInsulation, iecLoaded) switch
+    {
+        ("pvc", "2") => r.Pvc2,
+        ("pvc", _) => r.Pvc3,
+        (_, "2") => r.Xlpe2,
+        _ => r.Xlpe3,
+    };
+
+    private double IecTempFactor()
+    {
+        var tc = iecInsulation == "pvc" ? 70 : 90;
+        return ambient >= tc ? 0 : Math.Min(Math.Sqrt((tc - ambient) / (tc - 30.0)), 1.3);
+    }
+
+    private static double IecGroupFactor(int n) => n switch
+    {
+        <= 1 => 1.0,
+        2 => 0.80,
+        3 => 0.70,
+        4 => 0.65,
+        5 => 0.60,
+        6 => 0.57,
+        7 => 0.54,
+        8 => 0.52,
+        <= 11 => 0.50,
+        <= 15 => 0.45,
+        <= 19 => 0.41,
+        _ => 0.38,
+    };
+
+    private static string NearestAwg(double mm2) =>
+        Eng.AwgLabel(Eng.AwgSizes.OrderBy(a => Math.Abs(Math.Log(a.Mm2 / mm2))).First().Label);
     private double ambient = 30;
     private int conductors = 3;
     private int column = 1;

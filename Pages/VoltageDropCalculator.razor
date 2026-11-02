@@ -1,0 +1,129 @@
+@page "/voltage-drop-calculator"
+
+<ToolPage Title="Voltage Drop Calculator (mm² & AWG)" Description="Calculate cable voltage drop in volts and percent for DC, single-phase and three-phase circuits using metric mm² or AWG/kcmil conductors.">
+    <div class="toolbar">
+        <label>System
+            <select @bind="system" @bind:after="Calculate">
+                <option value="dc">DC</option>
+                <option value="1ph">Single-phase AC</option>
+                <option value="3ph">Three-phase AC</option>
+            </select>
+        </label>
+        <label>Conductor
+            <select @bind="material" @bind:after="Calculate">
+                <option value="cu">Copper</option>
+                <option value="al">Aluminium</option>
+            </select>
+        </label>
+        <label>Sizes
+            <select @bind="standard" @bind:after="ChangeStandard">
+                <option value="iec">Metric (mm²)</option>
+                <option value="awg">AWG / kcmil</option>
+            </select>
+        </label>
+        <label>Length unit
+            <select @bind="lengthUnit" @bind:after="Calculate">
+                <option value="m">metres</option>
+                <option value="ft">feet</option>
+            </select>
+        </label>
+    </div>
+    <table class="table">
+        <tbody>
+            <tr><th>Cable size</th><td>
+                <select @bind="size" @bind:after="Calculate">
+                    @foreach (var s in Sizes())
+                    {
+                        <option value="@s.Key">@s.Label</option>
+                    }
+                </select>
+            </td></tr>
+            <tr><th>Supply voltage (V@(system == "3ph" ? ", line-to-line" : ""))</th><td><input type="number" step="any" @bind="voltage" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Load current (A)</th><td><input type="number" step="any" @bind="current" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>One-way cable length (@lengthUnit)</th><td><input type="number" step="any" @bind="length" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            @if (system != "dc")
+            {
+                <tr><th>Power factor</th><td><input type="number" step="0.01" min="0" max="1" @bind="pf" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+                <tr><th>Reactance (mΩ/m)</th><td><input type="number" step="any" @bind="reactance" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            }
+            <tr><th>Conductor temperature (°C)</th><td><input type="number" step="any" @bind="temp" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Parallel runs per phase</th><td><input type="number" min="1" step="1" @bind="runs" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Allowed voltage drop (%)</th><td><input type="number" step="any" @bind="allowed" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+        </tbody>
+    </table>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Voltage drop</th><td><strong><code>@Eng.N(drop, "F2") V (@Eng.N(dropPct, "F2") %)</code></strong> @(dropPct <= allowed ? "✓ within limit" : "✗ exceeds limit")</td></tr>
+                <tr><th>Voltage at load</th><td><code>@Eng.N(voltage!.Value - drop, "F2") V</code></td></tr>
+                <tr><th>Conductor resistance</th><td>@Eng.N(rPerM * 1000, "G4") Ω/km (@Eng.N(rPerM * 1000 * 0.3048, "G4") Ω/1000 ft)</td></tr>
+                <tr><th>Power loss in cable</th><td>@Eng.Si(loss, "W")</td></tr>
+                <tr><th>Smallest size within @Eng.N(allowed ?? 0) %</th><td><code>@(recommended ?? "none in table – use parallel runs")</code></td></tr>
+            </tbody>
+        </table>
+        <p class="lead">
+            @(system == "3ph" ? "Vd = √3 × I × L × (R cosφ + X sinφ)" : system == "1ph" ? "Vd = 2 × I × L × (R cosφ + X sinφ)" : "Vd = 2 × I × L × R").
+            R = ρ(T) / A per metre. Need ampacity too? Use the <a href="/cable-size-calculator">cable size calculator</a> or the <a href="/ampacity-table">ampacity table</a>.
+        </p>
+    }
+</ToolPage>
+
+@code {
+    private string system = "1ph", material = "cu", standard = "iec", lengthUnit = "m", size = "2.5";
+    private double? voltage = 230, current = 16, length = 30, pf = 0.9, reactance = 0.08, temp = 70, allowed = 3;
+    private int? runs = 1;
+    private double drop, dropPct, rPerM, loss;
+    private string? recommended, error;
+
+    private IEnumerable<(string Key, string Label)> Sizes() => standard == "iec"
+        ? Eng.MetricSizes.Select(s => (Eng.N(s), $"{Eng.N(s)} mm²"))
+        : Eng.AwgSizes.Where(a => a.Mm2 >= 0.2).Select(a => (a.Label, $"{Eng.AwgLabel(a.Label)} ({Eng.N(a.Mm2, "G3")} mm²)"));
+
+    protected override void OnInitialized() => Calculate();
+
+    private void ChangeStandard()
+    {
+        size = standard == "iec" ? "2.5" : "12";
+        Calculate();
+    }
+
+    private double Area(string key) => standard == "iec"
+        ? double.Parse(key, System.Globalization.CultureInfo.InvariantCulture)
+        : Eng.AwgSizes.First(a => a.Label == key).Mm2;
+
+    private double Drop(double area, double metres)
+    {
+        var r = Eng.Resistivity(material, temp ?? 20) / area / runs!.Value;
+        var x = system == "dc" ? 0 : (reactance ?? 0) / 1000 / runs.Value;
+        var cos = system == "dc" ? 1 : pf!.Value;
+        var sin = Math.Sqrt(Math.Max(0, 1 - cos * cos));
+        var k = system == "3ph" ? Math.Sqrt(3) : 2;
+        return k * current!.Value * metres * (r * cos + x * sin);
+    }
+
+    private void Calculate()
+    {
+        error = null;
+        if (voltage is null or <= 0 || current is null or < 0 || length is null or < 0) { error = "Enter a positive voltage, current and length."; return; }
+        if (runs is null or < 1) { error = "Parallel runs must be at least 1."; return; }
+        if (system != "dc" && (pf is null or <= 0 or > 1)) { error = "Power factor must be between 0 and 1."; return; }
+        if (!Sizes().Any(s => s.Key == size)) size = Sizes().First().Key;
+
+        var metres = lengthUnit == "ft" ? length.Value * 0.3048 : length.Value;
+        var area = Area(size);
+        rPerM = Eng.Resistivity(material, temp ?? 20) / area;
+        drop = Drop(area, metres);
+        dropPct = drop / voltage.Value * 100;
+        var conductors = system == "3ph" ? 3 : 2;
+        loss = conductors * current.Value * current.Value * rPerM / runs.Value * metres;
+
+        recommended = Sizes().Select(s => (s.Label, Pct: Drop(Area(s.Key), metres) / voltage.Value * 100))
+            .FirstOrDefault(s => s.Pct <= (allowed ?? 0)).Label;
+    }
+}

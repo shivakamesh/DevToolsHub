@@ -1,0 +1,108 @@
+@page "/short-circuit-calculator"
+
+<ToolPage Title="Short-Circuit Current & HV/LV Cable Withstand Calculator" Description="Calculate prospective short-circuit current at the end of a cable fed from a transformer, and check the cable's thermal withstand (adiabatic k²S² ≥ I²t) for LV and HV cables.">
+    <div class="toolbar">
+        <label>System
+            <select @bind="phase" @bind:after="Calculate">
+                <option value="3">Three-phase</option>
+                <option value="1">Single-phase</option>
+            </select>
+        </label>
+        <label>Conductor
+            <select @bind="material" @bind:after="Calculate">
+                <option value="cu">Copper</option>
+                <option value="al">Aluminium</option>
+            </select>
+        </label>
+        <label>Insulation
+            <select @bind="insulation" @bind:after="Calculate">
+                <option value="pvc">PVC (70 °C)</option>
+                <option value="xlpe">XLPE / EPR (90 °C)</option>
+            </select>
+        </label>
+    </div>
+    <table class="table">
+        <tbody>
+            <tr><th>Transformer rating (kVA)</th><td><input type="number" step="any" @bind="kva" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Transformer impedance (%Z)</th><td><input type="number" step="any" @bind="z" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Secondary voltage (V, line-to-line)</th><td><input type="number" step="any" @bind="voltage" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Cable size (mm²)</th><td>
+                <select @bind="areaKey" @bind:after="Calculate">
+                    @foreach (var s in Eng.MetricSizes)
+                    {
+                        <option value="@Eng.N(s)">@Eng.N(s) mm²</option>
+                    }
+                </select>
+            </td></tr>
+            <tr><th>Cable length (m)</th><td><input type="number" step="any" @bind="length" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Parallel runs</th><td><input type="number" min="1" step="1" @bind="runs" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Cable reactance (mΩ/m)</th><td><input type="number" step="any" @bind="reactance" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Fault clearing time (s)</th><td><input type="number" step="any" @bind="time" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+        </tbody>
+    </table>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Full-load current</th><td>@Eng.N(flc, "F1") A</td></tr>
+                <tr><th>Fault current at transformer terminals</th><td><strong><code>@Eng.N(iscSource / 1000, "F2") kA</code></strong></td></tr>
+                <tr><th>Fault current at end of cable</th><td><strong><code>@Eng.N(iscEnd / 1000, "F2") kA</code></strong></td></tr>
+                <tr><th>Cable thermal withstand (@Eng.N(time ?? 0) s)</th><td><code>@Eng.N(withstand / 1000, "F2") kA</code> @(withstand >= iscSource ? "✓ OK for a fault at the source end" : "✗ below the source-end fault current")</td></tr>
+                <tr><th>Minimum size for withstand</th><td><code>@Eng.N(minArea, "F1") mm²</code> → @(Eng.MetricSizes.Where(s => s * runs!.Value >= minArea).Select(s => Eng.N(s) + " mm²").FirstOrDefault() ?? "larger than 630 mm²")@(runs > 1 ? " per run" : "")</td></tr>
+                <tr><th>k factor</th><td>@k A·√s/mm²</td></tr>
+            </tbody>
+        </table>
+        <p class="lead">
+            Transformer impedance Zt = V² / S × %Z, assuming an infinite upstream source. Cable resistance is taken at 20 °C (maximum fault).
+            Adiabatic withstand: I = k × S / √t (IEC 60364-5-54 / BS 7671). Withstand is checked against the source-end current, the worst case for the cable.
+        </p>
+    }
+</ToolPage>
+
+@code {
+    private string phase = "3", material = "cu", insulation = "xlpe";
+    private double? kva = 1000, z = 5.75, voltage = 400, length = 50, reactance = 0.08, time = 0.4;
+    private string areaKey = "240";
+    private double area => double.Parse(areaKey, System.Globalization.CultureInfo.InvariantCulture);
+    private int? runs = 1;
+    private double flc, iscSource, iscEnd, withstand, minArea;
+    private int k;
+    private string? error;
+
+    protected override void OnInitialized() => Calculate();
+
+    private void Calculate()
+    {
+        error = null;
+        if (kva is null or <= 0 || z is null or <= 0 || voltage is null or <= 0) { error = "Enter positive kVA, %Z and voltage."; return; }
+        if (length is null or < 0 || runs is null or < 1 || time is null or <= 0) { error = "Enter a length, at least one run and a positive clearing time."; return; }
+
+        var s = kva.Value * 1000;
+        var v = voltage.Value;
+        var three = phase == "3";
+        var zt = v * v / s * z.Value / 100;
+        flc = three ? s / (Math.Sqrt(3) * v) : s / v;
+        var vPhase = three ? v / Math.Sqrt(3) : v;
+        iscSource = vPhase / zt;
+
+        var loop = three ? 1 : 2;
+        var rc = Eng.Material(material).Rho20 * length.Value / area / runs.Value * loop;
+        var xc = (reactance ?? 0) / 1000 * length.Value / runs.Value * loop;
+        iscEnd = vPhase / Math.Sqrt(rc * rc + (zt + xc) * (zt + xc));
+
+        k = (material, insulation) switch
+        {
+            ("cu", "pvc") => 115,
+            ("cu", _) => 143,
+            ("al", "pvc") => 76,
+            _ => 94,
+        };
+        withstand = k * area * runs.Value / Math.Sqrt(time.Value);
+        minArea = iscSource * Math.Sqrt(time.Value) / k;
+    }
+}

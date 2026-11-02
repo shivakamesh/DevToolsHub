@@ -1,0 +1,97 @@
+@page "/zener-diode-calculator"
+
+<ToolPage Title="Zener Diode & Voltage Regulator Calculator" Description="Calculate the series resistor and power ratings for a Zener diode shunt regulator, and the resistors for an LM317 adjustable voltage regulator with its power dissipation.">
+    <h3>Zener shunt regulator</h3>
+    <table class="table">
+        <tbody>
+            <tr><th>Input voltage min / max (V)</th><td><input type="number" step="any" @bind="vinMin" @bind:event="oninput" @bind:after="Calculate" style="width:6rem" /> / <input type="number" step="any" @bind="vinMax" @bind:event="oninput" @bind:after="Calculate" style="width:6rem" /></td></tr>
+            <tr><th>Zener voltage Vz (V)</th><td><input type="number" step="any" @bind="vz" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Load current min / max (mA)</th><td><input type="number" step="any" @bind="ilMin" @bind:event="oninput" @bind:after="Calculate" style="width:6rem" /> / <input type="number" step="any" @bind="ilMax" @bind:event="oninput" @bind:after="Calculate" style="width:6rem" /></td></tr>
+            <tr><th>Minimum Zener current Iz(min) (mA)</th><td><input type="number" step="any" @bind="izMin" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+        </tbody>
+    </table>
+    @if (zError is not null)
+    {
+        <div class="alert error">@zError</div>
+    }
+    else
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Maximum series resistor</th><td>@Eng.Si(rsExact, "Ω")</td></tr>
+                <tr><th>Chosen resistor (E24, rounded down)</th><td><strong><code>@Eng.Si(rs, "Ω")</code></strong></td></tr>
+                <tr><th>Resistor power (worst case)</th><td>@Eng.Si(pr, "W") → use ≥ @Eng.Si(StandardPower(pr * 2), "W")</td></tr>
+                <tr><th>Maximum Zener current</th><td>@Eng.N(izMax * 1000, "F1") mA</td></tr>
+                <tr><th>Zener power (worst case)</th><td>@Eng.Si(pz, "W") → use ≥ @Eng.Si(StandardPower(pz * 2), "W") Zener</td></tr>
+            </tbody>
+        </table>
+        <p class="lead">Rs = (Vin(min) − Vz) / (IL(max) + Iz(min)). Worst-case Zener current occurs at Vin(max) with the minimum load. Power ratings include a 2× margin.</p>
+    }
+
+    <h3>LM317 adjustable regulator</h3>
+    <table class="table">
+        <tbody>
+            <tr><th>Target output voltage (V)</th><td><input type="number" step="any" @bind="vout" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>R1 (Ω, between OUT and ADJ)</th><td><input type="number" step="any" @bind="r1" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Input voltage (V)</th><td><input type="number" step="any" @bind="regVin" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Load current (A)</th><td><input type="number" step="any" @bind="regI" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+        </tbody>
+    </table>
+    @if (regError is not null)
+    {
+        <div class="alert error">@regError</div>
+    }
+    else
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>R2 (exact)</th><td>@Eng.Si(r2Exact, "Ω")</td></tr>
+                <tr><th>R2 (nearest E24)</th><td><strong><code>@Eng.Si(r2, "Ω")</code></strong> → Vout = @Eng.N(actualVout, "F3") V</td></tr>
+                <tr><th>Regulator dissipation</th><td>@Eng.Si(regP, "W")@(regP > 1 ? " – heatsink required" : "")</td></tr>
+                <tr><th>Headroom</th><td>@Eng.N((regVin ?? 0) - actualVout, "F2") V @((regVin ?? 0) - actualVout < 3 ? "✗ below the ≈ 3 V dropout" : "✓")</td></tr>
+            </tbody>
+        </table>
+        <p class="lead">Vout = 1.25 V × (1 + R2 / R1) + I<sub>ADJ</sub> × R2 (I<sub>ADJ</sub> ≈ 50 µA). Dissipation = (Vin − Vout) × I.</p>
+    }
+</ToolPage>
+
+@code {
+    private double? vinMin = 11, vinMax = 14, vz = 5.1, ilMin = 0, ilMax = 20, izMin = 5;
+    private double? vout = 5, r1 = 240, regVin = 12, regI = 0.5;
+    private double rsExact, rs, pr, izMax, pz, r2Exact, r2, actualVout, regP;
+    private string? zError, regError;
+
+    private static readonly double[] PowerRatings = [0.125, 0.25, 0.5, 1, 2, 3, 5, 10, 25, 50];
+
+    private static double StandardPower(double w) => PowerRatings.FirstOrDefault(p => p >= w, w);
+
+    protected override void OnInitialized() => Calculate();
+
+    private void Calculate()
+    {
+        zError = null;
+        if (vinMin is null || vinMax is null || vz is null or <= 0 || ilMax is null or < 0 || izMin is null or <= 0) zError = "Fill in all Zener fields with positive values.";
+        else if (vinMin <= vz) zError = "Minimum input voltage must be higher than Vz.";
+        else if (vinMax < vinMin) zError = "Maximum input voltage must be at least the minimum.";
+        else
+        {
+            rsExact = (vinMin.Value - vz.Value) / ((ilMax.Value + izMin.Value) / 1000);
+            var below = Eng.SeriesValues(24, 0.1, 1e7).LastOrDefault(v => v <= rsExact);
+            rs = below > 0 ? below : rsExact;
+            izMax = (vinMax.Value - vz.Value) / rs - (ilMin ?? 0) / 1000;
+            pz = vz.Value * izMax;
+            pr = Math.Pow(vinMax.Value - vz.Value, 2) / rs;
+        }
+
+        regError = null;
+        if (vout is null or <= 1.25 || r1 is null or <= 0) regError = "Output must be above 1.25 V and R1 positive.";
+        else
+        {
+            const double iadj = 50e-6;
+            r2Exact = (vout.Value - 1.25) / (1.25 / r1.Value + iadj);
+            r2 = Eng.NearestInSeries(24, r2Exact);
+            actualVout = 1.25 * (1 + r2 / r1.Value) + iadj * r2;
+            regP = Math.Max(0, ((regVin ?? 0) - actualVout) * (regI ?? 0));
+        }
+    }
+}

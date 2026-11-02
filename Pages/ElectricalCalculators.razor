@@ -1,0 +1,99 @@
+@page "/electrical-calculators"
+
+<PageTitle>Electrical Calculators – Free Online Cable, Voltage Drop & Resistor Tools | It's All Dev Tools</PageTitle>
+<HeadContent>
+    <meta name="description" content="@MetaDescription" />
+    <link rel="canonical" href="@CanonicalUrl" />
+    <meta property="og:title" content="Electrical Calculators – Free Online Tools" />
+    <meta property="og:description" content="@MetaDescription" />
+    <meta property="og:url" content="@CanonicalUrl" />
+    <script type="application/ld+json">@((MarkupString)StructuredData)</script>
+</HeadContent>
+
+<div class="tool-header">
+    <h1>Electrical Calculators (IEC mm² & NEC AWG)</h1>
+</div>
+<p class="lead">
+    Free electrical engineering calculators for cable sizing, voltage drop, ampacity, breakers, short-circuit current,
+    motors, solar and electronic component codes. Every tool supports metric IEC 60364 (mm²) and North American
+    NEC (AWG / kcmil) conventions where applicable, and runs entirely in your browser.
+</p>
+
+@foreach (var g in ElectricalLinks.Groups)
+{
+    <section class="help glass">
+        <h2>@g.Heading</h2>
+        <p>@g.Intro</p>
+        <ul>
+            @foreach (var t in g.Slugs.Select(ToolCatalog.Find).OfType<ToolInfo>())
+            {
+                <li><a href="@t.Href">@t.Name</a> – @t.Summary</li>
+            }
+        </ul>
+    </section>
+}
+
+<article class="help glass seo-content">
+    <h2>Frequently asked questions</h2>
+    @foreach (var f in Faqs)
+    {
+        <details>
+            <summary>@f.Q</summary>
+            <p>@f.A</p>
+        </details>
+    }
+</article>
+
+@code {
+    private const string CanonicalUrl = "https://www.itsalldevtools.com/electrical-calculators";
+    private const string MetaDescription = "Free electrical calculators: cable size, voltage drop (mm² & AWG), ampacity, breaker size, short-circuit, motor current, solar sizing, resistor and capacitor codes. IEC and NEC.";
+
+    private static readonly (string Q, string A)[] Faqs =
+    [
+        ("Do these calculators support both IEC and NEC?", "Yes. Cable size, voltage drop, ampacity, wire resistance and breaker calculators let you choose metric mm² sizes (IEC 60364) or AWG / kcmil sizes (NEC 310.16)."),
+        ("How do I size a cable correctly?", "Pick a cable whose derated ampacity exceeds the load current, then check that the voltage drop is within limits (typically 3 % for lighting and 5 % overall). Use the cable size calculator to do both at once."),
+        ("What is the difference between mm² and AWG?", "mm² is the conductor cross-sectional area used internationally; AWG is a logarithmic gauge used in North America where a smaller number means a thicker wire. 12 AWG ≈ 3.31 mm², 10 AWG ≈ 5.26 mm²."),
+        ("Are the results suitable for final design?", "The tools are for estimation and learning. Always verify against the wiring regulations adopted in your region and have installations checked by a qualified electrician."),
+    ];
+
+    private static string StructuredData
+    {
+        get
+        {
+            var tools = ElectricalLinks.Groups.SelectMany(g => g.Slugs).Select(ToolCatalog.Find).OfType<ToolInfo>().ToList();
+            var graph = new Dictionary<string, object>
+            {
+                ["@context"] = "https://schema.org",
+                ["@graph"] = new List<object>
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["@type"] = "CollectionPage",
+                        ["name"] = "Electrical Calculators",
+                        ["url"] = CanonicalUrl,
+                        ["description"] = MetaDescription,
+                        ["mainEntity"] = new Dictionary<string, object>
+                        {
+                            ["@type"] = "ItemList",
+                            ["itemListElement"] = tools.Select((t, i) => new Dictionary<string, object>
+                            {
+                                ["@type"] = "ListItem", ["position"] = i + 1, ["name"] = t.Name,
+                                ["url"] = "https://www.itsalldevtools.com/" + t.Href,
+                            }).ToList(),
+                        },
+                    },
+                    new Dictionary<string, object>
+                    {
+                        ["@type"] = "FAQPage",
+                        ["mainEntity"] = Faqs.Select(f => new Dictionary<string, object>
+                        {
+                            ["@type"] = "Question", ["name"] = f.Q,
+                            ["acceptedAnswer"] = new Dictionary<string, object> { ["@type"] = "Answer", ["text"] = f.A },
+                        }).ToList(),
+                    },
+                },
+            };
+            return System.Text.Json.JsonSerializer.Serialize(graph).Replace("</", "<\\/");
+        }
+    }
+}

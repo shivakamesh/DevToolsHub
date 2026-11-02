@@ -1,0 +1,98 @@
+@page "/rc-time-constant-calculator"
+
+<ToolPage Title="RC / RL Time Constant & Filter Cutoff Calculator" Description="Calculate the RC or RL time constant (τ), charge and discharge times and the -3 dB cutoff frequency of first-order low-pass and high-pass filters.">
+    <div class="toolbar">
+        <label>Circuit
+            <select @bind="mode" @bind:after="Calculate">
+                <option value="rc">RC (resistor + capacitor)</option>
+                <option value="rl">RL (resistor + inductor)</option>
+            </select>
+        </label>
+        <label>Solve for
+            <select @bind="solve" @bind:after="Calculate">
+                <option value="tau">τ and cutoff from components</option>
+                <option value="r">R for a cutoff frequency</option>
+            </select>
+        </label>
+    </div>
+    <table class="table">
+        <tbody>
+            @if (solve == "tau")
+            {
+                <tr><th>Resistance R (Ω)</th><td><input @bind="rText" @bind:event="oninput" @bind:after="Calculate" placeholder="e.g. 10k" /></td></tr>
+            }
+            else
+            {
+                <tr><th>Cutoff frequency (Hz)</th><td><input @bind="fText" @bind:event="oninput" @bind:after="Calculate" placeholder="e.g. 1k" /></td></tr>
+            }
+            @if (mode == "rc")
+            {
+                <tr><th>Capacitance C (F)</th><td><input @bind="cText" @bind:event="oninput" @bind:after="Calculate" placeholder="e.g. 100n" /></td></tr>
+            }
+            else
+            {
+                <tr><th>Inductance L (H)</th><td><input @bind="lText" @bind:event="oninput" @bind:after="Calculate" placeholder="e.g. 10m" /></td></tr>
+            }
+            <tr><th>Supply voltage (V, optional)</th><td><input type="number" step="any" @bind="vs" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+        </tbody>
+    </table>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <table class="table">
+            <tbody>
+                @if (solve == "r")
+                {
+                    <tr><th>Required R</th><td><strong><code>@Eng.Si(r, "Ω")</code></strong> (nearest E24: @Eng.Si(Eng.NearestInSeries(24, r), "Ω"))</td></tr>
+                }
+                <tr><th>Time constant τ</th><td><strong><code>@Eng.Si(tau, "s")</code></strong></td></tr>
+                <tr><th>Cutoff frequency f<sub>c</sub> (−3 dB)</th><td><strong><code>@Eng.Si(fc, "Hz")</code></strong></td></tr>
+                <tr><th>Rise time 10–90 %</th><td>@Eng.Si(2.197 * tau, "s")</td></tr>
+                <tr><th>Settling to 99 % (≈ 5τ)</th><td>@Eng.Si(5 * tau, "s")</td></tr>
+            </tbody>
+        </table>
+        <table class="table">
+            <thead><tr><th>Time</th><th>Elapsed</th><th>Charge (% of final)</th><th>Discharge (% remaining)</th>@if (vs is not null) { <th>V@(mode == "rc" ? "c" : "R") charging</th> }</tr></thead>
+            <tbody>
+                @for (var n = 1; n <= 5; n++)
+                {
+                    var charged = 1 - Math.Exp(-n);
+                    <tr><td>@(n)τ</td><td>@Eng.Si(n * tau, "s")</td><td>@Eng.N(charged * 100, "F1") %</td><td>@Eng.N((1 - charged) * 100, "F1") %</td>@if (vs is not null) { <td>@Eng.N(vs.Value * charged, "G4") V</td> }</tr>
+                }
+            </tbody>
+        </table>
+        <p class="lead">@(mode == "rc" ? "τ = R × C,  fc = 1 / (2πRC)" : "τ = L / R,  fc = R / (2πL)"). The same cutoff applies to the first-order low-pass and high-pass filter.</p>
+    }
+</ToolPage>
+
+@code {
+    private string mode = "rc", solve = "tau", rText = "10k", cText = "100n", lText = "10m", fText = "1k";
+    private double? vs = 5;
+    private double r, tau, fc;
+    private string? error;
+
+    protected override void OnInitialized() => Calculate();
+
+    private void Calculate()
+    {
+        error = null;
+        var compText = mode == "rc" ? cText : lText;
+        if (!Eng.TryParseSi(compText, out var comp) || comp <= 0) { error = $"Enter a positive {(mode == "rc" ? "capacitance, e.g. 100n" : "inductance, e.g. 10m")}."; return; }
+
+        if (solve == "tau")
+        {
+            if (!Eng.TryParseSi(rText, out r) || r <= 0) { error = "Enter a positive resistance, e.g. 10k."; return; }
+        }
+        else
+        {
+            if (!Eng.TryParseSi(fText, out var f) || f <= 0) { error = "Enter a positive frequency, e.g. 1k."; return; }
+            r = mode == "rc" ? 1 / (2 * Math.PI * f * comp) : 2 * Math.PI * f * comp;
+        }
+        tau = mode == "rc" ? r * comp : comp / r;
+        fc = 1 / (2 * Math.PI * tau);
+    }
+}

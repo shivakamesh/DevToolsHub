@@ -1,0 +1,98 @@
+@page "/wire-resistance-calculator"
+
+<ToolPage Title="Wire Resistance Calculator (mm² & AWG)" Description="Calculate the resistance of copper, aluminium and other wires from length, cross-section (mm² or AWG) and temperature, with voltage drop and power loss.">
+    <div class="toolbar">
+        <label>Material
+            <select @bind="material" @bind:after="Calculate">
+                <option value="cu">Copper</option>
+                <option value="al">Aluminium</option>
+                <option value="ag">Silver</option>
+                <option value="au">Gold</option>
+                <option value="steel">Steel</option>
+                <option value="nichrome">Nichrome</option>
+            </select>
+        </label>
+        <label>Size by
+            <select @bind="sizeMode" @bind:after="Calculate">
+                <option value="mm2">Area (mm²)</option>
+                <option value="awg">AWG</option>
+                <option value="dia">Diameter (mm)</option>
+            </select>
+        </label>
+        <label>Length unit
+            <select @bind="lengthUnit" @bind:after="Calculate">
+                <option value="m">metres</option>
+                <option value="ft">feet</option>
+            </select>
+        </label>
+    </div>
+    <table class="table">
+        <tbody>
+            @if (sizeMode == "awg")
+            {
+                <tr><th>Wire gauge</th><td>
+                    <select @bind="awg" @bind:after="Calculate">
+                        @foreach (var a in Eng.AwgSizes)
+                        {
+                            <option value="@a.Label">@Eng.AwgLabel(a.Label)</option>
+                        }
+                    </select>
+                </td></tr>
+            }
+            else
+            {
+                <tr><th>@(sizeMode == "dia" ? "Diameter (mm)" : "Cross-section (mm²)")</th><td><input type="number" step="any" @bind="size" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            }
+            <tr><th>Wire length (@lengthUnit)</th><td><input type="number" step="any" @bind="length" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Temperature (°C)</th><td><input type="number" step="any" @bind="temp" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Current (A, optional)</th><td><input type="number" step="any" @bind="current" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Round trip (×2 length)</th><td><input type="checkbox" @bind="roundTrip" @bind:after="Calculate" /></td></tr>
+        </tbody>
+    </table>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Resistance</th><td><strong><code>@Eng.Si(resistance, "Ω")</code></strong></td></tr>
+                <tr><th>Per km / per 1000 ft</th><td>@Eng.N(perM * 1000, "G4") Ω/km · @Eng.N(perM * 304.8, "G4") Ω/1000 ft</td></tr>
+                <tr><th>Cross-section</th><td>@Eng.N(area, "G4") mm² (Ø @Eng.N(Math.Sqrt(4 * area / Math.PI), "G3") mm)</td></tr>
+                <tr><th>Resistivity at @Eng.N(temp ?? 20) °C</th><td>@Eng.N(rho * 1e-6, "G4") Ω·m</td></tr>
+                @if (current is > 0)
+                {
+                    <tr><th>Voltage drop</th><td>@Eng.Si(current.Value * resistance, "V")</td></tr>
+                    <tr><th>Power loss</th><td>@Eng.Si(current.Value * current.Value * resistance, "W")</td></tr>
+                }
+            </tbody>
+        </table>
+        <p class="lead">R = ρ × L / A, with ρ(T) = ρ₂₀ × (1 + α(T − 20)). DC resistance; AC skin effect is ignored.</p>
+    }
+</ToolPage>
+
+@code {
+    private string material = "cu", sizeMode = "mm2", lengthUnit = "m", awg = "12";
+    private double? size = 2.5, length = 100, temp = 20, current;
+    private bool roundTrip;
+    private double resistance, perM, area, rho;
+    private string? error;
+
+    protected override void OnInitialized() => Calculate();
+
+    private void Calculate()
+    {
+        error = null;
+        if (sizeMode == "awg") area = Eng.AwgSizes.First(a => a.Label == awg).Mm2;
+        else if (size is null or <= 0) { error = "Enter a positive size."; return; }
+        else area = sizeMode == "dia" ? Math.PI / 4 * size.Value * size.Value : size.Value;
+        if (length is null or < 0) { error = "Enter a length."; return; }
+
+        rho = Eng.Resistivity(material, temp ?? 20);
+        perM = rho / area;
+        var metres = (lengthUnit == "ft" ? length.Value * 0.3048 : length.Value) * (roundTrip ? 2 : 1);
+        resistance = perM * metres;
+    }
+}

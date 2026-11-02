@@ -1,0 +1,67 @@
+@page "/series-parallel-calculator"
+
+<ToolPage Title="Series & Parallel Resistor, Capacitor and Inductor Calculator" Description="Calculate the total resistance, capacitance or inductance of components in series and in parallel. Supports values like 4k7, 100n and 2.2u.">
+    <div class="toolbar">
+        <label>Component
+            <select @bind="kind" @bind:after="Calculate">
+                <option value="R">Resistors (Ω)</option>
+                <option value="C">Capacitors (F)</option>
+                <option value="L">Inductors (H)</option>
+            </select>
+        </label>
+    </div>
+    <label>Values (one per line or comma-separated)
+        <textarea rows="6" @bind="input" @bind:event="oninput" @bind:after="Calculate" placeholder="@(kind == "R" ? "10k, 4k7, 2.2k" : kind == "C" ? "100n, 47n, 1u" : "10u, 22u")"></textarea>
+    </label>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (values.Count > 0)
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Components</th><td>@values.Count: @string.Join(", ", values.Select(v => Eng.Si(v, Unit)))</td></tr>
+                <tr><th>Series total</th><td><strong><code>@Eng.Si(seriesTotal, Unit)</code></strong></td></tr>
+                <tr><th>Parallel total</th><td><strong><code>@Eng.Si(parallelTotal, Unit)</code></strong></td></tr>
+            </tbody>
+        </table>
+        <p class="lead">
+            @if (kind == "C")
+            {
+                <text>Capacitors: parallel C = C1 + C2 + …; series 1/C = 1/C1 + 1/C2 + …</text>
+            }
+            else
+            {
+                <text>@(kind == "R" ? "Resistors" : "Inductors (no mutual coupling)"): series = X1 + X2 + …; parallel 1/X = 1/X1 + 1/X2 + …</text>
+            }
+        </p>
+    }
+</ToolPage>
+
+@code {
+    private string kind = "R", input = "10k\n4k7\n2.2k";
+    private List<double> values = [];
+    private double seriesTotal, parallelTotal;
+    private string? error;
+
+    private string Unit => kind switch { "C" => "F", "L" => "H", _ => "Ω" };
+
+    protected override void OnInitialized() => Calculate();
+
+    private void Calculate()
+    {
+        error = null;
+        values = [];
+        foreach (var part in (input ?? "").Split(['\n', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!Eng.TryParseSi(part, out var v) || v <= 0) { error = $"Could not read \"{part}\". Use values like 4.7k, 4k7, 100n or 2.2u."; return; }
+            values.Add(v);
+        }
+        if (values.Count == 0) return;
+        var sum = values.Sum();
+        var reciprocal = 1 / values.Sum(v => 1 / v);
+        (seriesTotal, parallelTotal) = kind == "C" ? (reciprocal, sum) : (sum, reciprocal);
+    }
+}

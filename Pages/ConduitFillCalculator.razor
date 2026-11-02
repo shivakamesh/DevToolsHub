@@ -1,0 +1,103 @@
+@page "/conduit-fill-calculator"
+
+<ToolPage Title="Conduit Fill Calculator (NEC)" Description="Calculate NEC Chapter 9 conduit fill for EMT, PVC and rigid conduit with THHN, XHHW and THW conductors, and find the smallest conduit size that fits.">
+    <div class="toolbar">
+        <label>Conduit type
+            <select @bind="conduit">
+                @foreach (var c in Conduits.Keys)
+                {
+                    <option value="@c">@c</option>
+                }
+            </select>
+        </label>
+    </div>
+    <table class="table">
+        <thead><tr><th>Insulation</th><th>Size</th><th>Qty</th><th>Area each</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var w in wires)
+            {
+                <tr>
+                    <td>
+                        <select @bind="w.Type">
+                            @foreach (var t in Wires.Keys)
+                            {
+                                <option value="@t">@t</option>
+                            }
+                        </select>
+                    </td>
+                    <td>
+                        <select @bind="w.Size">
+                            @foreach (var s in SizeLabels)
+                            {
+                                <option value="@s">@s</option>
+                            }
+                        </select>
+                    </td>
+                    <td><input type="number" min="0" step="1" @bind="w.Qty" @bind:event="oninput" style="width:5rem" /></td>
+                    <td>@Eng.N(AreaOf(w), "0.0000") in²</td>
+                    <td><button class="btn" @onclick="() => wires.Remove(w)">✕</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <button class="btn" @onclick="@(() => wires.Add(new Wire()))">+ Add conductors</button>
+
+    @{
+        var count = wires.Sum(w => Math.Max(0, w.Qty));
+        var total = wires.Sum(w => AreaOf(w) * Math.Max(0, w.Qty));
+        var limit = count switch { 1 => 53, 2 => 31, _ => 40 };
+        var fits = Conduits[conduit].FirstOrDefault(c => total <= c.Area * limit / 100);
+    }
+    <table class="table">
+        <tbody>
+            <tr><th>Conductors</th><td>@count (total area @Eng.N(total, "0.0000") in² / @Eng.N(total * 645.16, "0.0") mm²)</td></tr>
+            <tr><th>Maximum fill (NEC Ch. 9 Table 1)</th><td>@limit %</td></tr>
+            <tr><th>Smallest @conduit</th><td><strong><code>@(fits.Size is null ? "larger than 4 in." : fits.Size + " in.")</code></strong></td></tr>
+        </tbody>
+    </table>
+    <table class="table">
+        <thead><tr><th>Trade size</th><th>Internal area</th><th>Fill</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var c in Conduits[conduit])
+            {
+                var pct = total / c.Area * 100;
+                <tr><td>@c.Size in.</td><td>@Eng.N(c.Area, "0.000") in²</td><td>@Eng.N(pct, "0.0") %</td><td>@(pct <= limit ? "✓" : "✗")</td></tr>
+            }
+        </tbody>
+    </table>
+    <p class="lead">Areas from NEC Chapter 9 Tables 4 and 5. Fill limits: 53 % for one conductor, 31 % for two, 40 % for three or more. Nipples under 24 in. may be filled to 60 %. Always confirm against the code edition adopted in your area.</p>
+</ToolPage>
+
+@code {
+    private class Wire
+    {
+        public string Type { get; set; } = "THHN / THWN-2";
+        public string Size { get; set; } = "12";
+        public int Qty { get; set; } = 3;
+    }
+
+    private static readonly string[] SizeLabels = ["14", "12", "10", "8", "6", "4", "3", "2", "1", "1/0", "2/0", "3/0", "4/0", "250", "300", "350", "400", "500"];
+
+    private static readonly Dictionary<string, double[]> Wires = new()
+    {
+        ["THHN / THWN-2"] = [0.0097, 0.0133, 0.0211, 0.0366, 0.0507, 0.0824, 0.0973, 0.1158, 0.1562, 0.1855, 0.2223, 0.2679, 0.3237, 0.3970, 0.4608, 0.5242, 0.5863, 0.7073],
+        ["XHHW / XHHW-2"] = [0.0139, 0.0181, 0.0243, 0.0437, 0.0590, 0.0814, 0.0962, 0.1146, 0.1534, 0.1825, 0.2190, 0.2642, 0.3197, 0.3904, 0.4536, 0.5166, 0.5782, 0.6984],
+        ["THW / THW-2 / TW"] = [0.0139, 0.0181, 0.0243, 0.0437, 0.0726, 0.0973, 0.1134, 0.1333, 0.1901, 0.2223, 0.2624, 0.3117, 0.3718, 0.4596, 0.5281, 0.5958, 0.6619, 0.7901],
+    };
+
+    private static readonly string[] Trade = ["1/2", "3/4", "1", "1-1/4", "1-1/2", "2", "2-1/2", "3", "3-1/2", "4"];
+
+    private static readonly Dictionary<string, (string Size, double Area)[]> Conduits = new()
+    {
+        ["EMT"] = Zip([0.304, 0.533, 0.864, 1.496, 2.036, 3.356, 5.858, 8.846, 11.545, 14.753]),
+        ["PVC Schedule 40"] = Zip([0.285, 0.508, 0.832, 1.453, 1.986, 3.291, 4.695, 7.268, 9.737, 12.554]),
+        ["Rigid metal (RMC)"] = Zip([0.314, 0.549, 0.887, 1.526, 2.071, 3.408, 4.866, 7.499, 10.010, 12.882]),
+    };
+
+    private static (string, double)[] Zip(double[] areas) => Trade.Zip(areas).ToArray();
+
+    private string conduit = "EMT";
+    private readonly List<Wire> wires = [new(), new() { Size = "12", Qty = 1, Type = "THHN / THWN-2" }];
+
+    private static double AreaOf(Wire w) => Wires[w.Type][Array.IndexOf(SizeLabels, w.Size)];
+}

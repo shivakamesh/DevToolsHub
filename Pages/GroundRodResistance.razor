@@ -1,0 +1,100 @@
+@page "/ground-rod-resistance"
+
+<ToolPage Title="Ground Rod / Earth Electrode Resistance Calculator" Description="Estimate the earth resistance of a single ground rod and of multiple rods in a line from soil resistivity, rod length, diameter and spacing (Dwight / BS 7430 / IEEE 142).">
+    <table class="table">
+        <tbody>
+            <tr><th>Soil type</th><td>
+                <select @bind="soil" @bind:after="ApplySoil">
+                    @foreach (var s in Soils)
+                    {
+                        <option value="@s.Key">@s.Key (@Eng.N(s.Value) Ω·m)</option>
+                    }
+                    <option value="custom">Custom / measured</option>
+                </select>
+            </td></tr>
+            <tr><th>Soil resistivity ρ (Ω·m)</th><td><input type="number" step="any" @bind="rho" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Rod length (m)</th><td><input type="number" step="any" @bind="length" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Rod diameter (mm)</th><td><input type="number" step="any" @bind="diameter" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Number of rods (in a line)</th><td><input type="number" min="1" max="10" step="1" @bind="count" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            @if (count > 1)
+            {
+                <tr><th>Spacing between rods (m)</th><td><input type="number" step="any" @bind="spacing" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            }
+            <tr><th>Target resistance (Ω)</th><td><input type="number" step="any" @bind="target" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+        </tbody>
+    </table>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Single rod resistance</th><td><code>@Eng.N(single, "F2") Ω</code></td></tr>
+                @if (count > 1)
+                {
+                    <tr><th>@count rods in parallel</th><td><code>@Eng.N(total, "F2") Ω</code></td></tr>
+                }
+                <tr><th>Result vs target</th><td><strong>@(total <= target ? $"✓ {Eng.N(total, "F2")} Ω ≤ {Eng.N(target ?? 0)} Ω" : $"✗ {Eng.N(total, "F2")} Ω > {Eng.N(target ?? 0)} Ω")</strong></td></tr>
+                @if (total > target && rodsNeeded is not null)
+                {
+                    <tr><th>Rods needed at this spacing</th><td>@rodsNeeded</td></tr>
+                }
+            </tbody>
+        </table>
+        <p class="lead">
+            Single rod (Dwight): R = ρ / (2πL) × (ln(8L/d) − 1). Multiple rods in a line (BS 7430): R = R₁ × (1 + λα) / n, with α = ρ / (2πR₁s).
+            Rods should be spaced at least their own length apart. NEC 250.53(A)(2) requires a supplementary electrode unless a single rod is 25 Ω or less.
+        </p>
+    }
+</ToolPage>
+
+@code {
+    private static readonly Dictionary<string, double> Soils = new()
+    {
+        ["Wet organic / marsh"] = 10,
+        ["Clay, loam"] = 50,
+        ["Moist soil"] = 100,
+        ["Sandy clay"] = 150,
+        ["Sand, gravel"] = 1000,
+        ["Dry sand, rock"] = 3000,
+    };
+
+    private static readonly double[] Lambda = [0, 0, 1.00, 1.66, 2.15, 2.54, 2.87, 3.15, 3.39, 3.61, 3.81];
+
+    private string soil = "Moist soil";
+    private double? rho = 100, length = 2.4, diameter = 16, spacing = 3, target = 25;
+    private int? count = 1;
+    private double single, total;
+    private int? rodsNeeded;
+    private string? error;
+
+    protected override void OnInitialized() => Calculate();
+
+    private void ApplySoil()
+    {
+        if (Soils.TryGetValue(soil, out var v)) rho = v;
+        Calculate();
+    }
+
+    private double Total(int n)
+    {
+        if (n <= 1) return single;
+        var alpha = rho!.Value / (2 * Math.PI * single * spacing!.Value);
+        return single * (1 + Lambda[n] * alpha) / n;
+    }
+
+    private void Calculate()
+    {
+        error = null;
+        if (rho is null or <= 0 || length is null or <= 0 || diameter is null or <= 0) { error = "Enter positive resistivity, length and diameter."; return; }
+        if (count is null or < 1 or > 10) { error = "Number of rods must be 1–10."; return; }
+        if (count > 1 && spacing is null or <= 0) { error = "Enter a positive spacing."; return; }
+        var d = diameter.Value / 1000;
+        single = rho.Value / (2 * Math.PI * length.Value) * (Math.Log(8 * length.Value / d) - 1);
+        total = Total(count.Value);
+        rodsNeeded = spacing is > 0 ? Enumerable.Range(1, 10).Where(n => Total(n) <= target).Select(n => (int?)n).FirstOrDefault() : null;
+    }
+}

@@ -1,0 +1,96 @@
+@page "/inductor-color-code"
+
+<ToolPage Title="Inductor Color Code Calculator" Description="Decode 4-band inductor color codes and SMD inductor markings (100, 4R7, 101) into inductance in µH with tolerance.">
+    <h3>Color bands</h3>
+    <div class="toolbar">
+        <label>Band 1 @ColorSelect(d1, v => d1 = v, Digits)</label>
+        <label>Band 2 @ColorSelect(d2, v => d2 = v, Digits)</label>
+        <label>Multiplier @ColorSelect(mult, v => mult = v, Multipliers)</label>
+        <label>Tolerance @ColorSelect(tol, v => tol = v, Tolerances)</label>
+    </div>
+    @{
+        var uh = (Colors[d1].Digit!.Value * 10 + Colors[d2].Digit!.Value) * Colors[mult].Multiplier!.Value;
+        var t = Colors[tol].Tolerance!.Value;
+    }
+    <div style="display:flex;gap:6px;align-items:center;margin:1rem 0">
+        @foreach (var c in new[] { d1, d2, mult, tol })
+        {
+            <span title="@c" style="width:18px;height:48px;border:1px solid #888;border-radius:3px;background:@Colors[c].Css"></span>
+        }
+    </div>
+    <table class="table">
+        <tbody>
+            <tr><th>Inductance</th><td><strong><code>@Eng.Si(uh * 1e-6, "H") ± @Eng.N(t) %</code></strong></td></tr>
+            <tr><th>Range</th><td><code>@Eng.Si(uh * 1e-6 * (1 - t / 100), "H") – @Eng.Si(uh * 1e-6 * (1 + t / 100), "H")</code></td></tr>
+        </tbody>
+    </table>
+    <p class="lead">Inductor bands are read like resistor bands but the base unit is microhenries (µH). A wide silver band at one end of military-style (MIL) inductors marks the start and is not a value band.</p>
+
+    <h3>SMD inductor code</h3>
+    <div class="toolbar">
+        <label>Marking <input @bind="smd" @bind:event="oninput" placeholder="e.g. 100, 4R7, 221, R47" /></label>
+    </div>
+    @if (DecodeSmd(smd) is double smdUh)
+    {
+        <p><strong><code>@Eng.Si(smdUh * 1e-6, "H")</code></strong> (@Eng.N(smdUh, "G4") µH)</p>
+    }
+    else if (!string.IsNullOrWhiteSpace(smd))
+    {
+        <div class="alert error">Use a 3-digit code (two digits × 10ⁿ µH) or R notation such as 4R7 or R47.</div>
+    }
+</ToolPage>
+
+@code {
+    private record Band(string Css, int? Digit, double? Multiplier, double? Tolerance);
+
+    private static readonly Dictionary<string, Band> Colors = new()
+    {
+        ["Black"] = new("#000", 0, 1, 20),
+        ["Brown"] = new("#8b4513", 1, 10, 1),
+        ["Red"] = new("#e00", 2, 100, 2),
+        ["Orange"] = new("#ff8c00", 3, 1e3, 3),
+        ["Yellow"] = new("#ffd700", 4, 1e4, 4),
+        ["Green"] = new("#090", 5, null, null),
+        ["Blue"] = new("#00f", 6, null, null),
+        ["Violet"] = new("#8a2be2", 7, null, null),
+        ["Grey"] = new("#888", 8, null, null),
+        ["White"] = new("#fff", 9, null, null),
+        ["Gold"] = new("#d4af37", null, 0.1, 5),
+        ["Silver"] = new("#c0c0c0", null, 0.01, 10),
+    };
+
+    private static readonly string[] Digits = Colors.Where(c => c.Value.Digit is not null).Select(c => c.Key).ToArray();
+    private static readonly string[] Multipliers = Colors.Where(c => c.Value.Multiplier is not null).Select(c => c.Key).ToArray();
+    private static readonly string[] Tolerances = Colors.Where(c => c.Value.Tolerance is not null).Select(c => c.Key).ToArray();
+
+    private string d1 = "Yellow", d2 = "Violet", mult = "Black", tol = "Silver";
+    private string smd = "4R7";
+
+    private RenderFragment ColorSelect(string value, Action<string> set, string[] options) => __builder =>
+    {
+        <select value="@value" @onchange="e => set(e.Value?.ToString() ?? value)">
+            @foreach (var o in options)
+            {
+                <option value="@o">@o</option>
+            }
+        </select>
+    };
+
+    private static double? DecodeSmd(string? text)
+    {
+        var s = (text ?? "").Trim().ToUpperInvariant();
+        if (s.Length == 3 && s.All(char.IsDigit))
+        {
+            return int.Parse(s[..2]) * Math.Pow(10, s[2] - '0');
+        }
+        if (s.Count(c => c == 'R') == 1 && s.Replace("R", "").All(char.IsDigit) && s.Length >= 2)
+        {
+            return double.Parse(s.Replace("R", "."), System.Globalization.CultureInfo.InvariantCulture);
+        }
+        if (s.Count(c => c == 'N') == 1 && s.Replace("N", "").All(char.IsDigit) && s.Length >= 2)
+        {
+            return double.Parse(s.Replace("N", "."), System.Globalization.CultureInfo.InvariantCulture) / 1000;
+        }
+        return null;
+    }
+}

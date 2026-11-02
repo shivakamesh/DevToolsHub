@@ -1,0 +1,65 @@
+@page "/electricity-cost-calculator"
+
+<ToolPage Title="Electricity Cost & Energy Consumption Calculator" Description="Calculate the energy use in kWh and the running cost per day, month and year of appliances from their wattage, hours of use and your electricity price.">
+    <div class="toolbar">
+        <label>Price per kWh <input type="number" step="any" @bind="price" @bind:event="oninput" style="width:7rem" /></label>
+        <label>Currency symbol <input @bind="currency" @bind:event="oninput" style="width:4rem" /></label>
+    </div>
+    <table class="table">
+        <thead><tr><th>Appliance</th><th>Power (W)</th><th>Hours/day</th><th>Qty</th><th>kWh/day</th><th>Cost/month</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var a in items)
+            {
+                <tr>
+                    <td><input @bind="a.Name" @bind:event="oninput" /></td>
+                    <td><input type="number" step="any" @bind="a.Watts" @bind:event="oninput" style="width:6rem" /></td>
+                    <td><input type="number" step="any" min="0" max="24" @bind="a.Hours" @bind:event="oninput" style="width:5rem" /></td>
+                    <td><input type="number" step="1" min="0" @bind="a.Qty" @bind:event="oninput" style="width:4rem" /></td>
+                    <td>@Eng.N(a.KWhPerDay, "0.###")</td>
+                    <td>@Money(a.KWhPerDay * DaysPerMonth)</td>
+                    <td><button class="btn" @onclick="() => items.Remove(a)">✕</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <button class="btn" @onclick="@(() => items.Add(new Item { Name = "New appliance" }))">+ Add appliance</button>
+
+    @{
+        var day = items.Sum(i => i.KWhPerDay);
+    }
+    <table class="table">
+        <thead><tr><th>Period</th><th>Energy</th><th>Cost</th></tr></thead>
+        <tbody>
+            <tr><td>Per day</td><td>@Eng.N(day, "0.##") kWh</td><td>@Money(day)</td></tr>
+            <tr><td>Per month</td><td>@Eng.N(day * DaysPerMonth, "0.#") kWh</td><td><strong>@Money(day * DaysPerMonth)</strong></td></tr>
+            <tr><td>Per year</td><td>@Eng.N(day * 365, "0") kWh</td><td><strong>@Money(day * 365)</strong></td></tr>
+        </tbody>
+    </table>
+    <p class="lead">kWh = watts × hours ÷ 1000. Cost = kWh × price. A month is taken as 30.42 days. Check the rating label (W) or multiply volts × amps for an estimate.</p>
+</ToolPage>
+
+@code {
+    private const double DaysPerMonth = 365.0 / 12;
+
+    private class Item
+    {
+        public string Name { get; set; } = "";
+        public double? Watts { get; set; } = 100;
+        public double? Hours { get; set; } = 1;
+        public int? Qty { get; set; } = 1;
+        public double KWhPerDay => (Watts ?? 0) * (Hours ?? 0) * (Qty ?? 0) / 1000;
+    }
+
+    private double? price = 0.15;
+    private string currency = "$";
+    private readonly List<Item> items =
+    [
+        new() { Name = "Refrigerator", Watts = 150, Hours = 10 },
+        new() { Name = "Air conditioner", Watts = 1500, Hours = 6 },
+        new() { Name = "LED bulbs", Watts = 9, Hours = 5, Qty = 8 },
+        new() { Name = "Television", Watts = 100, Hours = 4 },
+        new() { Name = "Laptop", Watts = 60, Hours = 8 },
+    ];
+
+    private string Money(double kwh) => $"{currency}{Eng.N(kwh * (price ?? 0), "#,0.00")}";
+}

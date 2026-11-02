@@ -60,6 +60,7 @@
             </button>
         </div>
         <NavLink href="/" Match="NavLinkMatch.All" title="Home"><span class="nav-icon">⌂</span><span class="nav-label">Home</span></NavLink>
+                <NavLink href="electrical-calculators" title="Electrical Calculators"><span class="nav-icon">⚡</span><span class="nav-label">Electrical Calculators</span></NavLink>
         @if (string.IsNullOrWhiteSpace(filter))
         {
             var favs = Resolve(Prefs.Favorites);
@@ -110,6 +111,7 @@
 
 <footer class="footer">
     <nav class="footer-links">
+        <a href="electrical-calculators">Electrical Calculators</a>
         <a href="about">About</a>
         <a href="privacy">Privacy</a>
         <a href="contact">Contact</a>

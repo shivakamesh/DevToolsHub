@@ -1,0 +1,68 @@
+@page "/generator-size-calculator"
+
+<ToolPage Title="Generator Size Calculator" Description="Work out what size generator you need in kW and kVA from the running and starting watts of your appliances, including motor surge and a safety margin.">
+    <table class="table">
+        <thead><tr><th>Load</th><th>Running W</th><th>Starting W</th><th>Qty</th><th>On?</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var l in loads)
+            {
+                <tr>
+                    <td><input @bind="l.Name" @bind:event="oninput" /></td>
+                    <td><input type="number" step="any" @bind="l.Running" @bind:event="oninput" style="width:6rem" /></td>
+                    <td><input type="number" step="any" @bind="l.Starting" @bind:event="oninput" style="width:6rem" /></td>
+                    <td><input type="number" step="1" min="0" @bind="l.Qty" @bind:event="oninput" style="width:4rem" /></td>
+                    <td><input type="checkbox" @bind="l.On" /></td>
+                    <td><button class="btn" @onclick="() => loads.Remove(l)">✕</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <button class="btn" @onclick="@(() => loads.Add(new Load { Name = "New load" }))">+ Add load</button>
+    <div class="toolbar">
+        <label>Safety margin (%) <input type="number" step="any" @bind="margin" @bind:event="oninput" style="width:5rem" /></label>
+        <label>Generator power factor <input type="number" step="0.05" @bind="pf" @bind:event="oninput" style="width:5rem" /></label>
+    </div>
+
+    @{
+        var active = loads.Where(l => l.On && (l.Qty ?? 0) > 0).ToList();
+        var running = active.Sum(l => (l.Running ?? 0) * (l.Qty ?? 0));
+        var largestSurge = active.Select(l => Math.Max(0, (l.Starting ?? 0) - (l.Running ?? 0))).DefaultIfEmpty(0).Max();
+        var peak = running + largestSurge;
+        var kw = peak * (1 + (margin ?? 0) / 100) / 1000;
+        var p = pf is > 0 and <= 1 ? pf.Value : 0.8;
+    }
+    <table class="table">
+        <tbody>
+            <tr><th>Total running load</th><td>@Eng.N(running, "#,0") W</td></tr>
+            <tr><th>Largest starting surge (one motor at a time)</th><td>@Eng.N(largestSurge, "#,0") W</td></tr>
+            <tr><th>Peak starting load</th><td>@Eng.N(peak, "#,0") W</td></tr>
+            <tr><th>Recommended generator</th><td><strong><code>@Eng.N(kw, "0.0") kW / @Eng.N(kw / p, "0.0") kVA</code></strong> (with @Eng.N(margin ?? 0) % margin)</td></tr>
+        </tbody>
+    </table>
+    <p class="lead">
+        Size = (total running watts + the largest single extra starting surge) × (1 + margin). Start the largest motor first and stagger the others.
+        Standby generators are rated in kVA at 0.8 power factor. Use the <a href="/motor-current-calculator">motor current calculator</a> for three-phase motors.
+    </p>
+</ToolPage>
+
+@code {
+    private class Load
+    {
+        public string Name { get; set; } = "";
+        public double? Running { get; set; } = 100;
+        public double? Starting { get; set; } = 100;
+        public int? Qty { get; set; } = 1;
+        public bool On { get; set; } = true;
+    }
+
+    private double? margin = 25, pf = 0.8;
+    private readonly List<Load> loads =
+    [
+        new() { Name = "Refrigerator", Running = 700, Starting = 2200 },
+        new() { Name = "Sump pump (1/2 hp)", Running = 1050, Starting = 2150 },
+        new() { Name = "Furnace fan (1/2 hp)", Running = 875, Starting = 2350 },
+        new() { Name = "Lights", Running = 300, Starting = 300 },
+        new() { Name = "Microwave", Running = 1000, Starting = 1000 },
+        new() { Name = "Electric water heater", Running = 4000, Starting = 4000, On = false },
+    ];
+}

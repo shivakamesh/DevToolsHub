@@ -1,0 +1,79 @@
+@page "/solar-calculator"
+
+<ToolPage Title="Solar Panel, Battery & Inverter Size Calculator" Description="Size an off-grid or backup solar system: number of solar panels, battery bank capacity in Ah, inverter rating and charge controller current from your daily energy use.">
+    <table class="table">
+        <tbody>
+            <tr><th>Daily energy use (Wh/day)</th><td><input type="number" step="any" @bind="dailyWh" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Peak sun hours (h/day)</th><td><input type="number" step="any" @bind="sunHours" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>System losses (%)</th><td><input type="number" step="any" @bind="losses" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Panel rating (W)</th><td><input type="number" step="any" @bind="panelW" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Battery bank voltage (V)</th><td>
+                <select @bind="batteryV" @bind:after="Calculate">
+                    <option value="12">12 V</option>
+                    <option value="24">24 V</option>
+                    <option value="48">48 V</option>
+                </select>
+            </td></tr>
+            <tr><th>Battery chemistry</th><td>
+                <select @bind="chemistry" @bind:after="ChangeChemistry">
+                    <option value="lfp">Lithium (LiFePO4)</option>
+                    <option value="lead">Lead-acid / AGM / Gel</option>
+                </select>
+            </td></tr>
+            <tr><th>Usable depth of discharge (%)</th><td><input type="number" step="any" @bind="dod" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Days of autonomy</th><td><input type="number" step="any" @bind="autonomy" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+            <tr><th>Peak simultaneous load (W)</th><td><input type="number" step="any" @bind="peakW" @bind:event="oninput" @bind:after="Calculate" /></td></tr>
+        </tbody>
+    </table>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Solar array size</th><td><strong><code>@Eng.N(arrayW, "F0") W</code></strong></td></tr>
+                <tr><th>Number of panels</th><td><strong><code>@panels × @Eng.N(panelW!.Value) W</code></strong> (@Eng.N(panels * panelW.Value / 1000, "F2") kWp)</td></tr>
+                <tr><th>Battery bank</th><td><strong><code>@Eng.N(batteryAh, "F0") Ah @@ @batteryV V</code></strong> (@Eng.N(batteryAh * batteryV / 1000, "F2") kWh nominal)</td></tr>
+                <tr><th>Inverter</th><td><code>≥ @Eng.N(inverterW, "F0") W</code> continuous (125 % of peak load); check surge rating for motors</td></tr>
+                <tr><th>Charge controller</th><td><code>≥ @Eng.N(controllerA, "F0") A</code> MPPT at @batteryV V</td></tr>
+                <tr><th>Estimated daily production</th><td>@Eng.N(panels * panelW.Value * sunHours!.Value * (1 - losses!.Value / 100) / 1000, "F2") kWh/day</td></tr>
+            </tbody>
+        </table>
+        <p class="lead">
+            Array W = daily Wh / (sun hours × (1 − losses)). Battery Ah = daily Wh × autonomy / (V × DoD × 0.9 inverter efficiency).
+            Controller A = array W / battery V × 1.25. Use the sun hours for the worst month at your location.
+        </p>
+    }
+</ToolPage>
+
+@code {
+    private double? dailyWh = 5000, sunHours = 4.5, losses = 20, panelW = 400, dod = 80, autonomy = 1, peakW = 2000;
+    private int batteryV = 24;
+    private string chemistry = "lfp";
+    private double arrayW, batteryAh, inverterW, controllerA;
+    private int panels;
+    private string? error;
+
+    protected override void OnInitialized() => Calculate();
+
+    private void ChangeChemistry()
+    {
+        dod = chemistry == "lfp" ? 80 : 50;
+        Calculate();
+    }
+
+    private void Calculate()
+    {
+        error = null;
+        if (dailyWh is null or <= 0 || sunHours is null or <= 0 || panelW is null or <= 0) { error = "Enter positive daily energy, sun hours and panel rating."; return; }
+        if (losses is null or < 0 or >= 100 || dod is null or <= 0 or > 100) { error = "Losses must be 0–99 % and depth of discharge 1–100 %."; return; }
+        arrayW = dailyWh.Value / (sunHours.Value * (1 - losses.Value / 100));
+        panels = (int)Math.Ceiling(arrayW / panelW.Value);
+        batteryAh = dailyWh.Value * Math.Max(0, autonomy ?? 1) / (batteryV * dod.Value / 100 * 0.9);
+        inverterW = (peakW ?? 0) * 1.25;
+        controllerA = panels * panelW.Value / batteryV * 1.25;
+    }
+}

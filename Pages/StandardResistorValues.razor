@@ -1,0 +1,88 @@
+@page "/standard-resistor-values"
+
+<ToolPage Title="Standard Resistor Value Finder (E-Series)" Description="Find the nearest E6, E12, E24, E48, E96 or E192 standard resistor value, plus the best two-resistor series and parallel combinations for any target resistance.">
+    <div class="toolbar">
+        <label>Target resistance <input @bind="targetText" @bind:event="oninput" @bind:after="Calculate" placeholder="e.g. 3.7k, 120, 2M2" /></label>
+        <label>Series
+            <select @bind="series" @bind:after="Calculate">
+                @foreach (var n in new[] { 6, 12, 24, 48, 96, 192 })
+                {
+                    <option value="@n">E@(n) (@Tol(n))</option>
+                }
+            </select>
+        </label>
+    </div>
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+    else if (rows.Count > 0)
+    {
+        <table class="table">
+            <thead><tr><th>Option</th><th>Value</th><th>Error</th></tr></thead>
+            <tbody>
+                @foreach (var r in rows)
+                {
+                    <tr><th>@r.Label</th><td><code>@r.Value</code></td><td>@Eng.N(r.Error, "+0.###;-0.###;0") %</td></tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <h3>E@(series) values per decade</h3>
+    <p><code>@string.Join("  ", Eng.Series(series).Select(v => v.ToString(series > 24 ? "0.00" : "0.0", System.Globalization.CultureInfo.InvariantCulture)))</code></p>
+</ToolPage>
+
+@code {
+    private record Row(string Label, string Value, double Error);
+
+    private string targetText = "3.7k";
+    private int series = 24;
+    private string? error;
+    private List<Row> rows = [];
+
+    private static string Tol(int n) => n switch { 6 => "±20 %", 12 => "±10 %", 24 => "±5 %", 48 => "±2 %", 96 => "±1 %", _ => "±0.5 %" };
+
+    protected override void OnInitialized() => Calculate();
+
+    private void Calculate()
+    {
+        error = null;
+        rows = [];
+        if (!Eng.TryParseSi(targetText, out var target) || target <= 0) { error = "Enter a positive resistance such as 3.7k, 120 or 2M2."; return; }
+        if (target < 0.1 || target > 1e9) { error = "Enter a value between 0.1 Ω and 1 GΩ."; return; }
+
+        var values = Eng.SeriesValues(series, 0.1, 1e9);
+        double Err(double v) => (v - target) / target * 100;
+        string R(double v) => Eng.Si(v, "Ω");
+
+        var below = values.LastOrDefault(v => v <= target * 1.0000001);
+        var above = values.FirstOrDefault(v => v >= target * 0.9999999);
+        var nearest = values.OrderBy(v => Math.Abs(Math.Log(v / target))).First();
+        rows.Add(new("Nearest", R(nearest), Err(nearest)));
+        if (below > 0) rows.Add(new("Nearest below", R(below), Err(below)));
+        if (above > 0) rows.Add(new("Nearest above", R(above), Err(above)));
+
+        double Near(double v) => values.OrderBy(x => Math.Abs(x - v)).First();
+
+        (double A, double B, double Total) bestSeries = (0, 0, double.MaxValue);
+        foreach (var a in values.Where(v => v < target))
+        {
+            var b = Near(target - a);
+            var total = a + b;
+            if (Math.Abs(total - target) < Math.Abs(bestSeries.Total - target)) bestSeries = (a, b, total);
+        }
+        if (bestSeries.A > 0) rows.Add(new("Series R1 + R2", $"{R(Math.Max(bestSeries.A, bestSeries.B))} + {R(Math.Min(bestSeries.A, bestSeries.B))} = {R(bestSeries.Total)}", Err(bestSeries.Total)));
+
+        (double A, double B, double Total) bestParallel = (0, 0, double.MaxValue);
+        foreach (var a in values.Where(v => v > target && v <= target * 1000))
+        {
+            var needed = 1 / (1 / target - 1 / a);
+            var b = Near(needed);
+            var total = a * b / (a + b);
+            if (Math.Abs(total - target) < Math.Abs(bestParallel.Total - target)) bestParallel = (a, b, total);
+        }
+        if (bestParallel.A > 0) rows.Add(new("Parallel R1 ∥ R2", $"{R(Math.Min(bestParallel.A, bestParallel.B))} ∥ {R(Math.Max(bestParallel.A, bestParallel.B))} = {R(bestParallel.Total)}", Err(bestParallel.Total)));
+    }
+}
