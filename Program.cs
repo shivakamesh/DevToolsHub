@@ -16,6 +16,7 @@ static void ConfigureServices(IServiceCollection services, string baseAddress)
     services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(baseAddress) });
     services.AddScoped<UserPrefs>();
     services.AddScoped<GameProgress>();
+    services.AddScoped<LocalStore>();
     services.AddScoped<ProLicense>();
     services.AddScoped<DynamicQrStore>();
     services.AddScoped<Microsoft.AspNetCore.Components.WebAssembly.Services.LazyAssemblyLoader>();

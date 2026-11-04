@@ -10,6 +10,7 @@ public static class ToolCatalog
     private static readonly string[] Popularity =
     [
         "json-formatter", "diff-checker", "base64", "image-compressor", "pdf-tools", "regex-tester", "jwt-decoder", "url-encoder",
+        "http-client", "log-viewer", "scratchpad",
         "what-is-my-ip", "curl-to-code", "code-to-image", "json-to-typescript",
         "timestamp-converter", "guid-generator", "password-generator", "hash-generator", "qr-code",
         "color-converter", "color-contrast-checker", "crypto-tools", "dockerfile-generator", "connection-string-builder", "color-palette-generator",
@@ -70,6 +71,8 @@ public static class ToolCatalog
             "Paste CSV to get a JSON array of objects (using the header row) or arrays. Quoted fields, escaped quotes and multi-line values are supported. Numbers and booleans can be detected automatically."),
         new("JSON Path Tester", "json-path", "$.", "Format", "Query JSON with JSONPath expressions.",
             "Enter JSON and a JSONPath expression such as $.store.book[*].author or $..price to list matching values."),
+        new("Scratchpad", "scratchpad", "✎", "Format", "Autosaving notepad for snippets and TODOs.",
+            "Type anything and it is saved to this browser automatically. Use the + tab to keep several notes, toggle monospace and wrapping, and download a note as .txt."),
 
         // Encode
         new("Base64", "base64", "64", "Encode", "Encode and decode Base64 text (UTF-8).",
@@ -260,6 +263,10 @@ public static class ToolCatalog
             "Write Mermaid syntax for flowcharts, sequence, class, ER, state, Gantt and pie charts and see the diagram update live. Export as SVG or PNG, or share a link."),
         new("JS/CSS/HTML Minifier", "code-minifier", "⇘", "Format", "Minify or beautify JavaScript, CSS and HTML.",
             "Pick the language, paste code and click Minify to shrink it or Beautify to make it readable. JavaScript minification uses Terser."),
+        new("Log Viewer", "log-viewer", "≡", "Inspect", "Filter logs by level, search with regex, fold stack traces.",
+            "Paste log output or drop a .log file to see each entry with its level and timestamp. Toggle levels in the bar chart, narrow to a time range, search with text or regex, fold multi-line stack traces, and expand JSON log lines. Copy or download the filtered result."),
+        new("HTTP Client", "http-client", "⇅", "Inspect", "Send API requests and inspect the response.",
+            "Pick a method, enter a URL, add headers and a body, then Send. Status, timing, headers and pretty-printed JSON are shown. Recent requests are kept in this browser and can be copied as cURL. The API must allow CORS."),
         new("What Is My IP", "what-is-my-ip", "📍", "Inspect", "Your public IPv4/IPv6, location and ISP.",
             "Shows your public IPv4 and IPv6 addresses with approximate location, time zone, ISP and ASN."),
         new("DNS Lookup", "dns-lookup", "DNS", "Inspect", "Query A, AAAA, MX, TXT, NS, CNAME and more.",

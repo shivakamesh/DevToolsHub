@@ -130,7 +130,10 @@
     {"route":"/crypto-tools","rewrite":"/crypto-tools/index.html"},
     {"route":"/connection-string-builder","rewrite":"/connection-string-builder/index.html"},
     {"route":"/flexbox-grid-playground","rewrite":"/flexbox-grid-playground/index.html"},
-    {"route":"/dockerfile-generator","rewrite":"/dockerfile-generator/index.html"}
+    {"route":"/dockerfile-generator","rewrite":"/dockerfile-generator/index.html"},
+    {"route":"/scratchpad","rewrite":"/scratchpad/index.html"},
+    {"route":"/log-viewer","rewrite":"/log-viewer/index.html"},
+    {"route":"/http-client","rewrite":"/http-client/index.html"}
   ],
   "responseOverrides": {"404":{"rewrite":"/404.html"}},
   "mimeTypes": {".webmanifest":"application/manifest+json",".woff2":"font/woff2"},

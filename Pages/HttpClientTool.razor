@@ -1,0 +1,323 @@
+@page "/http-client"
+@using System.Diagnostics
+@using System.Net.Http.Headers
+@using System.Text
+@using System.Text.Json
+@inject HttpClient Http
+@inject LocalStore Store
+@inject IJSRuntime JS
+
+<ToolPage Title="HTTP Client" Description="Send GET, POST, PUT, PATCH and DELETE requests with custom headers and body, then inspect status, timing, headers and pretty-printed JSON." ShareValue="@url"
+          SeoTitle="Online HTTP Client – Test REST APIs in Your Browser"
+          SeoDescription="Lightweight Postman alternative: send GET, POST, PUT, PATCH, DELETE requests with headers and JSON body, view status, response time, headers and formatted JSON. Copy as cURL. Free, no signup.">
+    <div class="toolbar http-line">
+        <select @bind="method" aria-label="Method">
+            @foreach (var m in Methods) { <option value="@m">@m</option> }
+        </select>
+        <input class="io" style="flex:1;min-width:14rem" placeholder="https://api.example.com/items" @bind="url" @bind:event="oninput" @onkeydown="OnKeyAsync" aria-label="URL" />
+        <button class="btn" disabled="@(busy || string.IsNullOrWhiteSpace(url))" @onclick="SendAsync">@(busy ? "Sending…" : "Send")</button>
+        @if (busy) { <button class="btn secondary" @onclick="Cancel">Cancel</button> }
+    </div>
+
+    <div class="tabs">
+        <button class="tab @(tab == 0 ? "on" : "")" @onclick="() => tab = 0">Headers <span class="count">@headers.Count(h => !string.IsNullOrWhiteSpace(h.Key))</span></button>
+        <button class="tab @(tab == 1 ? "on" : "")" @onclick="() => tab = 1">Body</button>
+        <button class="tab @(tab == 2 ? "on" : "")" @onclick="() => tab = 2">History <span class="count">@history.Count</span></button>
+    </div>
+
+    @if (tab == 0)
+    {
+        <table class="table http-headers">
+            <tbody>
+                @foreach (var h in headers)
+                {
+                    <tr>
+                        <td><input class="io" list="common-headers" placeholder="Header" @bind="h.Key" @bind:event="oninput" /></td>
+                        <td><input class="io" placeholder="Value" @bind="h.Value" @bind:event="oninput" /></td>
+                        <td><button class="btn secondary" title="Remove" @onclick="() => headers.Remove(h)">✕</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <datalist id="common-headers">
+            @foreach (var n in CommonHeaders) { <option value="@n" /> }
+        </datalist>
+        <div class="toolbar">
+            <button class="btn secondary" @onclick="() => headers.Add(new())">+ Add header</button>
+            <button class="btn secondary" @onclick="AddBearer">+ Bearer token</button>
+            <button class="btn secondary" @onclick="AddJson">+ JSON content type</button>
+        </div>
+    }
+    else if (tab == 1)
+    {
+        <textarea class="io mono" rows="8" placeholder="Request body (JSON, form data, text…)" @bind="body" @bind:event="oninput" spellcheck="false" disabled="@(!HasBody)"></textarea>
+        @if (!HasBody) { <p class="muted">@method requests are sent without a body.</p> }
+        else { <div class="toolbar"><button class="btn secondary" @onclick="FormatBody">Format JSON</button></div> }
+    }
+    else
+    {
+        @if (history.Count == 0) { <p class="empty">Requests you send appear here (stored only in this browser).</p> }
+        else
+        {
+            <table class="table">
+                <tbody>
+                    @foreach (var h in history)
+                    {
+                        <tr class="http-hist" @onclick="() => Load(h)">
+                            <td><span class="badge">@h.Method</span></td>
+                            <td class="break">@h.Url</td>
+                            <td><span class="badge status-@(h.Status / 100)">@h.Status</span></td>
+                            <td class="muted">@h.Ms ms</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="toolbar"><button class="btn secondary" @onclick="ClearHistoryAsync">Clear history</button></div>
+        }
+    }
+
+    @if (error is not null)
+    {
+        <div class="alert error">@error</div>
+    }
+
+    @if (resp is not null)
+    {
+        <div class="toolbar http-status">
+            <span class="badge status-@(resp.Status / 100)">@resp.Status @resp.Reason</span>
+            <span class="muted">@resp.Ms ms</span>
+            <span class="muted">@FormatSize(resp.Bytes)</span>
+            @if (resp.ContentType is not null) { <span class="muted">@resp.ContentType</span> }
+            <span style="flex:1"></span>
+            <button class="btn secondary" @onclick="CopyCurlAsync">@curlLabel</button>
+            <CopyButton Text="@resp.Body" />
+        </div>
+
+        <div class="tabs">
+            <button class="tab @(rtab == 0 ? "on" : "")" @onclick="() => rtab = 0">Body</button>
+            <button class="tab @(rtab == 1 ? "on" : "")" @onclick="() => rtab = 1">Headers <span class="count">@resp.Headers.Count</span></button>
+        </div>
+        @if (rtab == 0)
+        {
+            <pre class="code mono http-body">@(resp.Body.Length == 0 ? "(empty body)" : resp.Body)</pre>
+        }
+        else
+        {
+            <table class="table">
+                <tbody>
+                    @foreach (var (k, v) in resp.Headers)
+                    {
+                        <tr><th>@k</th><td class="break">@v</td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    <p class="muted">Requests go straight from your browser to the URL, so the target API must allow CORS. Public APIs such as GitHub, JSONPlaceholder or your own localhost with CORS enabled work out of the box.</p>
+</ToolPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    private const string HistoryKey = "http-client:history";
+    private const int MaxHistory = 15;
+    private const int MaxBodyChars = 500_000;
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
+    private static readonly string[] Methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+    private static readonly string[] CommonHeaders = ["Accept", "Authorization", "Content-Type", "X-Api-Key", "X-Request-Id", "Cache-Control", "If-None-Match", "Accept-Language"];
+
+    public sealed class Header
+    {
+        public string Key { get; set; } = "";
+        public string Value { get; set; } = "";
+    }
+
+    public sealed record HistoryItem(string Method, string Url, List<Header> Headers, string Body, int Status, long Ms);
+
+    private sealed record Response(int Status, string Reason, long Ms, long Bytes, string? ContentType, string Body, List<(string, string)> Headers);
+
+    private string method = "GET";
+    private string url = "";
+    private string body = "";
+    private readonly List<Header> headers = [new() { Key = "Accept", Value = "application/json" }];
+    private List<HistoryItem> history = [];
+    private Response? resp;
+    private string? error;
+    private bool busy;
+    private int tab;
+    private int rtab;
+    private string curlLabel = "Copy as cURL";
+    private CancellationTokenSource? cts;
+
+    private bool HasBody => method is "POST" or "PUT" or "PATCH" or "DELETE";
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(Q)) url = Q;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        history = await Store.GetAsync<List<HistoryItem>>(HistoryKey, []);
+        StateHasChanged();
+    }
+
+    private async Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SendAsync();
+    }
+
+    private void AddBearer() => headers.Add(new() { Key = "Authorization", Value = "Bearer " });
+    private void AddJson() => headers.Add(new() { Key = "Content-Type", Value = "application/json" });
+
+    private void FormatBody()
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            body = JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (JsonException ex)
+        {
+            error = "Body is not valid JSON: " + ex.Message;
+        }
+    }
+
+    private void Load(HistoryItem h)
+    {
+        method = h.Method;
+        url = h.Url;
+        body = h.Body;
+        headers.Clear();
+        headers.AddRange(h.Headers.Select(x => new Header { Key = x.Key, Value = x.Value }));
+        tab = 0;
+    }
+
+    private async Task ClearHistoryAsync()
+    {
+        history = [];
+        await Store.SetAsync(HistoryKey, history);
+    }
+
+    private void Cancel() => cts?.Cancel();
+
+    private async Task SendAsync()
+    {
+        if (busy || string.IsNullOrWhiteSpace(url)) return;
+        var target = url.Trim();
+        if (!target.Contains("://")) target = "https://" + target;
+        if (!Uri.TryCreate(target, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
+        {
+            error = "Enter a valid http:// or https:// URL.";
+            return;
+        }
+
+        busy = true;
+        error = null;
+        resp = null;
+        rtab = 0;
+        cts = new CancellationTokenSource(Timeout);
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            using var req = new HttpRequestMessage(new HttpMethod(method), uri);
+            if (HasBody && body.Length > 0)
+            {
+                var ct = headers.FirstOrDefault(h => h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))?.Value;
+                req.Content = new StringContent(body, Encoding.UTF8);
+                if (!string.IsNullOrWhiteSpace(ct) && MediaTypeHeaderValue.TryParse(ct, out var mt))
+                    req.Content.Headers.ContentType = mt;
+            }
+            foreach (var h in headers.Where(h => !string.IsNullOrWhiteSpace(h.Key)))
+            {
+                if (h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!req.Headers.TryAddWithoutValidation(h.Key, h.Value))
+                    req.Content?.Headers.TryAddWithoutValidation(h.Key, h.Value);
+            }
+
+            using var res = await Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            var bytes = await res.Content.ReadAsByteArrayAsync(cts.Token);
+            sw.Stop();
+
+            var text = Encoding.UTF8.GetString(bytes);
+            var ctype = res.Content.Headers.ContentType?.ToString();
+            if (text.Length > MaxBodyChars) text = text[..MaxBodyChars] + $"\n… truncated ({bytes.Length:n0} bytes total)";
+            else text = TryPretty(text);
+
+            var hs = res.Headers.Concat(res.Content.Headers)
+                .Select(h => (h.Key, string.Join(", ", h.Value)))
+                .OrderBy(h => h.Key)
+                .ToList();
+
+            resp = new Response((int)res.StatusCode, res.ReasonPhrase ?? "", sw.ElapsedMilliseconds, bytes.Length, ctype, text, hs);
+            await AddHistoryAsync(target, (int)res.StatusCode, sw.ElapsedMilliseconds);
+        }
+        catch (OperationCanceledException)
+        {
+            error = sw.Elapsed >= Timeout ? $"Request timed out after {Timeout.TotalSeconds:0}s." : "Request cancelled.";
+        }
+        catch (HttpRequestException ex)
+        {
+            error = "Request failed: " + ex.Message + " This usually means the server did not return CORS headers (Access-Control-Allow-Origin), the host is unreachable, or the certificate is invalid.";
+        }
+        finally
+        {
+            busy = false;
+            cts.Dispose();
+            cts = null;
+        }
+    }
+
+    private async Task AddHistoryAsync(string target, int status, long ms)
+    {
+        history.RemoveAll(h => h.Method == method && h.Url == target);
+        history.Insert(0, new HistoryItem(method, target, headers.Where(h => !string.IsNullOrWhiteSpace(h.Key)).Select(h => new Header { Key = h.Key, Value = h.Value }).ToList(), HasBody ? body : "", status, ms));
+        if (history.Count > MaxHistory) history.RemoveRange(MaxHistory, history.Count - MaxHistory);
+        await Store.SetAsync(HistoryKey, history);
+    }
+
+    private static string TryPretty(string text)
+    {
+        var t = text.AsSpan().TrimStart();
+        if (t.Length == 0 || (t[0] != '{' && t[0] != '[')) return text;
+        try
+        {
+            using var doc = JsonDocument.Parse(text);
+            return JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+        }
+        catch (JsonException)
+        {
+            return text;
+        }
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024):0.##} MB",
+    };
+
+    private string ToCurl()
+    {
+        var sb = new StringBuilder("curl");
+        if (method != "GET") sb.Append(" -X ").Append(method);
+        sb.Append(" '").Append(url.Replace("'", "'\\''")).Append('\'');
+        foreach (var h in headers.Where(h => !string.IsNullOrWhiteSpace(h.Key)))
+            sb.Append(" \\\n  -H '").Append(h.Key).Append(": ").Append(h.Value.Replace("'", "'\\''")).Append('\'');
+        if (HasBody && body.Length > 0)
+            sb.Append(" \\\n  --data '").Append(body.Replace("'", "'\\''")).Append('\'');
+        return sb.ToString();
+    }
+
+    private async Task CopyCurlAsync()
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", ToCurl());
+        curlLabel = "Copied!";
+        StateHasChanged();
+        await Task.Delay(1500);
+        curlLabel = "Copy as cURL";
+    }
+}

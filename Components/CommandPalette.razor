@@ -1,6 +1,7 @@
 @implements IDisposable
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject UserPrefs Prefs
 
 @if (open)
 {
@@ -14,7 +15,7 @@
                     <li class="@(index == selected ? "sel" : "")" @onclick="() => Go(tool)" @onmouseover="() => selected = index">
                         <span class="nav-icon">@tool.Icon</span>
                         <span class="palette-name">@tool.Name</span>
-                        <small>@tool.Category</small>
+                        <small>@Tag(tool)</small>
                     </li>
                 }
                 @if (results.Count == 0)
@@ -34,13 +35,33 @@
     private ElementReference inputRef;
     private DotNetObjectReference<CommandPalette>? selfRef;
 
-    private List<ToolInfo> results => ToolCatalog.All
-        .Where(t => string.IsNullOrWhiteSpace(query)
-                    || t.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+    private List<ToolInfo> results => string.IsNullOrWhiteSpace(query) ? Suggested() : ToolCatalog.All
+        .Where(t => t.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || t.Summary.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || t.Category.Contains(query, StringComparison.OrdinalIgnoreCase))
         .Take(12)
         .ToList();
+
+    private List<ToolInfo> Suggested()
+    {
+        var list = Prefs.Favorites.Concat(Prefs.Recent)
+            .Distinct()
+            .Select(ToolCatalog.Find)
+            .OfType<ToolInfo>()
+            .ToList();
+        foreach (var t in ToolCatalog.All)
+        {
+            if (list.Count >= 12) break;
+            if (!list.Contains(t)) list.Add(t);
+        }
+        return list;
+    }
+
+    private string Tag(ToolInfo t) =>
+        !string.IsNullOrWhiteSpace(query) ? t.Category
+        : Prefs.IsFavorite(t.Href) ? "★ Favorite"
+        : Prefs.Recent.Contains(t.Href) ? "Recent"
+        : t.Category;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -48,6 +69,7 @@
         {
             selfRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("devTools.registerShortcuts", selfRef);
+            await Prefs.EnsureLoadedAsync();
         }
         if (focusPending)
         {

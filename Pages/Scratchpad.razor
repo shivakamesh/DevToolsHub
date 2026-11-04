@@ -1,0 +1,159 @@
+@page "/scratchpad"
+@implements IDisposable
+@inject LocalStore Store
+@inject IJSRuntime JS
+
+<ToolPage Title="Scratchpad" Description="A persistent notepad that autosaves to your browser. Keep snippets, TODOs and command output across sessions."
+          SeoTitle="Online Scratchpad – Autosaving Developer Notepad"
+          SeoDescription="Free online scratchpad for developers. Notes autosave to your browser, survive refreshes and work offline. Multiple tabs, word count, download as .txt. Nothing is uploaded.">
+    <div class="tabs pad-tabs">
+        @foreach (var (n, i) in notes.Select((n, i) => (n, i)))
+        {
+            <button class="tab @(i == current ? "on" : "")" @onclick="() => Select(i)" title="@n.Title">
+                @(string.IsNullOrWhiteSpace(n.Title) ? $"Note {i + 1}" : n.Title)
+            </button>
+        }
+        <button class="tab pad-add" title="New note" @onclick="AddNote">+</button>
+    </div>
+
+    <div class="toolbar">
+        <input class="io pad-title" placeholder="Title" @bind="Current.Title" @bind:event="oninput" @bind:after="Touch" aria-label="Note title" />
+        <label><input type="checkbox" @bind="mono" @bind:after="SaveSettingsAsync" /> Monospace</label>
+        <label><input type="checkbox" @bind="wrap" @bind:after="SaveSettingsAsync" /> Wrap</label>
+    </div>
+
+    <textarea class="io pad-editor @(mono ? "mono" : "") @(wrap ? "" : "nowrap")" rows="18" spellcheck="false"
+              placeholder="Start typing… everything is saved automatically in this browser."
+              @bind="Current.Text" @bind:event="oninput" @bind:after="Touch"></textarea>
+
+    <div class="toolbar pad-foot">
+        <span class="muted">@Stats</span>
+        <span class="muted pad-status">@status</span>
+        <span style="flex:1"></span>
+        <CopyButton Text="@Current.Text" />
+        <button class="btn secondary" disabled="@string.IsNullOrEmpty(Current.Text)" @onclick="DownloadAsync">Download .txt</button>
+        <button class="btn secondary" disabled="@string.IsNullOrEmpty(Current.Text)" @onclick="Clear">Clear</button>
+        <button class="btn secondary" disabled="@(notes.Count <= 1)" @onclick="DeleteNote">Delete note</button>
+    </div>
+</ToolPage>
+
+@code {
+    private const string NotesKey = "scratchpad";
+    private const string SettingsKey = "scratchpad:settings";
+    private const int MaxNotes = 12;
+    private const int SaveDelayMs = 500;
+
+    public sealed class Note
+    {
+        public string Title { get; set; } = "";
+        public string Text { get; set; } = "";
+    }
+
+    private sealed record Settings(bool Mono, bool Wrap, int Current);
+
+    private List<Note> notes = [new()];
+    private int current;
+    private bool mono = true;
+    private bool wrap = true;
+    private bool loaded;
+    private string status = "";
+    private CancellationTokenSource? saveCts;
+
+    private Note Current => notes[Math.Clamp(current, 0, notes.Count - 1)];
+
+    private string Stats
+    {
+        get
+        {
+            var t = Current.Text;
+            if (t.Length == 0) return "0 chars";
+            var lines = t.Count(c => c == '\n') + 1;
+            var words = t.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+            return $"{t.Length:n0} chars · {words:n0} words · {lines:n0} lines";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var saved = await Store.GetAsync<List<Note>>(NotesKey, []);
+        var settings = await Store.GetAsync<Settings?>(SettingsKey, null);
+        if (saved.Count > 0) notes = saved;
+        if (settings is not null)
+        {
+            mono = settings.Mono;
+            wrap = settings.Wrap;
+            current = Math.Clamp(settings.Current, 0, notes.Count - 1);
+        }
+        loaded = true;
+        StateHasChanged();
+    }
+
+    private void Select(int i)
+    {
+        current = i;
+        _ = SaveSettingsAsync();
+    }
+
+    private void AddNote()
+    {
+        if (notes.Count >= MaxNotes) return;
+        notes.Add(new Note());
+        current = notes.Count - 1;
+        Touch();
+        _ = SaveSettingsAsync();
+    }
+
+    private void DeleteNote()
+    {
+        if (notes.Count <= 1) return;
+        notes.RemoveAt(current);
+        current = Math.Clamp(current, 0, notes.Count - 1);
+        Touch();
+        _ = SaveSettingsAsync();
+    }
+
+    private void Clear()
+    {
+        Current.Text = "";
+        Touch();
+    }
+
+    private void Touch()
+    {
+        if (!loaded) return;
+        status = "Saving…";
+        saveCts?.Cancel();
+        saveCts = new CancellationTokenSource();
+        _ = SaveAfterDelayAsync(saveCts.Token);
+    }
+
+    private async Task SaveAfterDelayAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(SaveDelayMs, token);
+            await Store.SetAsync(NotesKey, notes);
+            status = $"Saved {DateTime.Now:HH:mm:ss}";
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private Task SaveSettingsAsync() => loaded ? Store.SetAsync(SettingsKey, new Settings(mono, wrap, current)) : Task.CompletedTask;
+
+    private async Task DownloadAsync()
+    {
+        var name = string.IsNullOrWhiteSpace(Current.Title) ? "scratchpad" : string.Concat(Current.Title.Where(c => char.IsLetterOrDigit(c) || c is '-' or '_' or ' ')).Trim();
+        await JS.InvokeVoidAsync("devTools.downloadText", $"{name}.txt", "text/plain", Current.Text);
+    }
+
+    public void Dispose()
+    {
+        if (saveCts is { IsCancellationRequested: false } cts)
+        {
+            cts.Cancel();
+            _ = Store.SetAsync(NotesKey, notes);
+        }
+    }
+}

@@ -910,6 +910,34 @@ public static class ToolContent
                 new Faq("Is the URL I enter private?", "The check is performed by a public checking service, so the URL is sent to it. Nothing is stored by this site."),
                 Free,
             ]),
+
+        ["scratchpad"] = S("online scratchpad and developer notepad",
+            "A scratchpad is the quickest place to park a stack trace, a connection string, a to-do list or a snippet you will need in five minutes. This online notepad saves as you type to your browser's local storage, so your notes survive refreshes, tab closures and restarts, and keep working offline. Several notes can be kept in tabs, and each can be downloaded as a .txt file. Unlike a cloud notes app there is no account, no sync and nothing ever leaves your machine.",
+            ["Start typing; the note is saved automatically after you pause.", "Use the + tab to add more notes and give each a title.", "Copy or download a note as .txt whenever you need it elsewhere."],
+            "TODO: rotate API key\nSELECT * FROM orders WHERE id = 4211;\nkubectl logs -f deploy/api --since=10m",
+            new Faq("Where are my notes stored?", "In your browser's localStorage for this site. They are not uploaded anywhere, so clearing site data or using a different browser or device will not show them."),
+            new Faq("Is there a size limit?", "Browsers allow roughly 5 MB of localStorage per site, which is millions of characters. The pad keeps up to 12 notes."),
+            new Faq("Can I use it offline?", "Yes. Once the page has loaded it works without a connection, and saving is local.")),
+
+        ["log-viewer"] = S("online log viewer and analyzer",
+            "Reading raw log output in a terminal or a text editor is slow when you only care about errors or a single request ID. This log viewer parses pasted logs from .NET and Serilog, ASP.NET Core, Java and Log4j, Python, Node.js, nginx, Docker and Kubernetes, detects the level and timestamp of each entry, and lets you toggle levels, search with plain text or a regular expression, and exclude noise. Multi-line stack traces are folded under their first line, and structured JSON log lines (Serilog compact, Bunyan, pino, ECS) are pretty-printed on demand. The filtered view can be copied or downloaded.",
+            ["Paste log output, or drop a .log or .txt file (up to 25 MB) onto the page.", "Click level chips or bars to hide INFO or DEBUG noise, set a From/To time range, and type a search or regex to narrow further.", "Expand folded stack traces or JSON entries, then copy or download the filtered lines."],
+            "2024-05-01 10:12:03.114 [ERR] Order 4211 failed: timeout\n   at Shop.Orders.Submit() line 88\n2024-05-01 10:12:04.002 [INF] Retrying order 4211",
+            new Faq("Which log formats are recognised?", "Any text log with a recognisable level word such as INFO, WARN, ERROR, DEBUG, TRACE, FATAL, or the short Serilog forms INF, WRN, ERR, DBG, VRB and FTL. ISO 8601, syslog and US-style timestamps are detected. Lines that are one JSON object each are parsed as structured logs."),
+            new Faq("How big a log can I paste?", "Several megabytes work fine because everything is processed in memory in your browser. Results are rendered 500 entries at a time to keep the page responsive."),
+            new Faq("Does it support regex?", "Yes. Tick Regex to use .NET regular expressions, and Exclude matches to hide matching lines instead of showing them.")),
+
+        ["http-client"] = new("online HTTP client and REST API tester",
+            "Test a REST API without installing Postman or Insomnia. This browser-based HTTP client sends GET, POST, PUT, PATCH, DELETE, HEAD and OPTIONS requests with custom headers and a request body, then shows the status code, response time, size, response headers and the body with JSON pretty-printed. Recent requests are kept in your browser so you can replay them, and any request can be copied as a cURL command for a script or a bug report. Because the request is made directly from your browser, the API must send CORS headers; public APIs and local development servers with CORS enabled work immediately.",
+            ["Choose a method and enter the URL.", "Add headers such as Authorization or Content-Type and, for POST or PUT, a body.", "Press Send or Enter and inspect the status, timing, headers and formatted response."],
+            "GET https://api.github.com/repos/dotnet/aspnetcore  →  200 OK · 182 ms · JSON body pretty-printed",
+            [
+                new Faq("Why do I get a network error for an API that works in Postman?", "Browsers enforce CORS. If the API does not return Access-Control-Allow-Origin for this site the browser blocks the response. Use an API that supports CORS, enable it on your own server, or test from Postman or cURL."),
+                new Faq("Can I call localhost?", "Yes, as long as your local server sends CORS headers for https://www.itsalldevtools.com or uses a wildcard origin during development."),
+                new Faq("Are my tokens stored?", "Request history, including headers, is saved only in this browser's localStorage so you can replay requests. Clear history to remove it. Nothing is sent to this site's servers."),
+                new Faq("Is my data safe?", "The request goes directly from your browser to the URL you enter and nowhere else. This site has no backend and does not see, log or store your requests or responses."),
+                Free,
+            ]),
     };
 
     public static ToolSeo? For(string href) => Content.GetValueOrDefault(href);

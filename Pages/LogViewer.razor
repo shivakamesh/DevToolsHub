@@ -1,0 +1,418 @@
+@page "/log-viewer"
+@using System.Text
+@using System.Text.Json
+@using System.Text.RegularExpressions
+@inject IJSRuntime JS
+
+<ToolPage Title="Log Viewer" Description="Paste application logs to filter by level, search with regex, fold stack traces and pretty-print JSON log lines."
+          SeoTitle="Log Viewer – Filter, Search & Highlight Logs Online"
+          SeoDescription="Paste logs from .NET, Serilog, Java, Node or Docker and filter by level, search with regex, collapse stack traces and format JSON log lines. Free, runs in your browser.">
+    <div class="log-drop @(reading ? "busy" : "")">
+        <InputFile OnChange="OnFileAsync" accept=".log,.txt,.json,.out,.err,text/*" title="Open or drop a log file" />
+        <span>@(reading ? "Reading…" : fileName is null ? "📄 Drop a .log / .txt file here or click to open (up to 25 MB)" : $"📄 {fileName} · {FormatSize(fileSize)}")</span>
+    </div>
+    @if (fileError is not null)
+    {
+        <div class="alert error">@fileError</div>
+    }
+
+    <textarea class="io mono" rows="8" placeholder="Paste log output here… (plain text or one JSON object per line)"
+              @bind="input" @bind:event="oninput" @bind:after="Parse" spellcheck="false"></textarea>
+
+    @if (entries.Count > 0)
+    {
+        <div class="toolbar log-filters">
+            @foreach (var lvl in Levels)
+            {
+                var count = counts.GetValueOrDefault(lvl);
+                <button class="chip lvl-@lvl.ToLowerInvariant() @(hidden.Contains(lvl) ? "off" : "on")" disabled="@(count == 0)" @onclick="() => Toggle(lvl)" title="Toggle @lvl">
+                    @lvl <small>@count</small>
+                </button>
+            }
+            <span style="flex:1"></span>
+            <label><input type="checkbox" @bind="fold" /> Fold stack traces</label>
+            <label><input type="checkbox" @bind="showTime" /> Timestamps</label>
+        </div>
+
+        <div class="toolbar">
+            <input class="io" style="flex:1;min-width:12rem" placeholder="Search (text or regex)…" @bind="search" @bind:event="oninput" @bind:after="Parse" aria-label="Search logs" />
+            <label><input type="checkbox" @bind="useRegex" @bind:after="Parse" /> Regex</label>
+            <label><input type="checkbox" @bind="caseSensitive" @bind:after="Parse" /> Match case</label>
+            <label><input type="checkbox" @bind="invert" @bind:after="Parse" /> Exclude matches</label>
+            <button class="btn secondary" @onclick="CopyVisibleAsync">@copyLabel</button>
+            <button class="btn secondary" @onclick="DownloadAsync">Download</button>
+        </div>
+
+        @if (minTime is not null)
+        {
+            <div class="toolbar log-range">
+                <label>From <input type="datetime-local" step="1" value="@Local(from)" min="@Local(minTime)" max="@Local(maxTime)" @onchange="e => SetRange(e, true)" /></label>
+                <label>To <input type="datetime-local" step="1" value="@Local(to)" min="@Local(minTime)" max="@Local(maxTime)" @onchange="e => SetRange(e, false)" /></label>
+                <button class="btn secondary" disabled="@(from is null && to is null)" @onclick="ResetRange">Reset</button>
+                <span class="muted">Log spans @minTime!.Value.ToString("yyyy-MM-dd HH:mm:ss") → @maxTime!.Value.ToString("yyyy-MM-dd HH:mm:ss") (@FormatSpan(maxTime.Value - minTime.Value))@(undated > 0 ? $" · {undated:n0} entries without timestamp are always shown" : "")</span>
+            </div>
+        }
+
+        <div class="log-bars" role="img" aria-label="Entries per level">
+            @{ var maxCount = Math.Max(1, counts.Values.DefaultIfEmpty(0).Max()); }
+            @foreach (var lvl in Levels.Where(l => counts.GetValueOrDefault(l) > 0))
+            {
+                var total = counts[lvl];
+                var vis = visibleCounts.GetValueOrDefault(lvl);
+                <div class="log-bar-row lvl-@lvl.ToLowerInvariant() @(hidden.Contains(lvl) ? "off" : "")" @onclick="() => Toggle(lvl)" title="@vis of @total @lvl shown · click to toggle">
+                    <span class="log-bar-name">@lvl</span>
+                    <span class="log-bar-track">
+                        <span class="log-bar total" style="width:@(100.0 * total / maxCount)%"></span>
+                        <span class="log-bar vis" style="width:@(100.0 * vis / maxCount)%"></span>
+                    </span>
+                    <span class="log-bar-num">@(vis == total ? total.ToString("n0") : $"{vis:n0} / {total:n0}")</span>
+                </div>
+            }
+        </div>
+
+        @if (regexError is not null)
+        {
+            <div class="alert error">@regexError</div>
+        }
+
+        <p class="muted">Showing @Visible.Count.ToString("n0") of @entries.Count.ToString("n0") entries · @input.Length.ToString("n0") chars</p>
+
+        <div class="log-list mono">
+            @foreach (var e in Visible.Take(shown))
+            {
+                <div class="log-row lvl-@e.Level.ToLowerInvariant() @(e.Json is not null ? "has-json" : "")">
+                    <span class="log-ln">@e.Line</span>
+                    @if (showTime && e.Time is not null) { <span class="log-time">@e.Time</span> }
+                    <span class="log-lvl">@Abbrev(e.Level)</span>
+                    <span class="log-msg">@Highlight(e.Message)</span>
+                    @if (e.Extra.Count > 0)
+                    {
+                        <details class="log-extra" open="@(!fold)">
+                            <summary>@e.Extra.Count more line@(e.Extra.Count == 1 ? "" : "s")</summary>
+                            <pre>@Highlight(string.Join('\n', e.Extra))</pre>
+                        </details>
+                    }
+                    @if (e.Json is not null)
+                    {
+                        <details class="log-extra">
+                            <summary>JSON</summary>
+                            <pre>@e.Json</pre>
+                        </details>
+                    }
+                </div>
+            }
+        </div>
+        @if (Visible.Count > shown)
+        {
+            <div class="toolbar"><button class="btn secondary" @onclick="() => shown += Page">Show @Math.Min(Page, Visible.Count - shown) more</button></div>
+        }
+    }
+    else if (input.Length > 0)
+    {
+        <p class="empty">No log lines detected.</p>
+    }
+</ToolPage>
+
+@code {
+    private const int Page = 500;
+    private static readonly string[] Levels = ["FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE", "OTHER"];
+
+    private static readonly Regex LevelRx = new(
+        @"\b(FATAL|CRITICAL|CRIT|FTL|EMERG|ALERT|ERROR|ERR|SEVERE|FAIL|WARNING|WARN|WRN|INFORMATION|INFO|INF|NOTICE|DEBUG|DBG|TRACE|TRC|VERBOSE|VRB|FINE|FINER|FINEST)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex TimeRx = new(
+        @"^\s*\[?(?<t>(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)|(\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)|(\d{1,2}/\d{1,2}/\d{2,4}[ ,]+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?)|([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})|(\d{10,13}))\]?",
+        RegexOptions.Compiled);
+
+    private static readonly Regex ContinuationRx = new(@"^(\s+|at\s|Caused by:|\.{3}\s*\d+ more|---\s|\tat\s|-->|System\.|Microsoft\.|Exception|Traceback)", RegexOptions.Compiled);
+
+    private sealed class Entry
+    {
+        public int Line;
+        public string Level = "OTHER";
+        public string? Time;
+        public DateTime? ParsedTime;
+        public string Message = "";
+        public List<string> Extra = [];
+        public string? Json;
+        public string Full = "";
+    }
+
+    private const long MaxFileBytes = 25 * 1024 * 1024;
+
+    private string input = "";
+    private string? fileName;
+    private long fileSize;
+    private string? fileError;
+    private bool reading;
+    private DateTime? minTime, maxTime, from, to;
+    private int undated;
+    private readonly Dictionary<string, int> visibleCounts = [];
+    private string search = "";
+    private bool useRegex;
+    private bool caseSensitive;
+    private bool invert;
+    private bool fold = true;
+    private bool showTime = true;
+    private string? regexError;
+    private Regex? searchRx;
+    private int shown = Page;
+    private string copyLabel = "Copy visible";
+
+    private readonly List<Entry> entries = [];
+    private readonly Dictionary<string, int> counts = [];
+    private readonly HashSet<string> hidden = [];
+    private List<Entry> visible = [];
+
+    private List<Entry> Visible => visible;
+
+    private void Toggle(string lvl)
+    {
+        if (!hidden.Remove(lvl)) hidden.Add(lvl);
+        Filter();
+    }
+
+    private void Parse()
+    {
+        entries.Clear();
+        counts.Clear();
+        shown = Page;
+        Entry? cur = null;
+        var n = 0;
+        foreach (var raw in input.Split('\n'))
+        {
+            n++;
+            var line = raw.TrimEnd('\r');
+            if (line.Length == 0) continue;
+
+            var json = TryJson(line);
+            if (json is null && cur is not null && ContinuationRx.IsMatch(line) && !LevelRx.IsMatch(line[..Math.Min(line.Length, 60)]))
+            {
+                cur.Extra.Add(line);
+                cur.Full += "\n" + line;
+                continue;
+            }
+
+            cur = new Entry { Line = n, Full = line };
+            if (json is not null)
+            {
+                cur.Json = json.Value.Pretty;
+                cur.Level = json.Value.Level;
+                cur.Time = json.Value.Time;
+                cur.Message = json.Value.Message;
+            }
+            else
+            {
+                var rest = line;
+                var tm = TimeRx.Match(rest);
+                if (tm.Success)
+                {
+                    cur.Time = tm.Groups["t"].Value;
+                    rest = rest[tm.Length..];
+                }
+                var lm = LevelRx.Match(rest, 0, Math.Min(rest.Length, 80));
+                cur.Level = lm.Success ? Normalize(lm.Value) : "OTHER";
+                cur.Message = rest.TrimStart(' ', '[', ']', ':', '-', '|');
+            }
+            entries.Add(cur);
+        }
+        minTime = maxTime = null;
+        undated = 0;
+        foreach (var e in entries)
+        {
+            e.ParsedTime = ParseTime(e.Time);
+            if (e.ParsedTime is not { } t) { undated++; continue; }
+            if (minTime is null || t < minTime) minTime = t;
+            if (maxTime is null || t > maxTime) maxTime = t;
+        }
+        if (minTime == maxTime) minTime = maxTime = null;
+        if (from < minTime || from > maxTime) from = null;
+        if (to < minTime || to > maxTime) to = null;
+        foreach (var lvl in Levels) counts[lvl] = 0;
+        foreach (var e in entries) counts[e.Level] = counts.GetValueOrDefault(e.Level) + 1;
+        Filter();
+    }
+
+    private static DateTime? ParseTime(string? raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return null;
+        if (raw.Length is 10 or 13 && raw.All(char.IsDigit) && long.TryParse(raw, out var epoch))
+            return (raw.Length == 10 ? DateTimeOffset.FromUnixTimeSeconds(epoch) : DateTimeOffset.FromUnixTimeMilliseconds(epoch)).LocalDateTime;
+        var s = raw.Replace(',', '.');
+        if (DateTime.TryParse(s, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeLocal | System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var dt))
+            return dt.Kind == DateTimeKind.Utc ? dt.ToLocalTime() : dt;
+        return null;
+    }
+
+    private static string Local(DateTime? t) => t?.ToString("yyyy-MM-dd'T'HH:mm:ss") ?? "";
+
+    private static string FormatSpan(TimeSpan s) =>
+        s.TotalDays >= 1 ? $"{s.TotalDays:0.#} days" : s.TotalHours >= 1 ? $"{s.TotalHours:0.#} h" : s.TotalMinutes >= 1 ? $"{s.TotalMinutes:0.#} min" : $"{s.TotalSeconds:0.#} s";
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024):0.##} MB",
+    };
+
+    private void SetRange(ChangeEventArgs e, bool isFrom)
+    {
+        var v = e.Value?.ToString();
+        DateTime? t = DateTime.TryParse(v, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeLocal, out var d) ? d : null;
+        if (isFrom) from = t; else to = t;
+        Filter();
+    }
+
+    private void ResetRange()
+    {
+        from = to = null;
+        Filter();
+    }
+
+    private async Task OnFileAsync(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        fileError = null;
+        if (file.Size > MaxFileBytes)
+        {
+            fileError = $"{file.Name} is {FormatSize(file.Size)}; the limit is {FormatSize(MaxFileBytes)}.";
+            return;
+        }
+        reading = true;
+        StateHasChanged();
+        try
+        {
+            await using var stream = file.OpenReadStream(MaxFileBytes);
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            input = await reader.ReadToEndAsync();
+            fileName = file.Name;
+            fileSize = file.Size;
+            Parse();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            fileError = "Could not read the file: " + ex.Message;
+        }
+        finally
+        {
+            reading = false;
+        }
+    }
+
+    private void Filter()
+    {
+        regexError = null;
+        searchRx = null;
+        if (!string.IsNullOrEmpty(search))
+        {
+            var opts = caseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase;
+            try
+            {
+                searchRx = new Regex(useRegex ? search : Regex.Escape(search), opts, TimeSpan.FromMilliseconds(500));
+            }
+            catch (ArgumentException ex)
+            {
+                regexError = "Invalid regex: " + ex.Message;
+            }
+        }
+        visible = entries.Where(e => !hidden.Contains(e.Level)
+                                     && InRange(e.ParsedTime)
+                                     && (searchRx is null || searchRx.IsMatch(e.Full) != invert)).ToList();
+        visibleCounts.Clear();
+        foreach (var e in visible) visibleCounts[e.Level] = visibleCounts.GetValueOrDefault(e.Level) + 1;
+        shown = Page;
+    }
+
+    private bool InRange(DateTime? t) =>
+        t is null || ((from is null || t >= from) && (to is null || t <= to));
+
+    private MarkupString Highlight(string text)
+    {
+        var escaped = System.Net.WebUtility.HtmlEncode(text);
+        if (searchRx is null || invert) return (MarkupString)escaped;
+        try
+        {
+            return (MarkupString)searchRx.Replace(escaped, m => $"<mark>{m.Value}</mark>");
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return (MarkupString)escaped;
+        }
+    }
+
+    private static string Abbrev(string lvl) => lvl switch
+    {
+        "FATAL" => "FTL", "ERROR" => "ERR", "WARN" => "WRN", "INFO" => "INF", "DEBUG" => "DBG", "TRACE" => "TRC", _ => "···",
+    };
+
+    private static string Normalize(string raw) => raw.ToUpperInvariant() switch
+    {
+        "FATAL" or "CRITICAL" or "CRIT" or "FTL" or "EMERG" or "ALERT" => "FATAL",
+        "ERROR" or "ERR" or "SEVERE" or "FAIL" => "ERROR",
+        "WARNING" or "WARN" or "WRN" => "WARN",
+        "INFORMATION" or "INFO" or "INF" or "NOTICE" => "INFO",
+        "DEBUG" or "DBG" or "FINE" => "DEBUG",
+        "TRACE" or "TRC" or "VERBOSE" or "VRB" or "FINER" or "FINEST" => "TRACE",
+        _ => "OTHER",
+    };
+
+    private static readonly string[] JsonLevelKeys = ["level", "Level", "severity", "lvl", "@l", "log.level", "levelname"];
+    private static readonly string[] JsonTimeKeys = ["timestamp", "@timestamp", "time", "@t", "ts", "Timestamp", "asctime", "date"];
+    private static readonly string[] JsonMsgKeys = ["message", "msg", "@m", "@mt", "Message", "MessageTemplate", "RenderedMessage", "text"];
+
+    private static (string Pretty, string Level, string? Time, string Message)? TryJson(string line)
+    {
+        if (line.Length < 2 || line[0] != '{' || line[^1] != '}') return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(line);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+            var level = Pick(root, JsonLevelKeys) is { } l ? Normalize(l) : "INFO";
+            var time = Pick(root, JsonTimeKeys);
+            var msg = Pick(root, JsonMsgKeys) ?? line;
+            var pretty = JsonSerializer.Serialize(root, new JsonSerializerOptions { WriteIndented = true });
+            return (pretty, level, time, msg);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string? Pick(JsonElement obj, string[] keys)
+    {
+        foreach (var k in keys)
+        {
+            if (obj.TryGetProperty(k, out var v))
+                return v.ValueKind switch
+                {
+                    JsonValueKind.String => v.GetString(),
+                    JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => v.GetRawText(),
+                    _ => null,
+                };
+        }
+        return null;
+    }
+
+    private string VisibleText()
+    {
+        var sb = new StringBuilder();
+        foreach (var e in visible) sb.Append(e.Full).Append('\n');
+        return sb.ToString();
+    }
+
+    private async Task CopyVisibleAsync()
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", VisibleText());
+        copyLabel = "Copied!";
+        StateHasChanged();
+        await Task.Delay(1500);
+        copyLabel = "Copy visible";
+    }
+
+    private Task DownloadAsync() => JS.InvokeVoidAsync("devTools.downloadText", "filtered.log", "text/plain", VisibleText()).AsTask();
+}
