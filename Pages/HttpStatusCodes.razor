@@ -1,6 +1,8 @@
-@page "/http-status-codes"
+﻿@page "/http-status-codes"
 
-<ToolPage Title="HTTP Status Codes" Description="Searchable reference of HTTP response status codes.">
+<ToolPage Title="HTTP Status Codes" Description="Searchable reference of HTTP response status codes."
+          SeoTitle="HTTP Status Codes – Full List with Meanings (200, 404, 500)"
+          SeoDescription="Searchable list of every HTTP status code from 100 to 599 with a plain-English meaning and when to use it: 200, 201, 301, 400, 401, 403, 404, 429, 500, 502, 503 and more.">
     <input class="io search" placeholder="🔍  Search by code or name..." @bind="query" @bind:event="oninput" />
 
     @foreach (var group in Filtered().GroupBy(c => c.Code / 100))

@@ -1,9 +1,11 @@
-@page "/markdown-preview"
+﻿@page "/markdown-preview"
 @using Markdig
 @using Markdig.Syntax
 @using Markdig.Syntax.Inlines
 
-<ToolPage Title="Markdown Preview" Description="Live Markdown editor with instant HTML preview." ShareValue="@input">
+<ToolPage Title="Markdown Preview" Description="Live Markdown editor with instant HTML preview." ShareValue="@input"
+          SeoTitle="Markdown Preview – Live Online Markdown Editor"
+          SeoDescription="Type Markdown on the left and see rendered HTML on the right instantly, with tables, code blocks and GitHub-style syntax. Copy the HTML output. Free, no signup, nothing uploaded.">
     <div class="split">
         <textarea class="io" rows="22" placeholder="# Write Markdown here" @bind="input" @bind:event="oninput" @bind:after="Render"></textarea>
         <div class="markdown-body glass">@((MarkupString)html)</div>

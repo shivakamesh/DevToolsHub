@@ -1,7 +1,9 @@
 @page "/transformer-calculator"
 @using System.Globalization
 
-<ToolPage Title="Transformer Current & Fault Calculator" Description="Calculate transformer full-load current on both windings and the maximum short-circuit current from impedance (%Z).">
+<ToolPage Title="Transformer Current & Fault Calculator" Description="Calculate transformer full-load current on both windings and the maximum short-circuit current from impedance (%Z)."
+          SeoTitle="Transformer Calculator – Full Load & Fault Current (kVA, %Z)"
+          SeoDescription="Enter kVA, primary / secondary voltage and %Z to get full-load amps on both windings and the maximum short-circuit current instantly. Single and three-phase. Free, no signup.">
     <div class="toolbar">
         <label>System
             <select @bind="system">

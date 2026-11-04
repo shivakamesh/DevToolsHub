@@ -1,8 +1,10 @@
-@page "/yaml-validator"
+﻿@page "/yaml-validator"
 @using YamlDotNet.Core
 @using YamlDotNet.RepresentationModel
 
-<ToolPage Title="YAML Validator" Description="Validate YAML syntax online and pinpoint errors.">
+<ToolPage Title="YAML Validator" Description="Validate YAML syntax online and pinpoint errors."
+          SeoTitle="YAML Validator – Check YAML Syntax & Find Errors Online"
+          SeoDescription="Paste YAML (Kubernetes manifests, docker-compose, CI configs) and instantly see whether it is valid, with the exact line and column of any error. Free, no signup, nothing uploaded.">
     <textarea class="io" rows="14" placeholder="Paste YAML here..." @bind="input" @bind:event="oninput"></textarea>
 
     <div class="toolbar">

@@ -1,7 +1,9 @@
 @page "/json-path"
 @using Newtonsoft.Json.Linq
 
-<ToolPage Title="JSONPath Tester" Description="Query JSON with JSONPath expressions and see the matching values.">
+<ToolPage Title="JSONPath Tester" Description="Query JSON with JSONPath expressions and see the matching values."
+          SeoTitle="JSONPath Tester – Evaluate JSONPath Queries Online"
+          SeoDescription="Type a JSONPath expression like $.store.books[*].title and see the matching values instantly as you type. Free online JSONPath evaluator, no signup, your JSON stays in your browser.">
     <input class="io" placeholder="JSONPath, e.g. $.store.book[*].author" @bind="path" @bind:event="oninput" @bind:after="Run" />
     <div class="toolbar">
         @foreach (var ex in examples)

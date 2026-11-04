@@ -1,9 +1,11 @@
-@page "/jwt-decoder"
+﻿@page "/jwt-decoder"
 @using System.Text
 @using System.Text.Json
 @using System.Text.Json.Nodes
 
-<ToolPage Title="JWT Decoder" Description="Decode JSON Web Tokens and inspect header, payload and expiry. The signature is not verified.">
+<ToolPage Title="JWT Decoder" Description="Decode JSON Web Tokens and inspect header, payload and expiry. The signature is not verified."
+          SeoTitle="JWT Decoder – Decode & Inspect JSON Web Tokens Online"
+          SeoDescription="Paste a JWT to see its header, payload claims and human-readable issued / expiry times instantly. Decoded in your browser, so your token is never sent anywhere. Free, no signup.">
     <textarea class="io" rows="6" placeholder="Paste a JWT (eyJ...)" @bind="token" @bind:event="oninput" @bind:after="Decode"></textarea>
 
     @if (error is not null)

@@ -1,7 +1,9 @@
-@page "/cron-explainer"
+﻿@page "/cron-explainer"
 @using Cronos
 
-<ToolPage Title="Cron Expression Explainer" Description="Validate cron expressions and preview the next run times in any time zone.">
+<ToolPage Title="Cron Expression Explainer" Description="Validate cron expressions and preview the next run times in any time zone."
+          SeoTitle="Cron Expression Explainer – Validate & See Next Run Times"
+          SeoDescription="Paste any cron expression to get a plain-English explanation and the next scheduled run times in your chosen time zone. Catches syntax errors instantly. Free, no signup.">
     <input class="io" placeholder="e.g. 0 9 * * MON-FRI" @bind="expression" @bind:event="oninput" @bind:after="Run" />
 
     <div class="toolbar">

@@ -1,4 +1,4 @@
-@page "/invoice-generator"
+﻿@page "/invoice-generator"
 @using System.Globalization
 @using System.Net
 @using System.Text
@@ -8,7 +8,9 @@
 @inject IJSRuntime JS
 @inject ProLicense Pro
 
-<ToolPage Title="Invoice / Quote Generator" Description="Create professional invoices and quotes in any currency and export them as PDF.">
+<ToolPage Title="Invoice / Quote Generator" Description="Create professional invoices and quotes in any currency and export them as PDF."
+          SeoTitle="Free Invoice Generator – Create & Download PDF Invoices"
+          SeoDescription="Fill in your details, line items and tax, pick any currency and download a clean PDF invoice or quote in seconds. No account needed, your data stays in your browser.">
     @if (Pro.IsPro)
     {
         <div class="toolbar">

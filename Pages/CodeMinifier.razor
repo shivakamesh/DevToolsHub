@@ -1,9 +1,11 @@
-@page "/code-minifier"
+﻿@page "/code-minifier"
 @using System.Text
 @using System.Text.RegularExpressions
 @inject IJSRuntime JS
 
-<ToolPage Title="JS, CSS and HTML Minifier and Beautifier" Description="Minify or beautify JavaScript, CSS and HTML code." ShareValue="@input">
+<ToolPage Title="JS, CSS and HTML Minifier and Beautifier" Description="Minify or beautify JavaScript, CSS and HTML code." ShareValue="@input"
+          SeoTitle="JS, CSS & HTML Minifier / Beautifier – Free Online"
+          SeoDescription="Minify JavaScript, CSS and HTML to shrink file size, or beautify minified code to make it readable again, with one click. Free, no signup, your code never leaves your browser.">
     <div class="chips">
         @foreach (var l in Languages)
         {

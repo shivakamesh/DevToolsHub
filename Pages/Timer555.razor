@@ -1,8 +1,10 @@
-@page "/555-timer-calculator"
+﻿@page "/555-timer-calculator"
 @using System.Globalization
 @using DevToolsHub.Services
 
-<ToolPage Title="555 Timer Calculator" Description="Calculate frequency, duty cycle and pulse width for a 555 timer in astable or monostable mode.">
+<ToolPage Title="555 Timer Calculator" Description="Calculate frequency, duty cycle and pulse width for a 555 timer in astable or monostable mode."
+          SeoTitle="555 Timer Calculator – Astable & Monostable Frequency"
+          SeoDescription="Enter R1, R2 and C to get 555 timer frequency, period, duty cycle and high / low times in astable mode, or pulse width in monostable mode, instantly. Free, no signup.">
     <div class="toolbar">
         <label><input type="radio" name="mode" checked="@(!mono)" @onchange="() => mono = false" /> Astable</label>
         <label><input type="radio" name="mode" checked="@mono" @onchange="() => mono = true" /> Monostable</label>

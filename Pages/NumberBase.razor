@@ -1,7 +1,9 @@
-@page "/number-base"
+﻿@page "/number-base"
 @using System.Numerics
 
-<ToolPage Title="Number Base Converter" Description="Convert numbers between binary, octal, decimal, hexadecimal and any base 2-36.">
+<ToolPage Title="Number Base Converter" Description="Convert numbers between binary, octal, decimal, hexadecimal and any base 2-36."
+          SeoTitle="Number Base Converter – Binary, Hex, Decimal, Octal"
+          SeoDescription="Convert numbers between binary, octal, decimal, hexadecimal or any base from 2 to 36 instantly as you type, with all bases shown at once. Free, no signup.">
     <div class="toolbar">
         <input class="io" placeholder="Number..." @bind="input" @bind:event="oninput" @bind:after="Convert" />
         <label>Input base

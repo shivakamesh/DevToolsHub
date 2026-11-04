@@ -1,8 +1,10 @@
-@page "/qr-code"
+﻿@page "/qr-code"
 @using QRCoder
 @inject IJSRuntime JS
 
-<ToolPage Title="QR Code Generator" Description="Create QR codes for text and URLs. Download as PNG or SVG." ShareValue="@text">
+<ToolPage Title="QR Code Generator" Description="Create QR codes for text and URLs. Download as PNG or SVG." ShareValue="@text"
+          SeoTitle="QR Code Generator – Free, No Signup, Download PNG or SVG"
+          SeoDescription="Type a URL or text and get a QR code instantly. Download as high-resolution PNG or scalable SVG, no watermark, no expiry, no account. Generated in your browser.">
     <textarea class="io" rows="4" placeholder="Text or URL..." @bind="text" @bind:event="oninput" @bind:after="Render"></textarea>
     <div class="toolbar">
         <label>Error correction

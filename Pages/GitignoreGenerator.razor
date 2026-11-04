@@ -1,7 +1,9 @@
-@page "/gitignore-generator"
+﻿@page "/gitignore-generator"
 @inject IJSRuntime JS
 
-<ToolPage Title=".gitignore Generator" Description="Combine .gitignore templates for languages, editors and operating systems.">
+<ToolPage Title=".gitignore Generator" Description="Combine .gitignore templates for languages, editors and operating systems."
+          SeoTitle=".gitignore Generator – Node, Python, .NET, VS Code, macOS"
+          SeoDescription="Pick your languages, frameworks, editors and operating systems and get a merged, deduplicated .gitignore file to copy or download instantly. Free, no signup.">
     <div class="chips">
         @foreach (var name in Templates.Keys)
         {

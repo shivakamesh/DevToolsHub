@@ -1,8 +1,10 @@
-@page "/favicon-generator"
+﻿@page "/favicon-generator"
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<ToolPage Title="Favicon Generator" Description="Create favicon.ico, PNG icons, Apple touch icon and web manifest from an image, text or emoji.">
+<ToolPage Title="Favicon Generator" Description="Create favicon.ico, PNG icons, Apple touch icon and web manifest from an image, text or emoji."
+          SeoTitle="Favicon Generator – ICO, PNG, Apple Touch Icon from Image"
+          SeoDescription="Upload an image, type text or pick an emoji and download favicon.ico, all PNG sizes, the Apple touch icon, a web manifest and the HTML tags in one zip. Free, no signup, nothing uploaded.">
     <div class="chips">
         <button class="chip @(source == "text" ? "on" : "")" @onclick='() => SetSourceAsync("text")'>Text / emoji</button>
         <button class="chip @(source == "image" ? "on" : "")" @onclick='() => SetSourceAsync("image")'>Image</button>

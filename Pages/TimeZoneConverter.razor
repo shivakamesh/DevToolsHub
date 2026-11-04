@@ -1,6 +1,8 @@
-@page "/time-zone-converter"
+﻿@page "/time-zone-converter"
 
-<ToolPage Title="Time Zone Converter" Description="See the same moment across multiple time zones.">
+<ToolPage Title="Time Zone Converter" Description="See the same moment across multiple time zones."
+          SeoTitle="Time Zone Converter – Compare Times Across Zones"
+          SeoDescription="Pick a date and time and see it in multiple time zones at once, with UTC offsets and DST handled. Perfect for scheduling meetings across countries. Free, no signup.">
     <div class="toolbar">
         <input type="datetime-local" @bind="local" @bind:after="Update" />
         <label>From

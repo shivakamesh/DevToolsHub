@@ -1,7 +1,9 @@
-@page "/hmac-generator"
+﻿@page "/hmac-generator"
 @using System.Text
 
-<ToolPage Title="HMAC Generator" Description="Compute HMAC-SHA1, SHA256, SHA384 and SHA512 signatures.">
+<ToolPage Title="HMAC Generator" Description="Compute HMAC-SHA1, SHA256, SHA384 and SHA512 signatures."
+          SeoTitle="HMAC Generator – HMAC-SHA256, SHA1, SHA512 Online"
+          SeoDescription="Enter a message and secret key to compute HMAC-SHA1, SHA256, SHA384 or SHA512 signatures instantly in hex or Base64. Free, no signup, your key never leaves your browser.">
     <h3>Message</h3>
     <textarea class="io" rows="8" @bind="message" @bind:event="oninput" @bind:after="Compute"></textarea>
 

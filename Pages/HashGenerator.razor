@@ -1,8 +1,10 @@
-@page "/hash-generator"
+﻿@page "/hash-generator"
 @using System.Security.Cryptography
 @using System.Text
 
-<ToolPage Title="Hash Generator (SHA-1 / SHA-256 / SHA-384 / SHA-512)" Description="Compute SHA hashes of text (UTF-8) instantly in your browser.">
+<ToolPage Title="Hash Generator (SHA-1 / SHA-256 / SHA-384 / SHA-512)" Description="Compute SHA hashes of text (UTF-8) instantly in your browser."
+          SeoTitle="SHA-256 Hash Generator – SHA-1, SHA-384, SHA-512 Online"
+          SeoDescription="Type or paste text and get its SHA-1, SHA-256, SHA-384 and SHA-512 hashes instantly as you type, in hex, ready to copy. Free, no signup, hashing runs in your browser.">
     <textarea class="io" rows="8" placeholder="Text to hash..." @bind="input" @bind:event="oninput" @bind:after="Compute"></textarea>
 
     <div class="toolbar">

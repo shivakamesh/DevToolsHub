@@ -1,7 +1,9 @@
 @page "/led-resistor-calculator"
 @using System.Globalization
 
-<ToolPage Title="LED Resistor Calculator" Description="Calculate the series resistor value and power rating for one or more LEDs.">
+<ToolPage Title="LED Resistor Calculator" Description="Calculate the series resistor value and power rating for one or more LEDs."
+          SeoTitle="LED Resistor Calculator – Series Resistor Value & Wattage"
+          SeoDescription="Enter supply voltage, LED forward voltage and current to get the exact series resistor, nearest standard E24 value and required wattage, for one LED or several in series. Free, no signup.">
     <div class="toolbar">
         <label>Supply voltage (V) <input type="number" min="0" step="any" @bind="vs" @bind:event="oninput" /></label>
         <label>LED forward voltage (V) <input type="number" min="0" step="any" @bind="vf" @bind:event="oninput" /></label>

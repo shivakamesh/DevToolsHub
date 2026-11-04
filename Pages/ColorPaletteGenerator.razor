@@ -1,7 +1,9 @@
-@page "/color-palette-generator"
+﻿@page "/color-palette-generator"
 @using System.Globalization
 
-<ToolPage Title="Color Palette Generator" Description="Generate color palettes, harmonies and Tailwind-style shade scales." ShareValue="@ShareText">
+<ToolPage Title="Color Palette Generator" Description="Generate color palettes, harmonies and Tailwind-style shade scales." ShareValue="@ShareText"
+          SeoTitle="Color Palette Generator – Harmonies & Tailwind Shade Scales"
+          SeoDescription="Pick one color and get complementary, analogous and triadic palettes plus a 50–950 Tailwind-style shade scale, ready to copy as HEX or CSS variables. Free, no signup.">
     <div class="toolbar">
         <label>Base color <input type="color" @bind="baseColor" @bind:after="Generate" /></label>
         <input class="small-input" @bind="baseColor" @bind:event="onchange" @bind:after="Generate" />

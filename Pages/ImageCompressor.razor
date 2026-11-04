@@ -1,8 +1,10 @@
-@page "/image-compressor"
+﻿@page "/image-compressor"
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<ToolPage Title="Image Compressor and Resizer" Description="Compress and resize JPG, PNG and WebP images in your browser.">
+<ToolPage Title="Image Compressor and Resizer" Description="Compress and resize JPG, PNG and WebP images in your browser."
+          SeoTitle="Image Compressor & Resizer – JPG, PNG, WebP, No Upload"
+          SeoDescription="Drop JPG, PNG or WebP images to compress and resize them with a quality slider and live size comparison, then download. Processed in your browser, never uploaded. Free, no signup.">
     <label class="dropzone glass">
         <input type="file" accept="image/*" multiple @ref="fileInput" @onchange="AddFilesAsync" hidden />
         <span>📁 Click to choose images (JPG, PNG, WebP, GIF, BMP)</span>

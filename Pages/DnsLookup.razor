@@ -1,9 +1,11 @@
-@page "/dns-lookup"
+﻿@page "/dns-lookup"
 @using System.Net.Http.Json
 @using System.Text.Json.Serialization
 @inject HttpClient Http
 
-<ToolPage Title="DNS Lookup" Description="Look up A, AAAA, CNAME, MX, TXT, NS, SOA and CAA records for any domain." ShareValue="@domain">
+<ToolPage Title="DNS Lookup" Description="Look up A, AAAA, CNAME, MX, TXT, NS, SOA and CAA records for any domain." ShareValue="@domain"
+          SeoTitle="DNS Lookup – Check A, MX, TXT, CNAME, NS Records Online"
+          SeoDescription="Enter a domain and instantly see its A, AAAA, CNAME, MX, TXT, NS, SOA and CAA records with TTLs. Verify DNS changes and email setup in seconds. Free, no signup.">
     <div class="toolbar">
         <input class="io" style="flex:1;min-width:14rem" placeholder="example.com" @bind="domain" @bind:event="oninput" @onkeydown="OnKeyAsync" />
         <select @bind="type">

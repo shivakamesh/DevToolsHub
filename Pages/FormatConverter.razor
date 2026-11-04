@@ -1,4 +1,4 @@
-@page "/format-converter"
+﻿@page "/format-converter"
 @using System.Text
 @using System.Text.Json
 @using System.Text.Json.Nodes
@@ -6,7 +6,9 @@
 @using YamlDotNet.RepresentationModel
 @using YamlDotNet.Serialization
 
-<ToolPage Title="JSON ↔ YAML ↔ XML ↔ CSV Converter" Description="Convert data between JSON, YAML, XML and CSV in your browser.">
+<ToolPage Title="JSON Γåö YAML Γåö XML Γåö CSV Converter" Description="Convert data between JSON, YAML, XML and CSV in your browser."
+          SeoTitle="JSON to YAML, XML & CSV Converter – Free Online"
+          SeoDescription="Convert between JSON, YAML, XML and CSV in any direction with one click, preserving nesting and types. Free online data format converter, no signup, your data stays in your browser.">
     <div class="toolbar">
         <label>From
             <select @bind="from" @bind:after="Convert">

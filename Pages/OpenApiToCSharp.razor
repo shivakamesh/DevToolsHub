@@ -1,4 +1,4 @@
-@page "/openapi-to-csharp"
+﻿@page "/openapi-to-csharp"
 @using System.Text
 @using System.Text.Json
 @using System.Text.Json.Nodes
@@ -6,7 +6,9 @@
 @using YamlDotNet.Core
 @using YamlDotNet.Serialization
 
-<ToolPage Title="OpenAPI to C#" Description="Generate C# classes, records and enums from OpenAPI 3.x or Swagger 2.0 schemas (JSON or YAML).">
+<ToolPage Title="OpenAPI to C#" Description="Generate C# classes, records and enums from OpenAPI 3.x or Swagger 2.0 schemas (JSON or YAML)."
+          SeoTitle="OpenAPI to C# – Generate Classes from Swagger / OpenAPI Spec"
+          SeoDescription="Paste an OpenAPI 3.x or Swagger 2.0 spec (JSON or YAML) and get C# classes, records and enums for every schema instantly. Free, no signup, your spec never leaves your browser.">
     <textarea class="io" rows="14" placeholder="Paste an OpenAPI / Swagger document (JSON or YAML)..." @bind="input" @bind:event="oninput"></textarea>
 
     <div class="toolbar">

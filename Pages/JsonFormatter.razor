@@ -1,8 +1,10 @@
-@page "/json-formatter"
+﻿@page "/json-formatter"
 @using System.Text.Json
 @using System.Text.Json.Nodes
 
-<ToolPage Title="JSON Formatter & Validator" Description="Format, validate and minify JSON online. Runs entirely in your browser.">
+<ToolPage Title="JSON Formatter & Validator" Description="Format, validate and minify JSON online. Runs entirely in your browser."
+          SeoTitle="JSON Formatter & Validator – Beautify, Minify, Fix Errors"
+          SeoDescription="Paste JSON to pretty-print it with your indent, minify it, or find the exact line of a syntax error instantly. Free online JSON formatter, no signup, your data never leaves your browser.">
     <textarea class="io" rows="12" placeholder="Paste JSON here..." @bind="input" @bind:event="oninput"></textarea>
 
     <div class="toolbar">

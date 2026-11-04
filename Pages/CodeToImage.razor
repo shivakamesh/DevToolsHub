@@ -1,7 +1,9 @@
-@page "/code-to-image"
+﻿@page "/code-to-image"
 @inject IJSRuntime JS
 
-<ToolPage Title="Code to Image" Description="Turn code snippets into beautiful, shareable images.">
+<ToolPage Title="Code to Image" Description="Turn code snippets into beautiful, shareable images."
+          SeoTitle="Code to Image – Turn Code Snippets into Shareable PNGs"
+          SeoDescription="Paste a code snippet, pick a theme, language and background, and download a crisp PNG for Twitter, LinkedIn, blogs or slides. Free, no signup, rendered in your browser.">
     <textarea class="io" rows="10" spellcheck="false" placeholder="Paste code here..." @bind="code" @bind:event="oninput" @bind:after="RenderAsync"></textarea>
 
     <div class="toolbar">

@@ -1,8 +1,10 @@
-@page "/color-converter"
+﻿@page "/color-converter"
 @using System.Globalization
 @using System.Text.RegularExpressions
 
-<ToolPage Title="Color Converter & Contrast Checker" Description="Convert between HEX, RGB and HSL and check WCAG contrast.">
+<ToolPage Title="Color Converter & Contrast Checker" Description="Convert between HEX, RGB and HSL and check WCAG contrast."
+          SeoTitle="Color Converter – HEX to RGB, HSL + WCAG Contrast Checker"
+          SeoDescription="Convert any color between HEX, RGB and HSL instantly and check WCAG AA / AAA contrast against a background, with a live preview. Free, no signup, runs in your browser.">
     <div class="toolbar">
         <input type="color" value="@Hex(rgb)" @onchange="e => SetInput(e.Value?.ToString() ?? input)" />
         <input class="io" placeholder="#6d28d9, rgb(109,40,217), hsl(263,69%,50%)" @bind="input" @bind:event="oninput" @bind:after="Parse" />

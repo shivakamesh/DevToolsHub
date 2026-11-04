@@ -1,8 +1,10 @@
-@page "/xml-formatter"
+﻿@page "/xml-formatter"
 @using System.Xml
 @using System.Xml.Linq
 
-<ToolPage Title="XML Formatter & Validator" Description="Format, validate and minify XML online.">
+<ToolPage Title="XML Formatter & Validator" Description="Format, validate and minify XML online."
+          SeoTitle="XML Formatter & Validator – Beautify, Minify, Find Errors"
+          SeoDescription="Paste XML to pretty-print it with proper indentation, minify it, or pinpoint the exact line of a syntax error instantly. Free online XML formatter, no signup, nothing uploaded.">
     <textarea class="io" rows="12" placeholder="Paste XML here..." @bind="input" @bind:event="oninput"></textarea>
 
     <div class="toolbar">

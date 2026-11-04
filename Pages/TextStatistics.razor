@@ -1,8 +1,10 @@
-@page "/text-statistics"
+﻿@page "/text-statistics"
 @using System.Text
 @using System.Text.RegularExpressions
 
-<ToolPage Title="Word & Character Counter" Description="Count words, characters, lines, sentences and bytes.">
+<ToolPage Title="Word & Character Counter" Description="Count words, characters, lines, sentences and bytes."
+          SeoTitle="Word Counter & Character Counter – Live Online"
+          SeoDescription="Paste or type text to count words, characters (with and without spaces), lines, sentences and bytes live as you type. Free, no signup, nothing leaves your browser.">
     <textarea class="io" rows="12" placeholder="Paste text..." @bind="input" @bind:event="oninput"></textarea>
 
     @{

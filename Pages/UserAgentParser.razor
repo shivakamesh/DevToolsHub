@@ -1,8 +1,10 @@
-@page "/user-agent-parser"
+﻿@page "/user-agent-parser"
 @using System.Text.RegularExpressions
 @inject IJSRuntime JS
 
-<ToolPage Title="User-Agent Parser" Description="Detect browser, engine, operating system and device from a User-Agent string.">
+<ToolPage Title="User-Agent Parser" Description="Detect browser, engine, operating system and device from a User-Agent string."
+          SeoTitle="User-Agent Parser – Detect Browser, OS & Device Online"
+          SeoDescription="Paste any User-Agent string to instantly identify the browser and version, rendering engine, operating system and device type. Shows your own UA too. Free, no signup.">
     <textarea class="io" rows="4" placeholder="Paste a User-Agent string..." @bind="input" @bind:event="oninput"></textarea>
     <div class="toolbar">
         <button class="btn secondary" @onclick="UseMine">Use my browser</button>

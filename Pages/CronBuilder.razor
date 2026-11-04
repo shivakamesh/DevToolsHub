@@ -1,7 +1,9 @@
-@page "/cron-builder"
+﻿@page "/cron-builder"
 @using Cronos
 
-<ToolPage Title="Cron Expression Builder" Description="Build cron expressions visually and preview upcoming runs.">
+<ToolPage Title="Cron Expression Builder" Description="Build cron expressions visually and preview upcoming runs."
+          SeoTitle="Cron Expression Builder – Visual Cron Generator with Preview"
+          SeoDescription="Build a cron expression by clicking minutes, hours, days and months, see it in plain English and preview the next run times before you schedule it. Free, no signup.">
     <div class="toolbar">
         <label>Run
             <select @bind="mode" @bind:after="Build">

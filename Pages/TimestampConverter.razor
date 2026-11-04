@@ -1,7 +1,9 @@
-@page "/timestamp-converter"
+﻿@page "/timestamp-converter"
 @using System.Globalization
 
-<ToolPage Title="Unix Timestamp Converter" Description="Convert Unix epoch timestamps (seconds or milliseconds) to dates and back.">
+<ToolPage Title="Unix Timestamp Converter" Description="Convert Unix epoch timestamps (seconds or milliseconds) to dates and back."
+          SeoTitle="Unix Timestamp Converter – Epoch to Date & Date to Epoch"
+          SeoDescription="Convert a Unix epoch timestamp (seconds or milliseconds) to a human-readable UTC and local date, or a date back to epoch, instantly. Shows the current timestamp live. Free, no signup.">
     <p>Current Unix time: <code>@DateTimeOffset.UtcNow.ToUnixTimeSeconds()</code>
         <button class="btn secondary" @onclick="UseNow">Use now</button></p>
 

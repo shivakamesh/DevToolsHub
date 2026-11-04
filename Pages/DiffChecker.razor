@@ -1,6 +1,8 @@
-@page "/diff-checker"
+﻿@page "/diff-checker"
 
-<ToolPage Title="Diff Checker" Description="Compare two texts and highlight added and removed lines.">
+<ToolPage Title="Diff Checker" Description="Compare two texts and highlight added and removed lines."
+          SeoTitle="Diff Checker – Compare Two Texts Online, Highlight Changes"
+          SeoDescription="Paste two texts, code files or configs and instantly see added and removed lines highlighted side by side. Free online text diff tool, no signup, nothing leaves your browser.">
     <div class="split">
         <textarea class="io" rows="12" placeholder="Original text..." @bind="left" @bind:event="oninput"></textarea>
         <textarea class="io" rows="12" placeholder="Changed text..." @bind="right" @bind:event="oninput"></textarea>

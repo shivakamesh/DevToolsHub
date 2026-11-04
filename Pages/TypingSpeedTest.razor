@@ -1,11 +1,13 @@
-@page "/typing-speed-test"
+﻿@page "/typing-speed-test"
 @using System.Diagnostics
 @using System.Net
 @using System.Text
 @using DevToolsHub.Services
 @implements IDisposable
 
-<ToolPage Title="Typing Speed Test for Developers" Description="Measure your typing speed (WPM) and accuracy on real C#, JavaScript and SQL code snippets.">
+<ToolPage Title="Typing Speed Test for Developers" Description="Measure your typing speed (WPM) and accuracy on real C#, JavaScript and SQL code snippets."
+          SeoTitle="Typing Speed Test for Programmers – Code WPM Test"
+          SeoDescription="Test your coding typing speed on real C#, JavaScript and SQL snippets with brackets, symbols and indentation. Get WPM and accuracy instantly. Free, no signup.">
     <div class="toolbar">
         <label>Language
             <select @bind="language" @bind:after="NewSnippet">

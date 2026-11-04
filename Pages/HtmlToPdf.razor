@@ -2,7 +2,9 @@
 @using Markdig
 @inject IJSRuntime JS
 
-<ToolPage Title="HTML to PDF" Description="Convert HTML or Markdown into a PDF document." ShareValue="@input">
+<ToolPage Title="HTML to PDF" Description="Convert HTML or Markdown into a PDF document." ShareValue="@input"
+          SeoTitle="HTML to PDF Converter – Free Online, No Upload"
+          SeoDescription="Paste HTML or Markdown and download a PDF in seconds. No file upload, no signup, no limits: the conversion runs entirely in your browser so your content stays private.">
     <div class="toolbar">
         <label>Input
             <select @bind="mode" @bind:after="Render">

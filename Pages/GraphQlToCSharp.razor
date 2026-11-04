@@ -1,8 +1,10 @@
-@page "/graphql-to-csharp"
+﻿@page "/graphql-to-csharp"
 @using System.Text
 @using System.Text.RegularExpressions
 
-<ToolPage Title="GraphQL to C#" Description="Generate C# classes, records, interfaces and enums from a GraphQL schema (SDL).">
+<ToolPage Title="GraphQL to C#" Description="Generate C# classes, records, interfaces and enums from a GraphQL schema (SDL)."
+          SeoTitle="GraphQL to C# – Generate Classes & Enums from SDL Schema"
+          SeoDescription="Paste a GraphQL SDL schema and get C# classes, records, interfaces and enums instantly, with nullable types mapped correctly. Free, no signup, your schema never leaves your browser.">
     <textarea class="io" rows="14" placeholder="Paste GraphQL SDL..." @bind="input" @bind:event="oninput"></textarea>
 
     <div class="toolbar">

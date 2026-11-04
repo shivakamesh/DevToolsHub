@@ -1,7 +1,9 @@
-@page "/curl-to-code"
+﻿@page "/curl-to-code"
 @using System.Text
 
-<ToolPage Title="cURL to Code Converter" Description="Convert cURL commands to C#, JavaScript, Python, Go and more." ShareValue="@input">
+<ToolPage Title="cURL to Code Converter" Description="Convert cURL commands to C#, JavaScript, Python, Go and more." ShareValue="@input"
+          SeoTitle="cURL to Code – Convert curl to C#, JavaScript, Python, Go"
+          SeoDescription="Paste a curl command and get working C# HttpClient, JavaScript fetch, Python requests, Go and more, with headers, auth and body preserved. Free, no signup, nothing uploaded.">
     <textarea class="io" rows="8" spellcheck="false" placeholder="curl https://api.example.com -H 'Accept: application/json'" @bind="input" @bind:event="oninput" @bind:after="Convert"></textarea>
 
     <div class="chips">

@@ -1,7 +1,9 @@
-@page "/lorem-ipsum"
+﻿@page "/lorem-ipsum"
 @using System.Text
 
-<ToolPage Title="Lorem Ipsum Generator" Description="Generate placeholder words, sentences or paragraphs.">
+<ToolPage Title="Lorem Ipsum Generator" Description="Generate placeholder words, sentences or paragraphs."
+          SeoTitle="Lorem Ipsum Generator – Paragraphs, Sentences or Words"
+          SeoDescription="Generate any number of lorem ipsum paragraphs, sentences or words and copy them in one click, as plain text or HTML. Free placeholder text generator, no signup.">
     <div class="toolbar">
         <label>Count <input class="small-input" type="number" min="1" max="500" @bind="count" @bind:after="Generate" /></label>
         <select @bind="unit" @bind:after="Generate">

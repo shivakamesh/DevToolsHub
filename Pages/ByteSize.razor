@@ -1,7 +1,9 @@
 @page "/byte-size"
 @using System.Globalization
 
-<ToolPage Title="Byte Size Converter" Description="Convert between bytes, KB, MB, GB, TB and KiB, MiB, GiB, TiB.">
+<ToolPage Title="Byte Size Converter" Description="Convert between bytes, KB, MB, GB, TB and KiB, MiB, GiB, TiB."
+          SeoTitle="Byte Converter – Bytes to KB, MB, GB, TB (KiB, MiB, GiB)"
+          SeoDescription="Instantly convert bytes to KB, MB, GB, TB and binary KiB, MiB, GiB, TiB. See decimal (1000) vs binary (1024) sizes side by side. Free, no signup, works offline in your browser.">
     <div class="toolbar">
         <input class="io" type="number" min="0" step="any" @bind="amount" @bind:event="oninput" />
         <select @bind="unit">

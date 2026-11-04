@@ -2,7 +2,9 @@
 @using System.Formats.Asn1
 @using System.Security.Cryptography
 
-<ToolPage Title="X.509 Certificate Decoder" Description="Decode PEM certificates: subject, issuer, validity, SANs and fingerprints.">
+<ToolPage Title="X.509 Certificate Decoder" Description="Decode PEM certificates: subject, issuer, validity, SANs and fingerprints."
+          SeoTitle="SSL Certificate Decoder – Decode PEM / X.509 Online"
+          SeoDescription="Paste a PEM certificate to instantly see subject, issuer, expiry date, SANs and SHA-256 / SHA-1 fingerprints. Decoded in your browser, so certificates are never uploaded. Free, no signup.">
     <textarea class="io" rows="10" placeholder="-----BEGIN CERTIFICATE-----&#10;MIID...&#10;-----END CERTIFICATE-----" @bind="input" @bind:event="oninput" @bind:after="Decode"></textarea>
 
     @if (error is not null)

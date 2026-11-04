@@ -1,7 +1,9 @@
-@page "/ohms-law-calculator"
+﻿@page "/ohms-law-calculator"
 @using System.Globalization
 
-<ToolPage Title="Ohm's Law & Power Calculator" Description="Enter any two of voltage, current, resistance and power to calculate the other two.">
+<ToolPage Title="Ohm's Law & Power Calculator" Description="Enter any two of voltage, current, resistance and power to calculate the other two."
+          SeoTitle="Ohm's Law Calculator – Voltage, Current, Resistance & Power"
+          SeoDescription="Enter any two of volts, amps, ohms or watts and get the other two instantly, with the formulas used shown. Free Ohm's law and power calculator, no signup.">
     <div class="toolbar">
         <label>Voltage (V) <input type="number" step="any" @bind="v" @bind:event="oninput" @bind:after="() => Touch('V')" /></label>
         <label>Current (A) <input type="number" step="any" @bind="i" @bind:event="oninput" @bind:after="() => Touch('I')" /></label>

@@ -1,8 +1,10 @@
-@page "/pdf-tools"
+﻿@page "/pdf-tools"
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<ToolPage Title="PDF Tools" Description="Merge, split, extract pages and convert images to PDF in your browser.">
+<ToolPage Title="PDF Tools" Description="Merge, split, extract pages and convert images to PDF in your browser."
+          SeoTitle="PDF Tools – Merge, Split, Extract Pages, Images to PDF"
+          SeoDescription="Merge PDFs, split or extract pages and convert JPG / PNG images to PDF in seconds. Everything is processed in your browser, so files are never uploaded. Free, no signup.">
     <div class="chips">
         @foreach (var m in Modes)
         {

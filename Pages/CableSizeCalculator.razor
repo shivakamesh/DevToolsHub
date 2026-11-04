@@ -1,7 +1,9 @@
 @page "/cable-size-calculator"
 @using System.Globalization
 
-<ToolPage Title="Cable Size Calculator (mm² & AWG) – IEC & NEC" Description="Size cables by ampacity and voltage drop using IEC 60364 (mm²) or NEC 310.16 (AWG/kcmil).">
+<ToolPage Title="Cable Size Calculator (mm² & AWG) – IEC & NEC" Description="Size cables by ampacity and voltage drop using IEC 60364 (mm²) or NEC 310.16 (AWG/kcmil)."
+          SeoTitle="Cable Size Calculator – mm² & AWG with Voltage Drop"
+          SeoDescription="Find the right cable size in seconds: enter load current, length and voltage to get the mm² or AWG size, voltage drop % and ampacity per IEC 60364 / NEC 310.16. Free, no signup.">
     <div class="toolbar">
         <label>Standard
             <select @bind="standard">

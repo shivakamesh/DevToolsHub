@@ -107,19 +107,38 @@ else if (tool is not null)
     /// <summary>When set, shows a Share button that links to this tool with ?q=value.</summary>
     [Parameter] public string? ShareValue { get; set; }
 
+    /// <summary>Optional search-result title (≤ 60 chars recommended). Overrides the generated title; the site name is appended.</summary>
+    [Parameter] public string? SeoTitle { get; set; }
+
+    /// <summary>Optional search-result description (~150 chars). Overrides the generated description verbatim.</summary>
+    [Parameter] public string? SeoDescription { get; set; }
+
     private const string SiteUrl = "https://www.itsalldevtools.com/";
 
     private ToolInfo? tool;
     private ToolSeo? seo;
     private string currentPath = "";
 
-    private string PageTitleText => tool is not null && ElectricalLinks.IsElectrical(tool.Href)
-        ? $"{Title} – Free Online | It's All Dev Tools"
-        : $"{Title} – Free Online {(seo is null ? "Tool" : Cap(seo.Keyword))} | It's All Dev Tools";
-    private string MetaDescription => $"{Description} Free, fast and private – runs 100% in your browser, nothing is uploaded.";
-    private string CanonicalUrl => SiteUrl + (tool?.Href ?? currentPath);
+    private const string Brand = " | It's All Dev Tools";
+    private const string FreeSuffix = " – Free Online Tool";
+    private const int MaxTitleLength = 60;
 
-    private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
+    private string PageTitleText
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(SeoTitle))
+                return SeoTitle.Length + Brand.Length <= MaxTitleLength ? SeoTitle + Brand : SeoTitle;
+            if (Title.Length + FreeSuffix.Length + Brand.Length <= MaxTitleLength) return Title + FreeSuffix + Brand;
+            if (Title.Length + Brand.Length <= MaxTitleLength) return Title + Brand;
+            if (Title.Length + FreeSuffix.Length <= MaxTitleLength) return Title + FreeSuffix;
+            return Title;
+        }
+    }
+    private string MetaDescription => !string.IsNullOrWhiteSpace(SeoDescription)
+        ? SeoDescription
+        : $"{Description} Free, fast and private – runs 100% in your browser, nothing is uploaded.";
+    private string CanonicalUrl => SiteUrl + (tool?.Href ?? currentPath);
 
     private bool IsElectrical => tool is not null && ElectricalLinks.IsElectrical(tool.Href);
     private string CrumbName => IsElectrical ? "Electrical Calculators" : tool?.Category ?? "";

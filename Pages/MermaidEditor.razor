@@ -1,7 +1,9 @@
-@page "/mermaid-editor"
+﻿@page "/mermaid-editor"
 @inject IJSRuntime JS
 
-<ToolPage Title="Mermaid Diagram Editor" Description="Write Mermaid diagrams with a live preview and export them to SVG or PNG." ShareValue="@source">
+<ToolPage Title="Mermaid Diagram Editor" Description="Write Mermaid diagrams with a live preview and export them to SVG or PNG." ShareValue="@source"
+          SeoTitle="Mermaid Editor – Live Diagram Preview, Export SVG & PNG"
+          SeoDescription="Write Mermaid flowcharts, sequence, class and Gantt diagrams with an instant live preview and export them as SVG or PNG. Free online Mermaid editor, no signup.">
     <div class="chips">
         @foreach (var s in Samples)
         {

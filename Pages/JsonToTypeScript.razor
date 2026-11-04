@@ -1,9 +1,11 @@
-@page "/json-to-typescript"
+﻿@page "/json-to-typescript"
 @using System.Text
 @using System.Text.Json
 @using System.Text.Json.Nodes
 
-<ToolPage Title="JSON to TypeScript, Zod and Python" Description="Generate TypeScript interfaces, Zod schemas or Python classes from JSON." ShareValue="@input">
+<ToolPage Title="JSON to TypeScript, Zod and Python" Description="Generate TypeScript interfaces, Zod schemas or Python classes from JSON." ShareValue="@input"
+          SeoTitle="JSON to TypeScript – Interfaces, Zod Schemas & Python Classes"
+          SeoDescription="Paste JSON and instantly get TypeScript interfaces, Zod schemas or Python dataclasses with correct optional and union types. Free, no signup, your JSON never leaves your browser.">
     <div class="chips">
         @foreach (var t in Targets)
         {

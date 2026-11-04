@@ -1,8 +1,10 @@
-@page "/case-converter"
+﻿@page "/case-converter"
 @using System.Globalization
 @using System.Text.RegularExpressions
 
-<ToolPage Title="Case Converter" Description="Convert text between camelCase, PascalCase, snake_case, kebab-case and more." ShareValue="@input">
+<ToolPage Title="Case Converter" Description="Convert text between camelCase, PascalCase, snake_case, kebab-case and more." ShareValue="@input"
+          SeoTitle="Case Converter – camelCase, snake_case, PascalCase & More"
+          SeoDescription="Paste text or identifiers and convert to camelCase, PascalCase, snake_case, kebab-case, CONSTANT_CASE, Title Case and more in one click. Free, no signup, runs in your browser.">
     <textarea class="io" rows="5" placeholder="Type or paste text..." @bind="input" @bind:event="oninput"></textarea>
 
     <table class="table">

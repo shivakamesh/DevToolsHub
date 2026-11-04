@@ -3,7 +3,9 @@
 @using System.Text.Json
 @using System.Text.Json.Nodes
 
-<ToolPage Title="JSON to C# Classes" Description="Generate C# classes or records from a JSON sample.">
+<ToolPage Title="JSON to C# Classes" Description="Generate C# classes or records from a JSON sample."
+          SeoTitle="JSON to C# Converter – Generate Classes & Records Online"
+          SeoDescription="Paste JSON and get clean C# classes or records instantly, with JsonPropertyName attributes, nullable types and PascalCase naming. Free, no signup, your JSON never leaves your browser.">
     <div class="split">
         <textarea class="io" rows="18" placeholder="Paste JSON here..." @bind="input" @bind:event="oninput" @bind:after="Generate"></textarea>
         <textarea class="io" rows="18" readonly>@output</textarea>

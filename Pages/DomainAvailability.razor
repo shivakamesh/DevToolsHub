@@ -1,10 +1,12 @@
-@page "/domain-availability-checker"
+﻿@page "/domain-availability-checker"
 @using System.Net
 @using System.Net.Http.Json
 @using System.Text.Json.Serialization
 @inject HttpClient Http
 
-<ToolPage Title="Domain Name Availability Checker" Description="Check if a domain name is available across popular TLDs using DNS and RDAP." ShareValue="@input">
+<ToolPage Title="Domain Name Availability Checker" Description="Check if a domain name is available across popular TLDs using DNS and RDAP." ShareValue="@input"
+          SeoTitle="Domain Availability Checker – Is My Domain Name Taken?"
+          SeoDescription="Type a name and instantly check whether it is available as .com, .net, .io, .dev, .app and other popular TLDs using live DNS and RDAP data. Free, no signup, no upsell.">
     <div class="toolbar">
         <input class="io" style="flex:1;min-width:14rem" placeholder="mybrand or mybrand.com" @bind="input" @bind:event="oninput" @onkeydown="OnKeyAsync" />
         <button class="btn" disabled="@(loading || string.IsNullOrWhiteSpace(input))" @onclick="CheckAsync">@(loading ? "Checking…" : "Check")</button>

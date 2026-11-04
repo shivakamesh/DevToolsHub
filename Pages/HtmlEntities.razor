@@ -2,7 +2,9 @@
 @using System.Net
 @using System.Text
 
-<ToolPage Title="HTML Entity Encoder / Decoder" Description="Encode special characters as HTML entities or decode entities back to text.">
+<ToolPage Title="HTML Entity Encoder / Decoder" Description="Encode special characters as HTML entities or decode entities back to text."
+          SeoTitle="HTML Entity Encoder / Decoder – Escape & Unescape Online"
+          SeoDescription="Convert <, >, & and special characters to HTML entities (&lt; &amp; &#169;) or decode them back to plain text instantly. Named and numeric entities supported. Free, no signup.">
     <textarea class="io" rows="10" placeholder="Input..." @bind="input" @bind:event="oninput"></textarea>
     <div class="toolbar">
         <label><input type="checkbox" @bind="encodeNonAscii" /> Encode all non-ASCII characters</label>

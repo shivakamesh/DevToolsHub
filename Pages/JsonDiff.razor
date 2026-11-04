@@ -1,8 +1,10 @@
-@page "/json-diff"
+﻿@page "/json-diff"
 @using System.Text.Json
 @using System.Text.Json.Nodes
 
-<ToolPage Title="JSON Diff" Description="Compare two JSON documents structurally and list added, removed and changed values by path.">
+<ToolPage Title="JSON Diff" Description="Compare two JSON documents structurally and list added, removed and changed values by path."
+          SeoTitle="JSON Diff – Compare Two JSON Files Online, See Changes"
+          SeoDescription="Paste two JSON documents and get a structural comparison: added, removed and changed values listed by path, ignoring key order and formatting. Free, no signup, nothing uploaded.">
     <div class="split">
         <label>Original JSON
             <textarea class="io" rows="14" placeholder="Paste original JSON..." @bind="left" @bind:event="oninput"></textarea>
